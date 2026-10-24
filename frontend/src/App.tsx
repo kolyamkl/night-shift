@@ -5,11 +5,10 @@ import { DocumentPane } from "./components/DocumentPane";
 import { Intake } from "./components/Intake";
 import { Rail } from "./components/Rail";
 import { Victory } from "./components/Victory";
-import { applyEvent, emptyScan, resultInUnits } from "./scan";
+import { applyEvent, emptyScan, resultInUnits, retryScan } from "./scan";
 import type { Session } from "./session";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");
-const LEFT = "You left this document while it was being read, so the scan stopped.";
 const distinct = (s: Session) => new Set(s.result?.entities.map((e) => e.placeholder)).size;
 
 export default function App() {
@@ -23,6 +22,7 @@ export default function App() {
 
   const [checked, setChecked] = useState(false);
   const streams = useRef(new Map<string, AbortController>());
+  const visible = useRef<string | null>(null);
 
   useEffect(() => {
     api
@@ -44,26 +44,33 @@ export default function App() {
     setSessions((all) => all.map((s) => (s.id === id ? { ...s, ...patch(s) } : s)));
   }, []);
 
-  // One live scan per document: every stream event updates the session as it arrives.
-  async function redact(id: string) {
+  // One live scan per document: every stream event updates the session as it arrives. A scan keeps
+  // running while the person looks at another document or the intake; only closing the app stops it.
+  // "failed" reads again only the parts the AI could not check; "all" starts the page over after a
+  // failed run. Both ask the backend to reuse parts it already read (?retry=failed).
+  async function redact(id: string, run: "first" | "failed" | "all" = "first") {
     streams.current.get(id)?.abort();
     const ctrl = new AbortController();
     streams.current.set(id, ctrl);
     const mine = () => streams.current.get(id) === ctrl && !ctrl.signal.aborted;
-    update(id, () => ({ status: "scanning", error: undefined, stopped: false, revealed: false, result: undefined, scan: emptyScan() }));
+    update(id, (s) =>
+      run === "failed" && s.scan
+        ? { status: "scanning", error: undefined, revealed: false, scan: retryScan(s.scan) }
+        : { status: "scanning", error: undefined, revealed: false, result: undefined, scan: emptyScan(s.scan?.seq) },
+    );
     try {
       await api.redactStream(
         id,
         {
-          onEvent: (ev) => mine() && update(id, (s) => applyEvent(s, ev)),
+          onEvent: (ev) => mine() && update(id, (s) => applyEvent(s, ev, visible.current === id)),
           onFallback: () => mine() && update(id, (s) => ({ scan: { ...(s.scan ?? emptyScan()), live: false } })),
         },
         ctrl.signal,
+        run === "first" ? undefined : { retry: "failed" },
       );
     } catch (e) {
-      if (streams.current.get(id) !== ctrl) return; // a newer run took over
-      if (ctrl.signal.aborted) update(id, (s) => (s.status === "scanning" ? { status: "failed", error: LEFT, stopped: true } : {}));
-      else update(id, () => ({ status: "failed", error: message(e) }));
+      if (streams.current.get(id) !== ctrl || ctrl.signal.aborted) return; // a newer run took over, or the app closed
+      update(id, () => ({ status: "failed", error: message(e) }));
     } finally {
       if (streams.current.get(id) === ctrl) streams.current.delete(id);
     }
@@ -101,10 +108,13 @@ export default function App() {
   const showIntake = intake || !active;
   const visibleId = showIntake ? null : activeId;
 
-  // A scan streams only while its document is on screen: switching documents or opening the intake stops it.
+  // Leaving a document mid-pass: its scan carries on, but nobody is watching the pass, so its review is
+  // ready when the person comes back (and the rail says so).
   useEffect(() => {
-    for (const [id, ctrl] of streams.current) if (id !== visibleId) ctrl.abort();
-  }, [visibleId]);
+    const left = visible.current;
+    visible.current = visibleId;
+    if (left && left !== visibleId) update(left, (s) => (s.status === "review" && !s.revealed ? { revealed: true } : {}));
+  }, [visibleId, update]);
   useEffect(() => {
     const all = streams.current;
     return () => all.forEach((ctrl) => ctrl.abort());
@@ -149,7 +159,7 @@ export default function App() {
             setVictory(distinct(active));
           }}
           onDecline={() => update(active.id, () => ({ status: "declined" }))}
-          onRetry={() => redact(active.id)}
+          onRetry={(only) => void redact(active.id, only)}
           onCorrect={async (action, text, type) => {
             const result = await api.correct(active.id, action, text, type);
             update(active.id, (s) => ({ result: resultInUnits(result, s.doc.text) }));

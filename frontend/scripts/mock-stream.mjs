@@ -9,10 +9,15 @@
 // Options (environment):
 //   MOCK_PORT=8010  MOCK_BACKEND=http://127.0.0.1:8000  MOCK_PARTS=5
 //   MOCK_MODEL=off      every part "off", number rules only, like a backend without a key
-//   MOCK_ERROR=none     no failed part (by default part 3 fails, so the "not checked" state shows)
+//   MOCK_ERROR=none     no failed part (by default part 3 fails on the first run, so "not checked" shows;
+//                       MOCK_ERROR=always keeps it failing on every retry too)
 //   MOCK_FAIL=1         an "error" event after two parts, then the stream ends
 //   MOCK_NO_STREAM=1    answer the stream route with FastAPI's 404 "Not Found", to try the fallback
+//   MOCK_RETRY=ignore   ignore ?retry=failed and read every part again, like a stream backend that predates it
 //   MOCK_SLOW=2         multiply every delay
+//
+// ?retry=failed follows the backend: with an earlier run of the same plan, parts that were "ok" or "empty"
+// come back at once with their stored request id, time and values; only the others are read again.
 //
 // The "model" values are fake: for a sample they come from its answer key (*.gold.json), for pasted text
 // from a title-plus-name pattern. The final result is made by the real backend: the mock hides each value it
@@ -28,14 +33,17 @@ const BACKEND = new URL(process.env.MOCK_BACKEND ?? "http://127.0.0.1:8000");
 const PARTS = Number(process.env.MOCK_PARTS ?? 5);
 const MODEL_ON = process.env.MOCK_MODEL !== "off";
 const ERROR_PART = process.env.MOCK_ERROR === "none" ? -1 : 2;
+const ERROR_ALWAYS = process.env.MOCK_ERROR === "always";
 const FAIL = process.env.MOCK_FAIL === "1";
 const NO_STREAM = process.env.MOCK_NO_STREAM === "1";
+const IGNORE_RETRY = process.env.MOCK_RETRY === "ignore";
 const SLOW = Number(process.env.MOCK_SLOW ?? 1);
 const DELAYS = [1600, 600, 2400, 3000, 1100, 1900, 800]; // ms per part, so parts finish out of order
 const SAMPLES = join(dirname(fileURLToPath(import.meta.url)), "../../data/synthetic/pdfs");
 const REGEX_TYPES = new Set(["POSTCODE", "EMAIL", "PHONE", "BANK_ACCOUNT", "SORT_CODE", "IBAN", "CARD", "NI_NUMBER"]);
 
 const docs = new Map(); // doc_id -> { text, sample }
+const runs = new Map(); // doc_id -> { plan, model, attempts, parts: Map(index -> { info, hits }) }, for ?retry=failed
 
 // ---------- backend calls ----------
 
@@ -153,7 +161,7 @@ const hex = () => Math.random().toString(16).slice(2, 10).padEnd(8, "0");
 
 // ---------- the stream ----------
 
-async function stream(id, req, res) {
+async function stream(id, req, res, retry) {
   const doc = docs.get(id);
   const first = await backend("POST", `/api/documents/${id}/redact`).catch(() => null);
   if (!first) {
@@ -189,6 +197,16 @@ async function stream(id, req, res) {
   const at = (e) => ({ ...e, start: cp(e.start), end: cp(e.end) });
   const parts = cutParts(text, PARTS).map((p, index) => ({ ...p, index, chunk_id: `${id}-c${String(index).padStart(2, "0")}` }));
   const values = MODEL_ON ? modelValues(doc) : [];
+  const plan = parts.map((p) => `${p.start}:${p.end}`).join(",");
+  const earlier = runs.get(id);
+  const reuse = retry && earlier?.plan === plan ? earlier.parts : new Map();
+  const run = { plan, model: MODEL_ON, attempts: (earlier?.attempts ?? 0) + 1, parts: new Map(reuse) };
+  runs.set(id, run);
+  const kept = (i) => {
+    const old = reuse.get(i)?.info.status;
+    return old === "ok" || old === "empty" || (old === "off" && !MODEL_ON);
+  };
+  console.log(`${id}: ${retry ? "retry" : "run"} ${run.attempts}, reused parts [${parts.filter((p) => kept(p.index)).map((p) => p.index + 1)}], reading [${parts.filter((p) => !kept(p.index)).map((p) => p.index + 1)}]`);
 
   send("start", {
     doc_id: id,
@@ -206,9 +224,19 @@ async function stream(id, req, res) {
   const found = new Map();
   await Promise.all(
     parts.map(async (p) => {
+      if (kept(p.index)) {
+        // Read fine last time: no T1 call, the stored answer comes back at once.
+        const { info, hits } = reuse.get(p.index);
+        await later(20 * p.index);
+        if (closed) return;
+        for (const h of hits) found.set(h.text, h.type);
+        infos.push(info);
+        send("chunk", { ...info, entities: hits.map((h) => ({ ...at(h), source: "model" })) });
+        return;
+      }
       const off = !MODEL_ON;
       const blank = !text.slice(p.start, p.end).trim();
-      const failed = !off && p.index === ERROR_PART;
+      const failed = !off && p.index === ERROR_PART && (ERROR_ALWAYS || run.attempts === 1);
       const ms = off || blank ? 40 * p.index : DELAYS[p.index % DELAYS.length];
       await later(ms);
       if (closed) return;
@@ -225,6 +253,7 @@ async function stream(id, req, res) {
         found: new Set(hits.map((h) => h.text)).size,
       };
       infos.push(info);
+      run.parts.set(p.index, { info, hits });
       send("chunk", { ...info, entities: hits.map((h) => ({ ...at(h), source: "model" })) });
       if (FAIL && infos.length === 2) {
         send("error", { message: "Mubit stopped answering (mock). Try again." });
@@ -260,7 +289,7 @@ http
         res.writeHead(404, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ detail: "Not Found" }));
       }
-      return void stream(streamRoute[1], req, res);
+      return void stream(streamRoute[1], req, res, !IGNORE_RETRY && url.searchParams.get("retry") === "failed");
     }
     if (url.pathname === "/api/health")
       return pass(req, res, (_, body) => ({
@@ -277,5 +306,5 @@ http
   })
   .listen(PORT, "127.0.0.1", () => {
     console.log(`Veil mock stream on http://127.0.0.1:${PORT}, passing the rest to ${BACKEND.origin}`);
-    console.log(`model ${MODEL_ON ? "on (fake)" : "off"}, ${PARTS} parts, failed part: ${ERROR_PART < 0 ? "none" : ERROR_PART + 1}${FAIL ? ", error event after two parts" : ""}${NO_STREAM ? ", no stream route" : ""}`);
+    console.log(`model ${MODEL_ON ? "on (fake)" : "off"}, ${PARTS} parts, failed part: ${ERROR_PART < 0 ? "none" : ERROR_PART + 1}${FAIL ? ", error event after two parts" : ""}${NO_STREAM ? ", no stream route" : ""}${IGNORE_RETRY ? ", ignores retry=failed" : ""}`);
   });

@@ -4,7 +4,7 @@ import { Sprite } from "../sprites";
 import { pictogramFor } from "../ui/icons";
 import { Button, Chip, Icon, Spinner, TextArea } from "../ui/kit";
 
-const ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.tif,.tiff,.webp,.txt,.eml,.md,.csv,.json";
+const ACCEPT = ".pdf,.jpg,.jpeg,.png,.heic,.heif,.tif,.tiff,.webp,.txt,.eml,.md,.csv,.json";
 const FIRST = 8;
 
 // One sample per document type first, so the opening grid shows the range of documents.
@@ -82,7 +82,7 @@ export function Intake({ busy, error, onFile, onText, onSample }: {
         <h2 className="font-pixel text-[clamp(28px,3.4vw,40px)] leading-none font-bold">Hide the personal data in a document</h2>
         <p className="mt-3 max-w-[64ch] text-[16px] text-quiet">
           Drop a file or paste text. Veil blacks out names, addresses, account numbers and IDs line by line, and you approve every
-          change before anything is sent to an AI.
+          change before the AI you ask sees the document. It only ever sees the placeholders.
         </p>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">

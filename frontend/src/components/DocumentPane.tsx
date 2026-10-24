@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
+import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { api, pageScale } from "../api";
 import { changeList, stepMs, toLines, type Line } from "../redaction";
-import { advancePasses, hiddenSoFar, liveEntities, partAt, partLines, partsOf, passesDone } from "../scan";
+import { advancePasses, hiddenSoFar, liveEntities, partAt, partLines, partsOf, passesDone, settledPasses, sweeping as sweepingAny, withLive } from "../scan";
 import type { Session } from "../session";
 import { Button, Chip, Icon, LinkButton, Tabs } from "../ui/kit";
 import { Routing } from "./Routing";
@@ -17,6 +17,24 @@ const isHeading = (t: string) => t.length > 0 && t.length < 60 && /[A-Z]/.test(t
 const lineText = (l: Line) => l.segments.map((s) => s.text).join("");
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+// A page image is fetched only when it comes within one screen of view: a scan of many photo-sized pages
+// would otherwise render every page at once. Width and height give the page its shape before it loads.
+function PageImage({ src, width, height, alt, scroller }: { src: string; width: number; height: number; alt: string; scroller: RefObject<HTMLDivElement | null> }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (near || !el) return;
+    // The document pane scrolls on its own on wide screens; on phones the whole page scrolls.
+    const pane = scroller.current;
+    const root = pane && pane.scrollHeight > pane.clientHeight + 1 ? pane : null;
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), { root, rootMargin: "100% 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near, scroller]);
+  return <img ref={ref} src={near ? src : undefined} width={width} height={height} decoding="async" alt={alt} className="block h-auto w-full" />;
+}
+
 type Pop = { entity: number; x: number; y: number };
 type Pick = { text: string; x: number; y: number };
 
@@ -25,13 +43,19 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
   onRevealed: () => void;
   onApprove: () => void;
   onDecline: () => void;
-  onRetry: () => void;
+  onRetry: (only: "failed" | "all") => void;
   onCorrect: (action: "hide" | "unhide", text: string, type?: string) => Promise<void>;
 }) {
   const { doc, result, status, scan } = session;
-  // Until the final result arrives, the page shows what the stream has found so far.
+  // Until the final result arrives, the page shows what the stream has found so far. On a retry the
+  // earlier result stays up, plus what the parts read again find.
   const found = scan?.entities;
-  const entities = useMemo(() => result?.entities ?? liveEntities(found ?? [], doc.text), [result, found, doc.text]);
+  const retrying = status === "scanning" && !!result;
+  const entities = useMemo(() => {
+    const live = liveEntities(found ?? [], doc.text);
+    if (!result) return live;
+    return retrying ? withLive(result.entities, live) : result.entities;
+  }, [result, found, doc.text, retrying]);
   const lines = useMemo(() => toLines(doc.text, entities), [doc.text, entities]);
   const changes = useMemo(() => changeList(lines), [lines]);
   const parts = useMemo(() => partsOf(session), [session.scan, session.result]);
@@ -40,7 +64,8 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
   const done = session.revealed || status === "approved" || status === "declined";
   const editable = status === "review" && session.revealed;
 
-  const [cursors, setCursors] = useState<Record<number, number>>({});
+  // Parts read while this document was off screen start out swept: no replay of passes that ended.
+  const [passes, setPasses] = useState(() => settledPasses(parts, spans));
   const [view, setView] = useState<"lines" | "pages">("lines");
   const [routing, setRouting] = useState(false);
   const [focus, setFocus] = useState<number | null>(null);
@@ -57,19 +82,15 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
   const latest = useRef({ parts, spans });
   latest.current = { parts, spans };
 
-  // A new run (first scan or Retry) starts every pass again.
-  useEffect(() => {
-    if (status === "scanning") setCursors((c) => (Object.keys(c).length ? {} : c));
-  }, [status]);
-
   // The pass, driven by real events: when a part comes back, its lines are swept one per tick, its values
-  // flash and turn into bars. Parts finish out of order, so several passes can run at once.
-  const sweeping = !done && parts.some((p) => p.status !== "pending" && (cursors[p.index] ?? -Infinity) <= (spans.get(p.index)?.[1] ?? -1));
+  // flash and turn into bars. Parts finish out of order, so several passes can run at once. A part that
+  // comes back unchanged on a retry keeps its pass, so only the parts read again sweep.
+  const sweeping = !done && sweepingAny(passes, parts, spans);
   const step = stepMs(lines.length);
   useEffect(() => {
     if (!sweeping) return;
     const calm = reducedMotion();
-    const tick = () => setCursors((c) => advancePasses(c, latest.current.parts, latest.current.spans, calm));
+    const tick = () => setPasses((c) => advancePasses(c, latest.current.parts, latest.current.spans, calm));
     tick();
     if (calm) return;
     const timer = window.setInterval(tick, step);
@@ -81,13 +102,13 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
     if (done) return;
     const { parts, spans } = latest.current;
     const moving = parts
-      .filter((p) => p.order !== null && cursors[p.index] !== undefined && cursors[p.index] <= (spans.get(p.index)?.[1] ?? -1))
+      .filter((p) => passes[p.index]?.order === p.order && passes[p.index].at <= (spans.get(p.index)?.[1] ?? -1))
       .sort((a, b) => (b.order ?? 0) - (a.order ?? 0))[0];
-    if (moving) lineEls.current[cursors[moving.index]]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [cursors, done]);
+    if (moving) lineEls.current[passes[moving.index].at]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [passes, done]);
 
   // The review bar comes up once the backend is done and the last pass has ended.
-  const settled = status === "review" && !session.revealed && passesDone(cursors, parts, spans);
+  const settled = status === "review" && !session.revealed && passesDone(passes, parts, spans);
   useEffect(() => {
     if (!settled) return;
     const t = window.setTimeout(() => revealed.current(), reducedMotion() ? 0 : 250);
@@ -98,7 +119,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
   const finished = parts.filter((p) => p.status !== "pending").length;
   const unchecked = parts.filter((p) => p.status === "error");
   const modelOff = (scan?.model ?? result?.model) === "off";
-  const hidden = done ? changes.length : hiddenSoFar(entities, parts);
+  const hidden = done ? changes.length : hiddenSoFar(entities, parts, retrying ? result?.entities : undefined);
   const progress = total ? finished / total : 0;
   const distinct = new Set(result?.entities.map((e) => e.placeholder)).size;
   const why = unchecked.map((p) => p.error).filter(Boolean).join("; ");
@@ -142,7 +163,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
     setPick({ text, x: r.left, y: r.bottom + 10 });
   }
 
-  const popEntity = pop && result ? result.entities[pop.entity] : null;
+  const popEntity = pop ? entities[pop.entity] : null;
 
   return (
     <section className="relative flex min-h-0 flex-col bg-bone">
@@ -159,7 +180,15 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
         )}
         <span className="ml-auto flex items-center gap-3">
           {doc.kind === "pdf" && done && (
-            <Tabs label="View" value={view} options={[["lines", "Lines"], ["pages", "Pages"]]} onChange={setView} />
+            <Tabs
+              label="View"
+              value={view}
+              options={[["lines", "Lines"], ["pages", "Pages"]]}
+              onChange={(v) => {
+                setView(v);
+                body.current?.scrollTo({ top: 0 });
+              }}
+            />
           )}
           {!done && status !== "failed" && (
             <span className="relative block h-3 w-[142px] text-stone/40 segments" role="progressbar" aria-label="Parts read" aria-valuenow={Math.round(progress * 100)}>
@@ -194,21 +223,30 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
           <div className="mx-auto max-w-[760px] bg-paper p-5 px-frame px-frame-red">
             <p className="font-semibold text-signal-deep">The redaction did not finish.</p>
             <p className="mt-1 text-quiet">{session.error}</p>
-            <Button className="mt-4" icon="right" onClick={onRetry}>
+            <Button className="mt-4" icon="right" onClick={() => onRetry("all")}>
               Try again
             </Button>
           </div>
         ) : view === "pages" ? (
           <div className="flex flex-col items-center gap-8">
-            {doc.pages.map((p, n) => (
-              <div key={n} className="relative w-full max-w-[760px] bg-white px-frame">
-                <img src={api.pageUrl(doc.doc_id, n)} alt={`Page ${n + 1} with personal data covered`} className="block w-full" />
-                {result?.boxes.filter((b) => b.page === n).map((b, i) => (
-                  <span key={i} title={b.placeholder} className="absolute bg-ink"
-                    style={{ left: `${(b.x0 / p.width) * 100}%`, top: `${(b.y0 / p.height) * 100}%`, width: `${((b.x1 - b.x0) / p.width) * 100}%`, height: `${((b.y1 - b.y0) / p.height) * 100}%` }} />
-                ))}
-              </div>
-            ))}
+            {doc.pages.map((p, n) => {
+              const scale = pageScale(p);
+              return (
+                <div key={n} className="relative w-full max-w-[760px] bg-white px-frame">
+                  <PageImage
+                    src={api.pageUrl(doc.doc_id, n, scale)}
+                    width={Math.round(p.width * scale)}
+                    height={Math.round(p.height * scale)}
+                    alt={`Page ${n + 1} with personal data covered`}
+                    scroller={body}
+                  />
+                  {result?.boxes.filter((b) => b.page === n).map((b, i) => (
+                    <span key={i} title={b.placeholder} className="absolute bg-ink"
+                      style={{ left: `${(b.x0 / p.width) * 100}%`, top: `${(b.y0 / p.height) * 100}%`, width: `${((b.x1 - b.x0) / p.width) * 100}%`, height: `${((b.y1 - b.y0) / p.height) * 100}%` }} />
+                  ))}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <article className="paper-sheet mx-auto max-w-[860px] bg-paper py-6 px-frame" aria-label="Document text">
@@ -228,7 +266,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
                       {span[0] === span[1] ? `Line ${span[0] + 1}` : `Lines ${span[0] + 1} to ${span[1] + 1}`}. Only the number rules ran here.
                     </span>
                     {status === "review" && (
-                      <Button size="sm" variant="ghost" icon="right" onClick={onRetry}>
+                      <Button size="sm" variant="ghost" icon="right" onClick={() => onRetry("failed")}>
                         Retry
                       </Button>
                     )}
@@ -236,7 +274,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
                 </div>
               );
               if (!text.trim()) return <Fragment key={line.index}>{noteRow}<div className="h-3" /></Fragment>;
-              const at = part ? cursors[part.index] : undefined;
+              const at = part ? passes[part.index]?.at : undefined;
               const reading = status === "scanning" && (!part || part.status === "pending");
               const current = !done && at === line.index;
               const passed = done || (at !== undefined && line.index <= at);

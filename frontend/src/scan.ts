@@ -9,7 +9,7 @@ export type PartStatus = "pending" | ChunkInfo["status"];
 
 export type Part = Omit<ChunkInfo, "status"> & {
   status: PartStatus;
-  order: number | null; // the order this part finished in (parts finish out of index order)
+  order: number | null; // when this part was read, counted across runs (parts finish out of index order)
 };
 
 export type Scan = {
@@ -18,17 +18,20 @@ export type Scan = {
   t1Prompt: string | null;
   parts: Part[]; // by index
   finished: number;
+  seq: number; // orders handed out so far; never reused, so a part read again gets a new pass
   entities: ScanEntity[]; // regex + model so far, deduplicated by start and end
   done: boolean;
   error: string | null;
 };
 
-export const emptyScan = (): Scan => ({
+// seq carries over from an earlier run of the same document, so its passes are not mistaken for new ones.
+export const emptyScan = (seq = 0): Scan => ({
   live: true,
   model: null,
   t1Prompt: null,
   parts: [],
   finished: 0,
+  seq,
   entities: [],
   done: false,
   error: null,
@@ -49,7 +52,10 @@ function addEntities(have: ScanEntity[], more: ScanEntity[]): ScanEntity[] {
 }
 
 const pending = (c: Pick<ChunkInfo, "index" | "chunk_id" | "start" | "end">): Part => ({
-  ...c,
+  index: c.index,
+  chunk_id: c.chunk_id,
+  start: c.start,
+  end: c.end,
   mreq_id: null,
   error: null,
   found: 0,
@@ -58,20 +64,39 @@ const pending = (c: Pick<ChunkInfo, "index" | "chunk_id" | "start" | "end">): Pa
   order: null,
 });
 
+const finishedCount = (parts: Part[]) => parts.filter((p) => p.status !== "pending").length;
+
 function finish(scan: Scan, c: ChunkInfo): Scan {
   const at = scan.parts.findIndex((p) => p.index === c.index);
-  if (at >= 0 && scan.parts[at].status !== "pending") return scan; // a repeat: the first answer stands
-  const part: Part = { ...c, order: scan.finished };
-  const parts = at >= 0 ? scan.parts.map((p, i) => (i === at ? part : p)) : [...scan.parts, part].sort((a, b) => a.index - b.index);
-  return { ...scan, parts, finished: scan.finished + 1 };
+  const prev = at >= 0 ? scan.parts[at] : undefined;
+  // A part already read (kept from the earlier run on a retry, or sent again by a backend that reruns
+  // everything): take its details, keep its order, so it keeps its bars and gets no new pass.
+  if (prev && prev.status !== "pending") return { ...scan, parts: scan.parts.map((p, i) => (i === at ? { ...c, order: prev.order } : p)) };
+  const part: Part = { ...c, order: scan.seq };
+  const parts = prev ? scan.parts.map((p, i) => (i === at ? part : p)) : [...scan.parts, part].sort((a, b) => a.index - b.index);
+  return { ...scan, parts, finished: scan.finished + 1, seq: scan.seq + 1 };
+}
+
+// Retry the parts the AI could not check (POST .../redact/stream?retry=failed): they go back to being
+// read; parts already read keep their state, bars and pass.
+export function retryScan(scan: Scan): Scan {
+  const parts = scan.parts.map((p) => (p.status === "error" ? pending(p) : p));
+  return { ...scan, live: true, parts, finished: finishedCount(parts), done: false, error: null };
 }
 
 export function scanReducer(scan: Scan, ev: ScanEvent): Scan {
   switch (ev.type) {
     case "start": {
+      // A part from an earlier run stands only if the plan is the same and the backend will not read it
+      // again: it read fine ("ok", "empty"), or it was "off" and the model is still off.
       const known = new Map(scan.parts.map((p) => [p.index, p]));
-      const parts = [...ev.data.chunks].sort((a, b) => a.index - b.index).map((c) => known.get(c.index) ?? pending(c));
-      return { ...scan, model: ev.data.model, t1Prompt: ev.data.t1_prompt, parts };
+      const kept = (c: ChunkRangeLike) => {
+        const p = known.get(c.index);
+        if (!p || p.start !== c.start || p.end !== c.end) return undefined;
+        return p.status === "ok" || p.status === "empty" || (p.status === "off" && ev.data.model === "off") ? p : undefined;
+      };
+      const parts = [...ev.data.chunks].sort((a, b) => a.index - b.index).map((c) => kept(c) ?? pending(c));
+      return { ...scan, model: ev.data.model, t1Prompt: ev.data.t1_prompt, parts, finished: finishedCount(parts) };
     }
     case "regex":
       return { ...scan, entities: addEntities(scan.entities, ev.data.entities) };
@@ -89,6 +114,8 @@ export function scanReducer(scan: Scan, ev: ScanEvent): Scan {
       return { ...scan, error: ev.data.message };
   }
 }
+
+type ChunkRangeLike = Pick<ChunkInfo, "index" | "start" | "end">;
 
 // ---------- Offsets ----------
 
@@ -143,10 +170,11 @@ export function eventInUnits(ev: ScanEvent, text: string): ScanEvent {
 }
 
 // One stream event applied to a session: the scan state, plus the result and status when the run ends.
-export function applyEvent(s: Session, raw: ScanEvent): Partial<Session> {
+// A scan that ends while its document is not on screen has nothing left to show: it goes straight to review.
+export function applyEvent(s: Session, raw: ScanEvent, visible = true): Partial<Session> {
   const ev = eventInUnits(raw, s.doc.text);
   const scan = scanReducer(s.scan ?? emptyScan(), ev);
-  if (ev.type === "done") return { scan, status: "review", result: ev.data };
+  if (ev.type === "done") return { scan, status: "review", result: ev.data, ...(visible ? {} : { revealed: true }) };
   if (ev.type === "error") return { scan, status: "failed", error: ev.data.message };
   return { scan };
 }
@@ -183,13 +211,22 @@ export function partAt(parts: Part[], offset: number): Part | undefined {
   return found;
 }
 
-// Values the backend has reported in parts that have finished: the real count so far.
-export function hiddenSoFar(entities: Entity[], parts: Part[]): number {
+// While parts are read again, the earlier result keeps its bars; values found since are added where they
+// do not overlap one of them.
+export function withLive(previous: Entity[], live: Entity[]): Entity[] {
+  const extra = live.filter((e) => !previous.some((b) => b.start < e.end && e.start < b.end));
+  return extra.length ? [...previous, ...extra].sort((a, b) => a.start - b.start) : previous;
+}
+
+// Values the backend has reported in parts that have finished: the real count so far. On a retry, the
+// earlier result's values in parts being read again still count: their bars stay up.
+export function hiddenSoFar(entities: Entity[], parts: Part[], previous?: Entity[]): number {
   if (!parts.length) return 0;
-  return entities.filter((e) => {
+  const finished = (e: Entity) => {
     const p = partAt(parts, e.start);
     return !!p && p.status !== "pending";
-  }).length;
+  };
+  return entities.filter(finished).length + (previous ?? []).filter((e) => !finished(e)).length;
 }
 
 // ---------- The pass ----------
@@ -207,32 +244,49 @@ export function partLines(parts: Part[], lineStarts: number[]): Map<number, [num
   return out;
 }
 
+// A pass belongs to one reading of one part (its order), so a part read again on a retry sweeps again,
+// and a part whose pass has ended is never swept twice.
+export type Pass = { order: number; at: number };
+
 // One tick of the pass. Each finished part sweeps its own lines, one per tick, from its first line to one
 // past its last; parts that finish later start later. "calm" (reduced motion) resolves a part at once.
 export function advancePasses(
-  cursors: Record<number, number>,
+  passes: Record<number, Pass>,
   parts: Part[],
   lines: Map<number, [number, number]>,
   calm: boolean,
-): Record<number, number> {
-  let next = cursors;
+): Record<number, Pass> {
+  let next = passes;
   for (const p of parts) {
     if (p.status === "pending") continue;
+    const order = p.order ?? -1;
     const [first, last] = lines.get(p.index) ?? [0, -1];
-    const at = cursors[p.index];
-    const to = calm ? last + 1 : at === undefined ? first : at <= last ? at + 1 : at;
-    if (to !== at) {
-      if (next === cursors) next = { ...cursors };
-      next[p.index] = to;
-    }
+    const pass = passes[p.index];
+    let at: number;
+    if (!pass || pass.order !== order) at = calm ? last + 1 : first;
+    else if (pass.at <= last) at = pass.at + 1;
+    else continue;
+    if (next === passes) next = { ...passes };
+    next[p.index] = { order, at };
   }
   return next;
 }
 
-export function passesDone(cursors: Record<number, number>, parts: Part[], lines: Map<number, [number, number]>): boolean {
-  return parts.every((p) => {
+// Coming back to a document: parts read while it was off screen are shown done, not swept again.
+export function settledPasses(parts: Part[], lines: Map<number, [number, number]>): Record<number, Pass> {
+  const out: Record<number, Pass> = {};
+  for (const p of parts) if (p.status !== "pending") out[p.index] = { order: p.order ?? -1, at: (lines.get(p.index)?.[1] ?? -1) + 1 };
+  return out;
+}
+
+export function sweeping(passes: Record<number, Pass>, parts: Part[], lines: Map<number, [number, number]>): boolean {
+  return parts.some((p) => {
     if (p.status === "pending") return false;
-    const [, last] = lines.get(p.index) ?? [0, -1];
-    return (cursors[p.index] ?? -Infinity) > last;
+    const pass = passes[p.index];
+    return !pass || pass.order !== (p.order ?? -1) || pass.at <= (lines.get(p.index)?.[1] ?? -1);
   });
+}
+
+export function passesDone(passes: Record<number, Pass>, parts: Part[], lines: Map<number, [number, number]>): boolean {
+  return parts.every((p) => p.status !== "pending") && !sweeping(passes, parts, lines);
 }

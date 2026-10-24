@@ -130,8 +130,16 @@ export const api = {
   ask: (id: string, question: string) => call<AskResult>(`/api/documents/${id}/ask`, json({ question })),
   fileUrl: (id: string) => `/api/documents/${id}/file`,
   thumbUrl: (name: string) => `/api/samples/${encodeURIComponent(name)}/thumb.png`,
-  pageUrl: (id: string, page: number) => `/api/documents/${id}/pages/${page}.png?scale=2`,
+  pageUrl: (id: string, page: number, scale = 2) => `/api/documents/${id}/pages/${page}.png?scale=${scale}`,
 };
+
+// Render scale for a page image. Pages are shown at most 760 px wide, so about 1600 px covers a 2x screen.
+// A photo or scan becomes a page of one point per pixel at 72 dpi (4032 points wide for a phone photo),
+// where scale 2 would ask for an 8000 px image; the area cap keeps very long pages (receipts) small too.
+export function pageScale(page: { width: number; height: number }): number {
+  const fit = Math.min(2, 1600 / page.width, Math.sqrt(8_000_000 / (page.width * page.height)));
+  return Math.max(0.05, Math.round(fit * 1000) / 1000);
+}
 
 // Older results (the backend on main) have no index, latency or status on their chunks; fill them in.
 export function normaliseChunk(c: Partial<ChunkInfo>, i: number, model: "on" | "off"): ChunkInfo {
@@ -180,10 +188,13 @@ const STALL_MS = 45_000; // the backend pings at least every 10 s, so this much 
 
 // Runs the redaction as a live stream. Resolves after "done"; rejects on an "error" event, a dropped
 // connection or a stream that ends early. Rejects with the AbortError when the signal aborts.
-async function redactStream(id: string, handlers: StreamHandlers, signal?: AbortSignal): Promise<void> {
+// retry "failed": the backend sends parts it already read without calling T1 again and reads only the parts
+// that failed. A backend without that ignores it and reads every part, which the UI handles the same way.
+async function redactStream(id: string, handlers: StreamHandlers, signal?: AbortSignal, opts: { retry?: "failed" } = {}): Promise<void> {
+  const query = opts.retry ? `?retry=${opts.retry}` : "";
   let res: Response;
   try {
-    res = await fetch(`/api/documents/${id}/redact/stream`, { method: "POST", headers: { Accept: "text/event-stream" }, signal });
+    res = await fetch(`/api/documents/${id}/redact/stream${query}`, { method: "POST", headers: { Accept: "text/event-stream" }, signal });
   } catch (e) {
     if (signal?.aborted) throw e;
     throw new Error(OFFLINE);
@@ -243,7 +254,16 @@ async function redactStream(id: string, handlers: StreamHandlers, signal?: Abort
       parser.push(decoder.decode());
       parser.end();
     } else {
-      void reader.cancel().catch(() => undefined);
+      // The backend closes the stream right after its last event: let it, rather than cut the request
+      // off (which shows as an aborted request), but do not wait on a stream that stays open.
+      const late = setTimeout(() => void reader.cancel().catch(() => undefined), 1000);
+      try {
+        while (!(await reader.read()).done);
+      } catch {
+        // already ended; nothing left to read
+      } finally {
+        clearTimeout(late);
+      }
     }
   } catch (e) {
     if (signal?.aborted) throw e;

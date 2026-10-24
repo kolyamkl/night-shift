@@ -10,7 +10,10 @@ import {
   partLines,
   passesDone,
   resultInUnits,
+  retryScan,
   scanReducer,
+  settledPasses,
+  withLive,
   type Scan,
 } from "./scan";
 import type { Session } from "./session";
@@ -79,8 +82,8 @@ describe("scanReducer", () => {
     const after = scanReducer(before, { type: "done", data: result });
     expect(after.done).toBe(true);
     expect(after.finished).toBe(3);
-    // The live answers stand; done does not overwrite them.
-    expect(after.parts[0].mreq_id).toBe("mreq_0");
+    // done is the final word on each part's details, but no part gets a second pass from it.
+    expect(after.parts.map((p) => [p.index, p.mreq_id, p.order])).toEqual([[0, "m", 1], [1, "m", 0], [2, "m", 2]]);
   });
 
   it("marks a part the model could not check, with its reason", () => {
@@ -97,16 +100,76 @@ describe("scanReducer", () => {
     expect(s.entities.every((e) => e.source === "regex")).toBe(true);
   });
 
-  it("ignores a repeated part event", () => {
-    const s = run([start, chunk(0), chunk(0, { status: "error", error: "late" })]);
+  it("takes the details of a repeated part event but keeps its order, so it gets no second pass", () => {
+    const s = run([start, chunk(0), chunk(0, { status: "error", error: "late", mreq_id: null })]);
     expect(s.finished).toBe(1);
-    expect(s.parts[0].status).toBe("ok");
+    expect(s.parts[0]).toMatchObject({ status: "error", error: "late", order: 0 });
+    expect(s.seq).toBe(1);
   });
 
   it("records an error that stops the run", () => {
     const s = run([start, { type: "error", data: { message: "The model gateway is down." } }]);
     expect(s.error).toBe("The model gateway is down.");
     expect(s.done).toBe(false);
+  });
+});
+
+describe("retry only the failed parts (?retry=failed)", () => {
+  // First run: parts 1 and 0 read fine, part 2 failed. Mia Chen is in part 2.
+  const first = run([start, regexEv, chunk(1), chunk(0, { entities: [model("Raj Patel", "PERSON")] }), chunk(2, { status: "error", error: "TimeoutError", mreq_id: null })]);
+
+  it("puts only the failed parts back to being read", () => {
+    const r = retryScan(first);
+    expect(r.parts.map((p) => [p.index, p.status, p.order])).toEqual([[0, "ok", 1], [1, "ok", 0], [2, "pending", null]]);
+    expect(r.finished).toBe(2);
+    expect(r.done).toBe(false);
+    expect(r.entities).toEqual(first.entities); // the bars already drawn stay
+  });
+
+  it("keeps unchanged parts as they were when the backend sends them again at once", () => {
+    const again = [start, regexEv, chunk(0, { entities: [model("Raj Patel", "PERSON")] }), chunk(1), chunk(2, { entities: [model("Mia Chen", "PERSON")] })];
+    const r = run(again, retryScan(first));
+    expect(r.parts.map((p) => [p.index, p.status, p.order])).toEqual([[0, "ok", 1], [1, "ok", 0], [2, "ok", 3]]);
+    expect(r.parts[0].mreq_id).toBe("mreq_0");
+    expect(r.entities.map((e) => e.text)).toContain("Mia Chen");
+  });
+
+  it("reads every part again when the plan changed", () => {
+    const other = { ...start, data: { ...start.data, chunks: [{ index: 0, chunk_id: "d0c-c00", start: 0, end: TEXT.length }] } };
+    const r = scanReducer(retryScan(first), other);
+    expect(r.parts.map((p) => [p.index, p.status])).toEqual([[0, "pending"]]);
+    expect(r.finished).toBe(0);
+  });
+
+  it("reads parts that were off again once the model is on", () => {
+    const off = { ...start, data: { ...start.data, model: "off" as const } };
+    const offRun = run([off, chunk(0, { status: "off" }), chunk(1, { status: "off" }), chunk(2, { status: "off" })]);
+    expect(scanReducer(retryScan(offRun), off).parts.every((p) => p.status === "off")).toBe(true);
+    expect(scanReducer(retryScan(offRun), start).parts.every((p) => p.status === "pending")).toBe(true);
+  });
+
+  it("works with a backend that ignores the parameter and reads everything again", () => {
+    const rerun = [start, regexEv, chunk(1, { mreq_id: "mreq_new1" }), chunk(2), chunk(0, { mreq_id: "mreq_new0" })];
+    const r = run(rerun, retryScan(first));
+    expect(r.parts.map((p) => [p.index, p.status, p.order, p.mreq_id])).toEqual([[0, "ok", 1, "mreq_new0"], [1, "ok", 0, "mreq_new1"], [2, "ok", 3, "mreq_2"]]);
+  });
+
+  it("sweeps only the part read again; the others keep their ended pass", () => {
+    const lines = partLines(first.parts, toLines(TEXT, []).map((l) => l.start));
+    const ended = settledPasses(first.parts, lines);
+    const r = run([start, chunk(0), chunk(1), chunk(2)], retryScan(first));
+    const next = advancePasses(ended, r.parts, lines, false);
+    expect(next).toEqual({ ...ended, 2: { order: 3, at: 2 } });
+  });
+
+  it("keeps the earlier result's bars and counts them while their part is read again", () => {
+    const previous = [{ ...at("Mia Chen"), type: "PERSON", placeholder: "[PERSON_2]" }, { ...at("07700 900123"), type: "PHONE", placeholder: "[PHONE_1]" }];
+    const live = liveEntities([regex("07700 900123", "PHONE"), model("Raj Patel", "PERSON")], TEXT);
+    const shown = withLive(previous, live);
+    expect(shown.map((e) => e.placeholder)).toEqual(["[PERSON]", "[PHONE_1]", "[PERSON_2]"]);
+    const r = retryScan(first);
+    // Raj Patel is in a finished part; the two earlier values sit in part 2, which is being read again.
+    expect(hiddenSoFar(shown, r.parts, previous)).toBe(3);
   });
 });
 
@@ -154,6 +217,12 @@ describe("applyEvent", () => {
     expect(patch.status).toBe("review");
     expect(patch.result?.entities[0].placeholder).toBe("[PERSON_1]");
     expect(patch.scan?.done).toBe(true);
+  });
+
+  it("sends a scan that ends off screen straight to review, with no pass left to show", () => {
+    const result = finalResult([], []);
+    expect(applyEvent(session(), { type: "done", data: result }, false)).toMatchObject({ status: "review", revealed: true });
+    expect(applyEvent(session(), { type: "done", data: result }, true).revealed).toBeUndefined();
   });
 
   it("fails the session on an error event", () => {
@@ -204,9 +273,9 @@ describe("the pass", () => {
     const spans = partLines(s.parts, starts);
     expect([...spans.entries()]).toEqual([[0, [0, 0]], [1, [1, 1]], [2, [2, 2]]]);
     let c = advancePasses({}, s.parts, spans, false);
-    expect(c).toEqual({ 2: 2 });
+    expect(c).toEqual({ 2: { order: 0, at: 2 } });
     c = advancePasses(c, s.parts, spans, false);
-    expect(c).toEqual({ 2: 3 });
+    expect(c).toEqual({ 2: { order: 0, at: 3 } });
     expect(advancePasses(c, s.parts, spans, false)).toBe(c); // nothing left to move
     expect(passesDone(c, s.parts, spans)).toBe(false); // parts 0 and 1 are still being read
   });
@@ -214,15 +283,35 @@ describe("the pass", () => {
   it("starts a part that finishes later from its own first line", () => {
     const s = run([start, chunk(2), chunk(0)]);
     const spans = partLines(s.parts, starts);
-    const c = advancePasses({ 2: 3 }, s.parts, spans, false);
-    expect(c).toEqual({ 0: 0, 2: 3 });
+    const c = advancePasses({ 2: { order: 0, at: 3 } }, s.parts, spans, false);
+    expect(c).toEqual({ 0: { order: 1, at: 0 }, 2: { order: 0, at: 3 } });
   });
 
   it("resolves parts at once with reduced motion", () => {
     const s = run([start, chunk(0), chunk(1), chunk(2)]);
     const spans = partLines(s.parts, starts);
     const c = advancePasses({}, s.parts, spans, true);
-    expect(c).toEqual({ 0: 1, 1: 2, 2: 3 });
+    expect(c).toEqual({ 0: { order: 0, at: 1 }, 1: { order: 1, at: 2 }, 2: { order: 2, at: 3 } });
     expect(passesDone(c, s.parts, spans)).toBe(true);
+  });
+
+  it("does not replay passes that ended while the document was off screen", () => {
+    // The person opened the intake while parts 2 and 0 were read; part 1 is still being read.
+    const s = run([start, chunk(2), chunk(0)]);
+    const spans = partLines(s.parts, starts);
+    const back = settledPasses(s.parts, spans);
+    expect(back).toEqual({ 0: { order: 1, at: 1 }, 2: { order: 0, at: 3 } });
+    expect(advancePasses(back, s.parts, spans, false)).toBe(back);
+    // Part 1 arrives after the person came back: only it is swept.
+    const later = run([chunk(1)], s);
+    expect(advancePasses(back, later.parts, spans, false)).toEqual({ ...back, 1: { order: 2, at: 1 } });
+  });
+
+  it("starts a new pass when a full rerun hands out new orders", () => {
+    const s = run([start, chunk(0), chunk(1), chunk(2)]);
+    const spans = partLines(s.parts, starts);
+    const ended = settledPasses(s.parts, spans);
+    const again = run([start, chunk(0)], emptyScan(s.seq));
+    expect(advancePasses(ended, again.parts, spans, false)[0]).toEqual({ order: 3, at: 0 });
   });
 });

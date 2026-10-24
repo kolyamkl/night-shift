@@ -13,7 +13,6 @@ export type Session = {
   scan?: Scan; // the live scan: parts, values found so far, done
   result?: RedactResult; // offsets in UTF-16 units, like the document text in the browser
   error?: string;
-  stopped?: boolean; // the scan was stopped because the person left the document
   revealed: boolean;
   at: number;
   turns: Turn[];

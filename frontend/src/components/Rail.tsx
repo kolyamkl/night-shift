@@ -16,7 +16,7 @@ function Status({ s, on }: { s: Session; on: boolean }) {
   if (s.status === "review") return <Chip tone="red">Review · {changes} changes</Chip>;
   if (s.status === "approved") return <Chip tone="dark">Approved · {hidden} hidden</Chip>;
   if (s.status === "declined") return <Chip>Declined</Chip>;
-  return <Chip tone="red">{s.stopped ? "Stopped" : "Failed"}</Chip>;
+  return <Chip tone="red">Failed</Chip>;
 }
 
 function reading(s: Session) {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, type RedactResult, type ScanEvent } from "./api";
+import { api, pageScale, type RedactResult, type ScanEvent } from "./api";
 
 const result: RedactResult = {
   doc_id: "d1",
@@ -110,6 +110,38 @@ describe("api.redactStream", () => {
     }
   });
 
+  it("lets the backend close the stream after done, and does not wait on one that stays open", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      vi.stubGlobal("fetch", vi.fn(streamed([sse("done", result)], { hang: true })));
+      const { events, done } = await collect();
+      let resolved = false;
+      void done.then(() => (resolved = true));
+      await vi.advanceTimersByTimeAsync(900);
+      expect(resolved).toBe(false);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(resolved).toBe(true);
+      expect(events.map((e) => e.type)).toEqual(["done"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("asks for a retry of the failed parts only, and still works when an older backend has no stream", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        urls.push(url);
+        return Promise.resolve(url.includes("/stream") ? jsonResponse(404, { detail: "Not Found" }) : jsonResponse(200, result));
+      }),
+    );
+    const events: ScanEvent[] = [];
+    await api.redactStream("d1", { onEvent: (e) => events.push(e) }, undefined, { retry: "failed" });
+    expect(urls).toEqual(["/api/documents/d1/redact/stream?retry=failed", "/api/documents/d1/redact"]);
+    expect(events.map((e) => e.type)).toEqual(["start", "chunk", "done"]);
+  });
+
   it("stops on abort and rethrows the AbortError", async () => {
     vi.stubGlobal("fetch", vi.fn(streamed([sse("start", { doc_id: "d1", model: "on", t1_model: null, t1_prompt: "evalkit", chunks: [] })], { hang: true })));
     const ctrl = new AbortController();
@@ -118,5 +150,15 @@ describe("api.redactStream", () => {
     ctrl.abort();
     await expect(done).rejects.toMatchObject({ name: "AbortError" });
     expect(events).toHaveLength(1);
+  });
+});
+
+describe("pageScale", () => {
+  it("keeps 2x for paper pages and caps photos and long scans", () => {
+    expect(pageScale({ width: 595, height: 842 })).toBe(2); // A4
+    expect(pageScale({ width: 4032, height: 3024 })).toBe(0.397); // a phone photo at 72 dpi: 1600 px wide
+    const receipt = { width: 800, height: 14400 };
+    const s = pageScale(receipt);
+    expect(receipt.width * s * receipt.height * s).toBeLessThanOrEqual(8_000_000);
   });
 });
