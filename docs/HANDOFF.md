@@ -240,7 +240,7 @@ Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly;
 
 - Console: task "Find personal data", Training v1, 103 examples kept from about 1,070 calls. About half of the examples are rejected by Mubit's reviewer; screenshot the "Show each" reasons to learn why.
 - Sent with recording on, 0 errors: `team_train`, `corrections`, `r2_fresh` (11:45 to 12:01 UTC).
-- Queued: `r3_reserve`, sent by `evalkit/autosend.sh` after the daily limit resets at 2026-10-25 00:05 UTC. It runs in a terminal on Dmytro's Mac (`caffeinate -is ./autosend.sh`). If the Mac sleeps or the terminal closes, run it again.
+- `r3_reserve` was NOT sent: the `evalkit/autosend.sh` queue was stopped on 24 Oct, because the app's default T1 is now `rewrite` (Nick's task "Redact personal data") and r3 would have gone to the old task "Find personal data". Do not restart it unless the team goes back to `evalkit`.
 - Run logs and `corrections_todo.md` (wrong answers with `mreq_` ids for console corrections) are in `evalkit/runs/`, which is gitignored: they exist only on Dmytro's Mac.
 - Rules: only synthetic or Mubit-safe records go through Mubit. `data/external/eval_local_only.jsonl` must never be sent. The daily training limit resets at 00:00 UTC.
 
@@ -269,6 +269,6 @@ Not verified:
 ## 12. Next steps, in order
 
 1. A real phone photo (HEIC) through the app on a Mac.
-2. After 00:05 UTC on 25 Oct: confirm `r3_reserve` was sent; apply console corrections from `evalkit/runs/corrections_todo.md`.
+2. New training traffic goes to the `rewrite` task only. `evalkit/runs/corrections_todo.md` (old task) is kept for reference.
 3. Demo prep: script in `docs/APP-SPEC.md` section 6; investor numbers page (claude.ai artifact `https://claude.ai/artifact/VrYTnta4z6487XBsKq7V9q`, private until shared) built from `docs/research/2026-10-24-veil-numbers/`.
 4. Unify Python setup and dataset pipelines (sections 8.2, 8.3).
