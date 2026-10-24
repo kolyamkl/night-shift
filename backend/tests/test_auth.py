@@ -78,7 +78,9 @@ def test_expiry_and_secure_cookie(browser, postgres_store, monkeypatch):
 
 @pytest.mark.parametrize("method,path,body", [
     ("post", "/api/documents", None),
+    ("get", "/api/documents", None),
     ("get", "/api/documents/unknown", None),
+    ("patch", "/api/documents/unknown", {"status": "approved"}),
     ("delete", "/api/documents/unknown", None),
     ("post", "/api/documents/unknown/redact", None),
     ("post", "/api/documents/unknown/redact/stream", None),
@@ -101,15 +103,18 @@ def test_every_document_operation_is_owner_scoped(browser, postgres_store, tenan
     browser.post("/api/auth/logout")
     browser.post("/api/auth/register", json=credentials(postgres_store, "bob"))
     for method, suffix, body in [
-        ("get", "", None), ("delete", "", None), ("post", "/redact", None),
+        ("get", "", None), ("patch", "", {"status": "approved"}), ("delete", "", None), ("post", "/redact", None),
         ("post", "/redact/stream", None),
         ("get", "/pages/0.png", None), ("get", "/file", None),
         ("post", "/corrections", {"action": "hide", "text": "Raj Patel"}),
         ("post", "/ask", {"question": "Who?"}),
     ]:
         assert browser.request(method, path + suffix, json=body).status_code == 404
+    assert browser.get("/api/documents").json() == []
+    browser.post("/api/auth/logout")
     browser.post("/api/auth/login", json=alice)
-    assert browser.get(path).status_code == 200
+    assert browser.get(path).json()["status"] == "review"
+    assert [d["doc_id"] for d in browser.get("/api/documents").json()] == [doc["doc_id"]]
     assert browser.get(path + "/pages/0.png").status_code == 200
     assert browser.get(path + "/file").status_code == 200
     assert browser.delete(path).status_code == 204

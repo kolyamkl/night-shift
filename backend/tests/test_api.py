@@ -1,4 +1,5 @@
 import json
+import re
 
 import pymupdf
 import pytest
@@ -228,3 +229,143 @@ def test_real_binaries_are_still_refused(client, data):
 def test_an_empty_text_file_is_refused(client):
     res = client.post("/api/documents", files={"file": ("empty.txt", b"  \n", "text/plain")})
     assert res.status_code == 400
+
+
+ISO_UTC = r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$"
+
+
+def test_document_list_holds_only_the_callers_documents_newest_first(client, postgres_store, tenancy_pdf):
+    note = client.post("/api/documents", files={"file": ("synthetic-note.txt", b"Tenant: Jo Smith.", "text/plain")}).json()
+    pdf = client.post("/api/documents", files={"file": ("synthetic-lease.pdf", tenancy_pdf, "application/pdf")}).json()
+    pasted = client.post("/api/documents", data={"text": "Tenant: Raj Patel, sort code 20-45-77."}).json()
+    scanned = client.post(f"/api/documents/{pasted['doc_id']}/redact").json()
+    client.post(f"/api/documents/{pasted['doc_id']}/ask", json={"question": "Who is the tenant?"})
+    client.post(f"/api/documents/{pasted['doc_id']}/ask", json={"question": "What is the sort code?"})
+
+    response = client.get("/api/documents")
+    assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+    listed = response.json()
+    assert [d["doc_id"] for d in listed] == [pasted["doc_id"], pdf["doc_id"], note["doc_id"]]
+    first = listed[0]
+    assert set(first) == {"doc_id", "filename", "kind", "pages", "status", "created_at", "updated_at",
+                          "has_result", "changes", "turns"}
+    assert (first["filename"], first["kind"], first["pages"], first["status"]) == ("pasted.txt", "text", 0, "review")
+    assert (first["has_result"], first["changes"], first["turns"]) == (True, len(scanned["entities"]), 2)
+    assert first["changes"] == 2
+    assert {k: listed[1][k] for k in ("filename", "kind", "pages", "status", "has_result", "changes", "turns")} == {
+        "filename": "synthetic-lease.pdf", "kind": "pdf", "pages": 2, "status": "new",
+        "has_result": False, "changes": None, "turns": 0}
+    assert listed[2]["filename"] == "synthetic-note.txt"
+    for doc in listed:
+        assert re.match(ISO_UTC, doc["created_at"]) and re.match(ISO_UTC, doc["updated_at"])
+        assert doc["updated_at"] >= doc["created_at"]
+    assert "Raj Patel" not in response.text and "Jo Smith" not in response.text  # no document text
+
+    client.post("/api/auth/logout")
+    other = {"email": f"api-other-{postgres_store.test_suffix}@example.test", "password": "test-password"}
+    assert client.post("/api/auth/register", json=other).status_code == 201
+    assert client.get("/api/documents").json() == []
+    mine = client.post("/api/documents", data={"text": "Jo Smith"}).json()
+    assert [d["doc_id"] for d in client.get("/api/documents").json()] == [mine["doc_id"]]
+    client.post("/api/auth/logout")
+    assert client.get("/api/documents").status_code == 401
+
+
+def test_review_status_follows_scans_and_patch(client):
+    doc = client.post("/api/documents", data={"text": "Tenant: Jo Smith. Private phrase: silver meadow."}).json()
+    path = f"/api/documents/{doc['doc_id']}"
+
+    def status():
+        listed = {d["doc_id"]: d["status"] for d in client.get("/api/documents").json()}
+        saved = client.get(path).json()["status"]
+        assert listed[doc["doc_id"]] == saved
+        return saved
+
+    assert status() == "new"
+    assert client.post(path + "/redact").status_code == 200
+    assert status() == "review"
+    response = client.patch(path, json={"status": "approved"})
+    assert response.status_code == 200 and response.json() == {"doc_id": doc["doc_id"], "status": "approved"}
+    # Editing and rescanning after approval keep the approval (PR 18).
+    client.post(path + "/corrections", json={"action": "hide", "text": "silver meadow"})
+    client.post(path + "/redact")
+    client.post(path + "/redact/stream")
+    assert status() == "approved"
+    assert client.patch(path, json={"status": "declined"}).json()["status"] == "declined"
+    client.post(path + "/redact")
+    assert status() == "declined"
+    assert client.patch(path, json={"status": "review"}).json()["status"] == "review"
+    assert status() == "review"
+    for bad in ({"status": "new"}, {"status": "done"}, {}, {"status": None}):
+        assert client.patch(path, json=bad).status_code == 422
+    assert status() == "review"
+    assert client.patch("/api/documents/missing", json={"status": "approved"}).status_code == 404
+    assert client.patch(path, json={"status": "approved"}, headers={"X-Veil-Request": ""}).status_code == 403
+
+    streamed = client.post("/api/documents", data={"text": "Jo Smith"}).json()
+    assert client.post(f"/api/documents/{streamed['doc_id']}/redact/stream").status_code == 200
+    assert client.get(f"/api/documents/{streamed['doc_id']}").json()["status"] == "review"
+
+
+def test_chat_turns_are_stored_in_order_and_failed_asks_store_nothing(client):
+    doc = client.post("/api/documents", data={"text": "Tenant: Raj Patel. Rent 950."}).json()
+    path = f"/api/documents/{doc['doc_id']}"
+    assert client.post(path + "/ask", json={"question": "Too early?"}).status_code == 409
+    client.post(path + "/redact")
+    answers = [client.post(path + "/ask", json={"question": q}).json() for q in ("Who is the tenant?", "And again?")]
+    for answer in answers:
+        assert isinstance(answer["turn_id"], int) and re.match(ISO_UTC, answer["created_at"])
+        assert answer["answer"] == "The tenant is Raj Patel."
+    assert answers[0]["turn_id"] < answers[1]["turn_id"]
+    turns = client.get(path).json()["turns"]
+    assert turns == [{"turn_id": a["turn_id"], "created_at": a["created_at"], "question": q,
+                      "answer": "The tenant is Raj Patel.", "answer_with_placeholders": "The tenant is [PERSON_1].",
+                      "unknown_placeholders": [], "mreq_id": "mreq_answer"}
+                     for a, q in zip(answers, ("Who is the tenant?", "And again?"))]
+
+    def broken(question, redacted_text):
+        raise RuntimeError("gateway timeout")
+
+    app.state.t2 = broken
+    assert client.post(path + "/ask", json={"question": "Lost question?"}).status_code == 502
+    app.state.t2 = None
+    assert client.post(path + "/ask", json={"question": "Lost question?"}).status_code == 503
+    assert client.get(path).json()["turns"] == turns
+    assert [d["turns"] for d in client.get("/api/documents").json() if d["doc_id"] == doc["doc_id"]] == [2]
+
+
+def test_status_and_turns_survive_app_restart_and_go_with_the_document(client, postgres_store):
+    doc = client.post("/api/documents", data={"text": "Tenant: Raj Patel."}).json()
+    path = f"/api/documents/{doc['doc_id']}"
+    client.post(path + "/redact")
+    client.patch(path, json={"status": "approved"})
+    turn = client.post(path + "/ask", json={"question": "Who is the tenant?"}).json()
+    with TestClient(app, headers={"X-Veil-Request": "1"}, cookies=client.cookies) as restarted:
+        saved = restarted.get(path).json()
+        assert saved["status"] == "approved"
+        assert [t["turn_id"] for t in saved["turns"]] == [turn["turn_id"]]
+        assert restarted.get("/api/documents").json()[0]["doc_id"] == doc["doc_id"]
+        assert restarted.delete(path).status_code == 204
+    with postgres_store.connect() as conn:
+        assert conn.execute("SELECT count(*) FROM veil_chat_turns WHERE doc_id = %s",
+                            (doc["doc_id"],)).fetchone()[0] == 0
+    assert client.get("/api/documents").json() == []
+
+
+def test_raw_rows_hold_no_readable_filename_question_or_answer(client, postgres_store):
+    secret_name = "synthetic-client-Raj-Patel.txt"
+    doc = client.post("/api/documents", files={"file": (secret_name, b"Tenant: Raj Patel.", "text/plain")}).json()
+    path = f"/api/documents/{doc['doc_id']}"
+    client.post(path + "/redact")
+    client.patch(path, json={"status": "approved"})
+    client.post(path + "/ask", json={"question": "Where does Raj Patel bank?"})
+    assert client.get("/api/documents").json()[0]["filename"] == secret_name
+    with postgres_store.connect() as conn:
+        rows = conn.execute("SELECT * FROM veil_documents WHERE doc_id = %s", (doc["doc_id"],)).fetchall()
+        rows += conn.execute("SELECT * FROM veil_chat_turns WHERE doc_id = %s", (doc["doc_id"],)).fetchall()
+        rows += conn.execute("SELECT * FROM veil_redactions WHERE doc_id = %s", (doc["doc_id"],)).fetchall()
+    assert len(rows) == 3
+    for value in (v for row in rows for v in row):
+        raw = bytes(value) if isinstance(value, (bytes, memoryview)) else str(value).encode()
+        for readable in (b"Raj Patel", b"Raj-Patel", b"synthetic-client", b"Where does", b"The tenant is"):
+            assert readable not in raw
