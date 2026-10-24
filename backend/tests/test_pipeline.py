@@ -109,6 +109,31 @@ def test_a_stopped_run_makes_no_more_calls():
     assert res.chunks[0].error.startswith("stopped")
 
 
+def test_failed_chunk_retry_keeps_review_decisions_and_retries_the_model():
+    doc = extract_text("Public name: Jo Smith. Private phrase: silver meadow.")
+    failed = run_pipeline(doc, t1=lambda _: T1Result([], "failed", "try again"))
+    reviewed = rebuild(doc, failed, hide={"silver meadow": "CUSTOM"}, unhide={"Jo Smith"})
+    t1 = model_finds(("Jo Smith", "PERSON"))
+    retried = run_pipeline(doc, t1=t1, reuse=reviewed)
+    assert len(t1.calls) == 1
+    assert retried.chunks[0].status == "ok"
+    assert retried.redacted_text == reviewed.redacted_text
+    assert retried.hidden == reviewed.hidden and retried.hidden is not reviewed.hidden
+    assert retried.unhidden == reviewed.unhidden and retried.unhidden is not reviewed.unhidden
+
+
+def test_full_rescan_keeps_corrections_without_reusing_model_answers():
+    doc = extract_text("Jo Smith. silver meadow. Raj Patel.")
+    reviewed = rebuild(doc, run_pipeline(doc, t1=model_finds(("Jo Smith", "PERSON"))),
+                       hide={"silver meadow": "CUSTOM"}, unhide={"Jo Smith"})
+    t1 = model_finds(("Jo Smith", "PERSON"), ("Raj Patel", "PERSON"))
+    rescanned = run_pipeline(doc, t1=t1, corrections=reviewed, plan="new-plan")
+    assert len(t1.calls) == 1
+    assert "Jo Smith" in rescanned.redacted_text
+    assert "silver meadow" not in rescanned.redacted_text
+    assert "Raj Patel" not in rescanned.redacted_text
+
+
 def test_a_reused_run_keeps_ok_chunks_only_under_the_same_plan_and_ranges():
     doc = extract_text("Jo Smith.\n\n" * 50)
     t1 = model_finds(("Jo Smith", "PERSON"))

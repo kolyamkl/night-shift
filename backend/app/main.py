@@ -284,7 +284,7 @@ def _scan(saved: Snapshot, superseded: Callable[[], bool], owner_id: str, retry:
     factory, prompt = app.state.t1_factory, app.state.t1_prompt
     res = run_pipeline(doc, t1=factory(doc.doc_id) if factory else None, max_chars=T1_CHUNK_CHARS[prompt],
                        emit=emit, plan=prompt, reuse=saved.result if retry == "failed" else None,
-                       stop=superseded)
+                       stop=superseded, corrections=saved.result)
     if superseded():
         raise Superseded
     try:

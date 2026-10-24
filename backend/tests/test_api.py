@@ -84,6 +84,43 @@ def test_unknown_document_is_404(client):
     assert client.post("/api/documents/nope/redact").status_code == 404
 
 
+@pytest.mark.parametrize("route", ["/redact", "/redact/stream"])
+@pytest.mark.parametrize("retry", ["", "?retry=failed"])
+@pytest.mark.parametrize("kind", ["text", "pdf"])
+def test_manual_corrections_survive_rescan_and_download(client, route, retry, kind):
+    text = "Tenant: Jo Smith. Private phrase: silver meadow."
+    if kind == "pdf":
+        with pymupdf.open() as pdf:
+            pdf.new_page().insert_text((72, 72), text)
+            doc = client.post("/api/documents", files={
+                "file": ("synthetic-contract.pdf", pdf.tobytes(), "application/pdf")}).json()
+    else:
+        doc = client.post("/api/documents", data={"text": text}).json()
+    path = f"/api/documents/{doc['doc_id']}"
+    assert client.post(path + "/redact").status_code == 200
+    assert client.post(path + "/corrections", json={
+        "action": "hide", "text": "silver meadow", "type": "CUSTOM"}).status_code == 200
+    corrected = client.post(path + "/corrections", json={
+        "action": "unhide", "text": "Jo Smith"}).json()
+    assert "silver meadow" not in corrected["redacted_text"]
+    assert "Jo Smith" in corrected["redacted_text"]
+
+    response = client.post(path + route + retry)
+    assert response.status_code == 200
+    saved = client.get(path).json()["result"]
+    assert saved["redacted_text"] == corrected["redacted_text"]
+    assert saved["boxes"] == corrected["boxes"]
+    downloaded = client.get(path + "/file")
+    assert downloaded.status_code == 200
+    if kind == "pdf":
+        with pymupdf.open(stream=downloaded.content, filetype="pdf") as pdf:
+            downloaded_text = "".join(page.get_text() for page in pdf)
+    else:
+        downloaded_text = downloaded.text
+    assert "silver meadow" not in downloaded_text
+    assert "Jo Smith" in downloaded_text
+
+
 def test_health_reports_whether_the_model_is_on(client):
     app.state.t1_factory = None
     assert client.get("/api/health").json()["model"] == "off"

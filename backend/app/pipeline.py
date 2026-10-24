@@ -155,9 +155,11 @@ def _regex(text: str) -> list[Span]:
 
 def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars: int = MAX_CHARS,
                  workers: int = 6, emit: Emit | None = None, plan: str = "",
-                 reuse: PipelineResult | None = None, stop: Callable[[], bool] | None = None) -> PipelineResult:
+                 reuse: PipelineResult | None = None, stop: Callable[[], bool] | None = None,
+                 corrections: PipelineResult | None = None) -> PipelineResult:
     """`reuse`: an earlier result of this document; its ok and empty chunks are kept (no T1 call) when
-    its plan and chunk ranges match. `stop`: once it returns True, chunks not yet started make no call."""
+    its plan and chunk ranges match. `stop`: once it returns True, chunks not yet started make no call.
+    Reviewer decisions come from `corrections` (or `reuse`), independently of chunk reuse."""
     text = doc.text
     ranges = chunk_ranges(text, max_chars)
     ids = [f"{doc.doc_id}-c{i:02d}" for i in range(len(ranges))]
@@ -210,7 +212,10 @@ def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars:
     for ents in chunk_values:
         for e in ents:
             values.setdefault(e["text"], e["type"])
-    return _build(doc, values, chunks, {}, set(), chunk_values, plan)
+    reviewed = corrections if corrections is not None else reuse
+    hidden = dict(reviewed.hidden) if reviewed else {}
+    unhidden = set(reviewed.unhidden) if reviewed else set()
+    return _build(doc, values, chunks, hidden, unhidden, chunk_values, plan)
 
 
 def rebuild(doc: Document, prev: PipelineResult, hide: dict[str, str] | None = None,
