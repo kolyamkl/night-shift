@@ -10,13 +10,19 @@ function Status({ s, on }: { s: Session; on: boolean }) {
     return (
       <span className={`flex items-center gap-2 text-xs ${on ? "text-signal-soft" : "text-signal-deep"}`}>
         <Spinner label="Working" />
-        {s.status === "scanning" ? "Reading" : "Redacting"}
+        {s.status === "scanning" ? reading(s) : "Redacting"}
       </span>
     );
   if (s.status === "review") return <Chip tone="red">Review · {changes} changes</Chip>;
   if (s.status === "approved") return <Chip tone="dark">Approved · {hidden} hidden</Chip>;
   if (s.status === "declined") return <Chip>Declined</Chip>;
   return <Chip tone="red">Failed</Chip>;
+}
+
+function reading(s: Session) {
+  const parts = s.scan?.parts ?? [];
+  if (!parts.length) return "Reading";
+  return `Reading ${parts.filter((p) => p.status !== "pending").length}/${parts.length}`;
 }
 
 export function Rail({ sessions, activeId, onSelect, onNew, modelOn }: {
@@ -27,13 +33,14 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn }: {
   modelOn: boolean | null;
 }) {
   const model = modelOn === null ? "Checking" : modelOn ? "Mubit adapter, plus rules" : "Rules only";
+  const short = modelOn === null ? "Checking" : modelOn ? "Model on" : "Model off"; // the phone row fits about 9 characters
   return (
     <aside className="flex min-h-0 flex-col gap-3 border-b-4 border-ink bg-bone px-4 py-3 lg:gap-5 lg:border-r-4 lg:border-b-0 lg:pt-5 lg:pb-4">
-      <div className="flex items-center gap-3 lg:flex-col lg:items-stretch lg:gap-5">
+      <div className="flex items-center gap-2 lg:flex-col lg:items-stretch lg:gap-5">
         <a href="/" className="font-pixel text-[30px] leading-none font-bold lg:text-[38px]" aria-label="Veil home">
           Veil
         </a>
-        <Chip className="lg:hidden">{model}</Chip>
+        <Chip className="lg:hidden">{short}</Chip>
         <Button variant="primary" icon="plus" onClick={onNew} className="ml-auto lg:ml-0 lg:w-full">
           New document
         </Button>
