@@ -28,6 +28,13 @@ export function runPaths(rows: Rows): [string, string][] {
   return Object.entries(byColor).map(([ch, d]) => [ch, d.join("")]);
 }
 
+/** The same drawing as <Sprite> as an SVG string, for pieces built outside React (falling stones, a toppling roof). */
+export function spriteSvg(rows: Rows, scale: number): string {
+  const w = Math.max(...rows.map((r) => r.length));
+  const paths = runPaths(rows).map(([ch, d]) => `<path fill="${COLORS[ch]}" d="${d}"/>`).join("");
+  return `<svg width="${w * scale}" height="${rows.length * scale}" viewBox="0 0 ${w} ${rows.length}" shape-rendering="crispEdges" style="display:block">${paths}</svg>`;
+}
+
 export function Sprite({ rows, scale, className, label }: { rows: Rows; scale: number; className?: string; label?: string }) {
   const { w, h, paths } = useMemo(
     () => ({ w: Math.max(...rows.map((r) => r.length)), h: rows.length, paths: runPaths(rows) }),

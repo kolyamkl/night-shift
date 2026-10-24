@@ -5,11 +5,11 @@ import { box, castle, collectErrors, docs, expectFanInsideScene, openGate, overl
 
 test("L3 the castle stays put when the gate opens", async ({ page }) => {
   await page.goto("/");
-  const before = await box(castle(page));
+  const before = await box(page.locator(".hero-castle"));
   await openGate(page);
   for (const ms of [40, 120, 260, 520, 900]) {
     await page.waitForTimeout(ms === 40 ? 40 : 100);
-    const now = await page.locator(".castle-btn").boundingBox();
+    const now = await page.locator(".hero-castle").boundingBox();
     expect(Math.abs(now!.x - before.x), `castle x after ${ms} ms`).toBeLessThanOrEqual(2);
     expect(Math.abs(now!.y - before.y), `castle y after ${ms} ms`).toBeLessThanOrEqual(6);
   }
@@ -54,7 +54,7 @@ test("L11 the castle base never slides under the band while scrolling", async ({
     await page.evaluate((top) => window.scrollTo(0, top), y);
     await page.waitForTimeout(150);
     const s = await box(scene(page));
-    const c = await page.locator(".castle-btn").boundingBox();
+    const c = await page.locator(".hero-castle").boundingBox();
     if (!c) continue;
     expect(c.y + c.height, `castle bottom at scroll ${y}`).toBeLessThanOrEqual(s.y + s.height + 1);
   }
@@ -196,4 +196,44 @@ test("L14 keyboard: the castle shows a focus ring and Enter opens it", async ({ 
   expect(await castle(page).evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("solid");
   await page.keyboard.press("Enter");
   await expect(docs(page)).toHaveCount(5);
+});
+
+// The castle is a toy beyond its gate: only the door opens it; presses on a tower knock stones off it.
+const tower = async (page: import("@playwright/test").Page, side: "left" | "right", row = 0.6) => {
+  const c = await box(page.locator(".hero-castle"));
+  return { x: c.x + c.width * (side === "left" ? 0.1 : 0.9), y: c.y + c.height * row };
+};
+
+test("L16 a press on the castle wall does nothing; only the door opens the gate", async ({ page }) => {
+  await page.goto("/");
+  const c = await box(page.locator(".hero-castle"));
+  await page.mouse.click(c.x + c.width * 0.3, c.y + c.height * 0.55); // the wall between the left tower and the gate
+  await page.waitForTimeout(400);
+  await expect(docs(page)).toHaveCount(0);
+  await expect(page.getByText("Open the gate", { exact: true })).toBeVisible();
+  await openGate(page);
+  await expect(docs(page)).toHaveCount(5);
+});
+
+test("L17 presses on a tower knock stones off it and leave the gate shut", async ({ page }) => {
+  await page.goto("/");
+  for (const row of [0.5, 0.56, 0.62]) {
+    const t = await tower(page, "left", row);
+    await page.mouse.click(t.x, t.y);
+  }
+  await expect(page.locator(".gchip").first()).toBeVisible();
+  expect(Number(await page.locator(".hero-castle").getAttribute("data-damage-left"))).toBeGreaterThan(0);
+  await expect(docs(page)).toHaveCount(0);
+});
+
+test("L18 a dozen presses bring a tower's roof down, then the tower rebuilds", async ({ page }) => {
+  await page.goto("/");
+  for (let i = 0; i < 12; i++) {
+    const t = await tower(page, "right", 0.45 + (i % 4) * 0.08);
+    await page.mouse.click(t.x, t.y);
+    await page.waitForTimeout(60);
+  }
+  await expect(page.locator(".gcollapse")).toHaveCount(1);
+  await expect(page.locator(".hero-castle")).toHaveAttribute("data-damage-right", "0", { timeout: 6000 });
+  await expect(page.locator(".gcollapse")).toHaveCount(0);
 });
