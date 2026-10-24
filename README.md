@@ -5,7 +5,7 @@ A privacy layer for using AI with real client documents. Built for the Mubit Nig
 ## What it does
 
 1. Paste text, or drop a PDF, a photo or scan, an email or a code file.
-2. Veil finds the personal data: a detector model called through Mubit, plus a regex layer for UK identifiers (cards, accounts, sort codes, IBAN, NI numbers, postcodes, phones, emails) and for client, policy, claim and case references.
+2. Veil finds the personal data: a detector model called through Mubit, plus a regex layer for UK identifiers (cards, accounts, sort codes, IBAN, NI numbers, postcodes, phones, emails), client, policy, claim and case references, IP addresses and e-signature IDs. An address is then widened to its flat, building and town, and an address the model missed is read back from its postcode.
 3. You review every change line by line as each part of the document comes back. Fix a miss, or show a value that is not personal.
 4. Approve. Only then can you ask an AI about the document. It sees placeholders such as `[PERSON_1]`, and Veil puts the real values back into its answer.
 5. Download the result: for a PDF, photo or scan, the same pages with the text and pixels under each black box removed from the file; for text, the redacted text. This is pseudonymised, not anonymised.
@@ -31,10 +31,10 @@ Without a key the app runs on the regex layer only. `VEIL_T1_PROMPT=evalkit` swi
 
 ## Tests
 
-312 tests on 24 Oct, all passing:
+362 tests on 24 Oct, all passing (184 backend, 48 OCR, 63 dataset, 10 evalkit, 57 frontend). The backend API tests need the local database from `scripts/local_db.py`; without `TEST_DATABASE_URL` they are skipped.
 
 ```bash
-cd backend && uv run --env-file ../.env pytest -q                              # API, stream, pipeline, references, PDF, OCR boxes
+cd backend && uv run --env-file ../.env pytest -q                              # API, auth, storage, stream, pipeline, regex rules, addresses, PDF, OCR boxes
 cd backend && uv run --with reportlab python -m pytest -q ../tests/ingest       # OCR with Apple Vision (macOS)
 python -m pytest -q tests/dataset                                                 # dataset pipeline (pip install -r requirements.txt)
 cd evalkit && uv run pytest -q                                                    # scorer, regex baseline

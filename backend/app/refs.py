@@ -22,6 +22,7 @@ LABEL = re.compile(
     r"|(?:client|customer|member(?:ship)?|patient|hospital|tenant|employee|staff|account|acct|a/c"
     r"|policy(?:holder)?|claims?"
     r"|case|matter|project|deposit|repair|booking|reservation|application|registration|confirmation|works"
+    r"|envelope|transaction"
     r"|frequent\s+flyer"
     r")(?:\s+" + _NO + r"(?:\(s\))?){0,2}"  # "hospital reference number"
     r")"
@@ -36,7 +37,7 @@ KEEP_CONTEXT = re.compile(
 )
 DATE = re.compile(r"\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}")
 MONEY = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2}")  # "DEPOSIT 102.06" is an amount
-MAX_LEN = 30
+MAX_LEN = 40
 
 
 def _value_ok(value: str) -> bool:
