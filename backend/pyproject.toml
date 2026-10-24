@@ -9,6 +9,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pymupdf>=1.24",
     "httpx>=0.27",
+    "psycopg[binary]>=3.2,<4",
+    "cryptography>=44",
+    "argon2-cffi>=25.1",
     "evalkit",
     # app/ingest (OCR for scans and photos, from the ocr/ingest branch)
     "pypdfium2>=5.14",

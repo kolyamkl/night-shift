@@ -1,6 +1,6 @@
 // Veil's pixel component set. Frames, buttons, fields and chips share the notched 4px frame in index.css.
 
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode, Ref, TextareaHTMLAttributes } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, TextareaHTMLAttributes } from "react";
 import { Sprite } from "../sprites";
 import { ICONS, type IconName } from "./icons";
 
@@ -43,6 +43,10 @@ export function LinkButton({ variant, size, icon, iconRight, className, children
       {iconRight && <Icon name={iconRight} size={iconScale(size)} />}
     </a>
   );
+}
+
+export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <span className="px-field block"><input {...props} className={`w-full bg-transparent px-3 py-3 outline-none ${props.className ?? ""}`} /></span>;
 }
 
 export function TextArea({ label, id, hint, ...rest }: { label: string; id: string; hint?: ReactNode } & TextareaHTMLAttributes<HTMLTextAreaElement>) {

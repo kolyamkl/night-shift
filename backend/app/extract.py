@@ -32,7 +32,7 @@ class Document:
 
 
 def _new_id() -> str:
-    return uuid.uuid4().hex[:12]
+    return uuid.uuid4().hex
 
 
 def extract_text(text: str, filename: str = "pasted.txt") -> Document:

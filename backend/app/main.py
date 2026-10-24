@@ -1,7 +1,7 @@
 """Veil API: upload or paste, redact through Mubit, download the redacted file, ask about it, fix it.
 
-Run: MUBIT_API_KEY=mbt_... uv run uvicorn app.main:app --reload --port 8000
-Documents live in memory for the session; nothing is written to disk and document text is never logged.
+Run from backend/: uv run --env-file ../.env uvicorn app.main:app --reload --port 8000
+Documents and redactions persist encrypted in PostgreSQL; document text is never logged.
 """
 
 import email
@@ -9,50 +9,109 @@ import json
 import os
 import re
 from collections import Counter
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from email import policy
 from pathlib import Path
 
 import pymupdf
+import psycopg
+from cryptography.fernet import InvalidToken
 from evalkit.redact import restore
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
+from .auth import User, router as auth_router
 from .extract import Document, extract_pdf, extract_text
 from .llm import T1_MODEL, T2_MODEL, make_t1_factory, make_t2
 from .pdfout import redact_pdf
 from .pipeline import PipelineResult, rebuild, run_pipeline
+from .storage import MissingDocument, PostgresStore, Snapshot, StaleRevision
 
-app = FastAPI(title="Veil")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    store = PostgresStore.from_env()
+    try:
+        store.initialize()
+    except psycopg.Error:
+        raise RuntimeError("PostgreSQL is unavailable. Check DATABASE_URL and start the database.") from None
+    app.state.store = store
+    yield
+
+
+app = FastAPI(title="Veil", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("VEIL_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
+app.include_router(auth_router)
+
+
+@app.middleware("http")
+async def protect_browser_requests(request: Request, call_next):
+    if request.url.path.startswith("/api/"):
+        if request.method not in {"GET", "HEAD", "OPTIONS"} and request.headers.get("X-Veil-Request") != "1":
+            return JSONResponse(status_code=403, content={"detail": "Missing request protection header."})
+        response = await call_next(request)
+        if request.url.path.startswith(("/api/auth", "/api/documents")):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+    return await call_next(request)
+
+
 app.state.t1_factory = make_t1_factory()
 app.state.t2 = make_t2()
 
-DOCS: dict[str, Document] = {}
-RESULTS: dict[str, PipelineResult] = {}
 TEXT_TYPES = (".txt", ".md", ".csv", ".json", ".eml")
 IMAGE_TYPES = (".jpg", ".jpeg", ".png", ".heic", ".heif", ".tif", ".tiff", ".webp")
 MAX_UPLOAD = 20 * 1024 * 1024
 
 
-def _doc(doc_id: str) -> Document:
-    if doc_id not in DOCS:
-        raise HTTPException(404, "Document not found. Upload it again.")
-    return DOCS[doc_id]
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request, exc):
+    if request.url.path.startswith("/api/auth/"):
+        # Never echo submitted passwords in validation responses.
+        return JSONResponse(status_code=422, content={"detail": "Enter a valid email and a password of 8 to 128 characters."})
+    return await request_validation_exception_handler(request, exc)
 
 
-def _result(doc_id: str) -> PipelineResult:
-    _doc(doc_id)
-    if doc_id not in RESULTS:
+@app.exception_handler(MissingDocument)
+async def missing_document(_request, _exc):
+    return JSONResponse(status_code=404, content={"detail": "Document not found."})
+
+
+@app.exception_handler(StaleRevision)
+async def stale_revision(_request, _exc):
+    return JSONResponse(status_code=409, content={"detail": "The document changed. Reload it before trying again."})
+
+
+@app.exception_handler(psycopg.Error)
+async def database_unavailable(_request, _exc):
+    return JSONResponse(status_code=503, content={"detail": "Document storage is unavailable. Try again shortly."})
+
+
+@app.exception_handler(InvalidToken)
+async def unreadable_document(_request, _exc):
+    return JSONResponse(status_code=503, content={"detail": "Stored content could not be decrypted."})
+
+
+def _doc(doc_id: str, owner_id: str) -> Document:
+    return app.state.store.get(doc_id, owner_id=owner_id).document
+
+
+def _scanned(doc_id: str, owner_id: str) -> Snapshot:
+    saved = app.state.store.get(doc_id, owner_id=owner_id)
+    if saved.result is None:
         raise HTTPException(409, "Scan the document first.")
-    return RESULTS[doc_id]
+    return saved
 
 
 def _doc_payload(doc: Document) -> dict:
@@ -83,12 +142,12 @@ def _email_to_text(raw: bytes) -> str:
     return f"{head}\n\n{text}".strip()
 
 
-def _store(doc: Document) -> dict:
-    DOCS[doc.doc_id] = doc
+def _store(doc: Document, owner_id: str) -> dict:
+    app.state.store.create(doc, owner_id=owner_id)
     return _doc_payload(doc)
 
 
-def _ocr(data: bytes, name: str) -> dict:
+def _ocr(data: bytes, name: str, owner_id: str) -> dict:
     """Scans and photos go through app/ingest (Apple Vision OCR on this Mac). Text only for now:
     no page boxes, so the download is the redacted text, not a redacted image."""
     try:
@@ -101,22 +160,36 @@ def _ocr(data: bytes, name: str) -> dict:
         raise HTTPException(415, str(exc)) from None
     if not doc.text.strip():
         raise HTTPException(400, "No text was found in this file.")
-    return _store(extract_text(doc.text, name))
+    return _store(extract_text(doc.text, name), owner_id)
 
 
 @app.get("/api/health")
 def health() -> dict:
+    app.state.store.healthy()
     on = bool(app.state.t1_factory)
     return {"model": "on" if on else "off", "t1_model": T1_MODEL if on else None,
-            "t2_model": T2_MODEL if app.state.t2 else None}
+            "t2_model": T2_MODEL if app.state.t2 else None, "database": "postgresql"}
+
+
+@app.get("/api/documents/{doc_id}")
+def read_document(doc_id: str, user: User) -> dict:
+    saved = app.state.store.get(doc_id, owner_id=user["id"])
+    return {"document": _doc_payload(saved.document), "revision": saved.revision,
+            "result": _result_payload(saved.document, saved.result) if saved.result else None}
+
+
+@app.delete("/api/documents/{doc_id}", status_code=204)
+def delete_document(doc_id: str, user: User) -> Response:
+    app.state.store.delete(doc_id, owner_id=user["id"])
+    return Response(status_code=204)
 
 
 @app.post("/api/documents")
-async def create_document(text: str | None = Form(None), file: UploadFile | None = File(None)) -> dict:
+async def create_document(user: User, text: str | None = Form(None), file: UploadFile | None = File(None)) -> dict:
     if file is None:
         if not text or not text.strip():
             raise HTTPException(400, "Paste some text or choose a file.")
-        return _store(extract_text(text))
+        return _store(extract_text(text), user["id"])
     data = await file.read()
     if len(data) > MAX_UPLOAD:
         raise HTTPException(413, "The file is larger than 20 MB.")
@@ -127,28 +200,29 @@ async def create_document(text: str | None = Form(None), file: UploadFile | None
             doc = extract_pdf(data, name)
         except Exception:
             raise HTTPException(400, "This PDF could not be read.") from None
-        return _store(doc) if doc.text.strip() else _ocr(data, name)  # no text layer: a scanned PDF
+        return _store(doc, user["id"]) if doc.text.strip() else _ocr(data, name, user["id"])  # no text layer: a scanned PDF
     if lower.endswith(".eml"):
-        return _store(extract_text(_email_to_text(data), name))
+        return _store(extract_text(_email_to_text(data), name), user["id"])
     if lower.endswith(TEXT_TYPES):
-        return _store(extract_text(data.decode("utf-8", errors="replace"), name))
+        return _store(extract_text(data.decode("utf-8", errors="replace"), name), user["id"])
     if lower.endswith(IMAGE_TYPES):
-        return _ocr(data, name)
+        return _ocr(data, name, user["id"])
     raise HTTPException(415, "This file type is not supported yet. Use PDF, an image, TXT or EML, or paste the text.")
 
 
 @app.post("/api/documents/{doc_id}/redact")
-def redact(doc_id: str) -> dict:
-    doc = _doc(doc_id)
+def redact(doc_id: str, user: User) -> dict:
+    saved = app.state.store.get(doc_id, owner_id=user["id"])
+    doc = saved.document
     factory = app.state.t1_factory
     res = run_pipeline(doc, t1=factory(doc_id) if factory else None)
-    RESULTS[doc_id] = res
+    app.state.store.save_result(doc_id, res, saved.revision, owner_id=user["id"])
     return _result_payload(doc, res)
 
 
 @app.get("/api/documents/{doc_id}/pages/{page}.png")
-def page_image(doc_id: str, page: int, scale: float = 1.5) -> Response:
-    doc = _doc(doc_id)
+def page_image(doc_id: str, page: int, user: User, scale: float = 1.5) -> Response:
+    doc = _doc(doc_id, user["id"])
     if doc.kind != "pdf" or not doc.source or not 0 <= page < len(doc.pages):
         raise HTTPException(404, "No such page.")
     pix = pymupdf.open(stream=doc.source, filetype="pdf")[page].get_pixmap(matrix=pymupdf.Matrix(scale, scale))
@@ -156,8 +230,9 @@ def page_image(doc_id: str, page: int, scale: float = 1.5) -> Response:
 
 
 @app.get("/api/documents/{doc_id}/file")
-def redacted_file(doc_id: str) -> Response:
-    doc, res = _doc(doc_id), _result(doc_id)
+def redacted_file(doc_id: str, user: User) -> Response:
+    saved = _scanned(doc_id, user["id"])
+    doc, res = saved.document, saved.result
     stem = Path(doc.filename).stem
     if doc.kind == "pdf" and doc.source:
         return Response(redact_pdf(doc.source, res.boxes), media_type="application/pdf",
@@ -171,8 +246,8 @@ class Ask(BaseModel):
 
 
 @app.post("/api/documents/{doc_id}/ask")
-def ask(doc_id: str, body: Ask) -> dict:
-    res = _result(doc_id)
+def ask(doc_id: str, body: Ask, user: User) -> dict:
+    res = _scanned(doc_id, user["id"]).result
     if not app.state.t2:
         raise HTTPException(503, "The chat model is off. Start the backend with MUBIT_API_KEY set.")
     try:
@@ -191,8 +266,9 @@ class Correction(BaseModel):
 
 
 @app.post("/api/documents/{doc_id}/corrections")
-def correct(doc_id: str, body: Correction) -> dict:
-    doc, res = _doc(doc_id), _result(doc_id)
+def correct(doc_id: str, body: Correction, user: User) -> dict:
+    saved = _scanned(doc_id, user["id"])
+    doc, res = saved.document, saved.result
     value = body.text.strip()
     if not value or value not in doc.text:
         raise HTTPException(400, "That text is not in the document.")
@@ -202,7 +278,7 @@ def correct(doc_id: str, body: Correction) -> dict:
         new = rebuild(doc, res, unhide={value})
     else:
         raise HTTPException(400, "action must be hide or unhide")
-    RESULTS[doc_id] = new
+    app.state.store.save_result(doc_id, new, saved.revision, owner_id=user["id"])
     return _result_payload(doc, new)
 
 
@@ -259,5 +335,5 @@ def sample_thumb(name: str, width: int = 120) -> Response:
 
 
 @app.post("/api/samples/{name}")
-def open_sample(name: str) -> dict:
-    return _store(extract_pdf(_sample_path(name).read_bytes(), name))
+def open_sample(name: str, user: User) -> dict:
+    return _store(extract_pdf(_sample_path(name).read_bytes(), name), user["id"])

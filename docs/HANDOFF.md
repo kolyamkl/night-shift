@@ -74,7 +74,14 @@ Model calls (both through Mubit, `backend/app/llm.py`):
 - **T2**: model `VEIL_T2_MODEL` (default `claude-haiku-4-5`), header `x-middleware-record: off` (no second task, Mubit stores no user questions).
 - No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now").
 
-Storage: documents and results live in memory (`DOCS`, `RESULTS` dicts) for the server's lifetime. Nothing is written to disk; document text is never logged.
+Storage (updated 24 Oct): documents, source PDFs, layout, pipeline results, vaults,
+and review corrections persist encrypted in PostgreSQL. `backend/app/storage.py`
+replaces the old `DOCS`/`RESULTS` dictionaries. See [DATABASE.md](DATABASE.md) for
+setup, migrations, deletion, tests, and email/password accounts. Document text
+is never logged. `/app?doc=<id>` reopens saved work and requires UI review again.
+Registration/login need no email verification. Every document route is scoped
+to its signed-in owner. Legacy ownerless records remain private and require
+explicit administrative assignment; registration does not claim them.
 
 ## 4. OCR integration (done in this merge, minimal)
 
@@ -91,7 +98,13 @@ Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each li
 | Method | Path | Does |
 |---|---|---|
 | GET | `/api/health` | `{model: on/off, t1_model, t2_model}` |
+| POST | `/api/auth/register` | `{email, password}` creates an account and session without email verification |
+| POST | `/api/auth/login` | `{email, password}` signs in |
+| GET | `/api/auth/me` | current `{id, email}` or 401 |
+| POST | `/api/auth/logout` | revokes the current session |
 | POST | `/api/documents` | form `text` or `file` (≤20 MB) → `{doc_id, kind, filename, text, pages}` |
+| GET | `/api/documents/{id}` | saved `{document, result, revision}` |
+| DELETE | `/api/documents/{id}` | deletes the document and result; returns 204 |
 | POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}` |
 | GET | `/api/documents/{id}/pages/{n}.png` | page image (PDF only) |
 | GET | `/api/documents/{id}/file` | redacted PDF or text download |
@@ -101,26 +114,28 @@ Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each li
 | GET | `/api/samples/{name}/thumb.png` | thumbnail (width 120, darkened) |
 | POST | `/api/samples/{name}` | opens a sample as a document |
 
-Env: `MUBIT_API_KEY` (or `backend/.env`), `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`.
+Env: `DATABASE_URL`, `VEIL_STORAGE_KEY` (required), `MUBIT_API_KEY` (or `backend/.env`), `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`. Load root configuration with `uv run --env-file ../.env` from `backend/`.
 
 ## 6. How to run
 
 ```bash
 # backend (Python 3.12/3.13, uv); evalkit is a path dependency
-cd backend && uv sync && uv run uvicorn app.main:app --reload --port 8000
-# key: create backend/.env with one line MUBIT_API_KEY=mbt_...  (gitignored; or export it)
+python3 scripts/local_db.py start
+cd backend && uv sync --frozen && uv run --env-file ../.env uvicorn app.main:app --reload --port 8000
+# key: set MUBIT_API_KEY in root .env (gitignored; or export it)
 
 # frontend (Vite proxies /api to 127.0.0.1:8000)
 npm --prefix frontend install && npm --prefix frontend run dev   # http://localhost:5173
 
 # tests
-cd backend && uv run pytest -q          # our backend tests
+cd backend && uv run --env-file ../.env pytest -q  # includes separate veil_test database
 npm --prefix frontend test              # vitest (redaction, icons)
 python -m pytest tests -q               # Mykola's tests (needs root requirements.txt installed)
 cd evalkit && uv run pytest -q
 ```
 
-Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly.
+Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly;
+`/app?doc=<id>` reopens a document already saved in PostgreSQL.
 
 ## 7. Frontend
 

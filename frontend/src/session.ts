@@ -4,7 +4,7 @@ export type Status = "scanning" | "review" | "approved" | "declined" | "failed";
 
 export type Turn = { question: string; answer?: AskResult; error?: string };
 
-// One uploaded document. Kept in memory only: nothing about a document is stored in the browser.
+// UI state is in memory; the URL holds an opaque ID for reopening the encrypted backend record.
 export type Session = {
   id: string;
   doc: DocPayload;

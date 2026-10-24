@@ -19,13 +19,17 @@ function Status({ s, on }: { s: Session; on: boolean }) {
   return <Chip tone="red">Failed</Chip>;
 }
 
-export function Rail({ sessions, activeId, onSelect, onNew, modelOn }: {
+export function Rail({ sessions, activeId, onSelect, onNew, modelOn, email, onLogout }: {
+  email: string;
+  onLogout: () => Promise<void>;
   sessions: Session[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
   modelOn: boolean | null;
 }) {
+  const [leaving, setLeaving] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const model = modelOn === null ? "Checking" : modelOn ? "Mubit adapter, plus rules" : "Rules only";
   return (
     <aside className="flex min-h-0 flex-col gap-3 border-b-4 border-ink bg-bone px-4 py-3 lg:gap-5 lg:border-r-4 lg:border-b-0 lg:pt-5 lg:pb-4">
@@ -58,7 +62,7 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn }: {
 
       <nav className="-mx-1 hidden min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pt-1 pb-2 lg:flex" aria-label="Documents in this session">
         <p className="px-label text-quiet">Sessions</p>
-        {sessions.length === 0 && <p className="text-[14px] text-quiet">Documents you open appear here. They stay in this browser tab only.</p>}
+        {sessions.length === 0 && <p className="text-[14px] text-quiet">Documents you open appear here. Save a document's link to reopen it.</p>}
         {sessions.map((s) => {
           const on = s.id === activeId;
           return (
@@ -79,6 +83,16 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn }: {
         })}
       </nav>
 
+      <div className="flex flex-wrap items-center gap-2 border-t-2 border-ink pt-3 lg:mt-auto">
+        <span className="min-w-0 flex-1 truncate text-sm" title={email}>{email}</span>
+        <Button size="sm" variant="ghost" loading={leaving} onClick={async () => {
+          setLeaving(true); setLogoutError(null);
+          try { await onLogout(); }
+          catch (e) { setLogoutError(e instanceof Error ? e.message : "Could not log out. Try again."); }
+          finally { setLeaving(false); }
+        }}>Log out</Button>
+        {logoutError && <p role="alert" className="w-full text-sm text-signal-deep">{logoutError}</p>}
+      </div>
       <div className="hidden bg-paper px-3 py-2.5 px-frame-thin lg:block">
         <p className="px-label text-quiet">Redaction model</p>
         <p className="mt-1 flex items-center gap-2 text-[14px]">
@@ -90,3 +104,4 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn }: {
     </aside>
   );
 }
+import { useState } from "react";

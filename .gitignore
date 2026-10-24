@@ -15,6 +15,7 @@ data/raw/
 __pycache__/
 *.pyc
 .pytest_cache/
+.local/
 
 # Large local datasets and build output (not committed; regenerate with datagen/dataconv/evalkit)
 /data/synthetic/*
@@ -26,6 +27,7 @@ __pycache__/
 # Frontend build output
 node_modules/
 frontend/dist/
+*.tsbuildinfo
 
 # Local Claude Code permissions
 .claude/settings.local.json

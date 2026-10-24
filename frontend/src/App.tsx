@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type DocPayload, type Health } from "./api";
+import { api, type DocPayload, type Health, type User } from "./api";
+import { AuthGate } from "./components/AuthGate";
 import { AskPanel } from "./components/AskPanel";
 import { DocumentPane } from "./components/DocumentPane";
 import { Intake } from "./components/Intake";
@@ -11,6 +12,10 @@ const message = (e: unknown) => (e instanceof Error ? e.message : "Something wen
 const distinct = (s: Session) => new Set(s.result?.entities.map((e) => e.placeholder)).size;
 
 export default function App() {
+  return <AuthGate>{(user, logout) => <Workspace key={user.id} user={user} onLogout={logout} />}</AuthGate>;
+}
+
+function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<void> }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -29,12 +34,28 @@ export default function App() {
       .finally(() => setChecked(true));
   }, []);
 
-  // "Try a sample" on the landing page opens /app?sample=<file>; start it straight away.
+  // Only the document ID goes in browser history; content stays in the backend.
   useEffect(() => {
-    const sample = new URLSearchParams(window.location.search).get("sample");
-    if (!sample) return;
-    window.history.replaceState(null, "", "/app");
-    void open(() => api.openSample(sample));
+    const params = new URLSearchParams(window.location.search);
+    const sample = params.get("sample");
+    const id = params.get("doc");
+    if (sample) {
+      window.history.replaceState(null, "", "/app");
+      void open(() => api.openSample(sample));
+    } else if (id) {
+      let cancelled = false;
+      setBusy(true);
+      api.document(id).then(({ document: doc, result }) => {
+        if (cancelled) return;
+        setSessions([{ id, doc, result: result ?? undefined,
+          status: result ? "review" : "failed", revealed: false, at: Date.now(), turns: [],
+          error: result ? undefined : "This document has not finished scanning. Retry to scan it." }]);
+        setActiveId(id);
+        setIntake(false);
+      }).catch((e) => { if (!cancelled) setError(message(e)); })
+        .finally(() => { if (!cancelled) setBusy(false); });
+      return () => { cancelled = true; };
+    }
   }, []);
 
   const update = useCallback((id: string, patch: (s: Session) => Partial<Session>) => {
@@ -59,6 +80,7 @@ export default function App() {
       const session: Session = { id: doc.doc_id, doc, status: "scanning", revealed: false, at: Date.now(), turns: [] };
       setSessions((all) => [session, ...all]);
       setActiveId(doc.doc_id);
+      window.history.replaceState(null, "", `/app?doc=${encodeURIComponent(doc.doc_id)}`);
       setIntake(false);
       void redact(doc.doc_id);
     } catch (e) {
@@ -90,13 +112,17 @@ export default function App() {
   return (
     <div className={`grid min-h-screen lg:h-screen lg:grid-rows-1 ${layout}`}>
       <Rail
+        email={user.email}
+        onLogout={onLogout}
         sessions={sessions}
         activeId={showIntake ? null : activeId}
         onSelect={(id) => {
           setActiveId(id);
+          window.history.replaceState(null, "", `/app?doc=${encodeURIComponent(id)}`);
           setIntake(false);
         }}
         onNew={() => {
+          window.history.replaceState(null, "", "/app");
           setIntake(true);
           setError(null);
         }}

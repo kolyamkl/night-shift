@@ -9,7 +9,7 @@ from app.pipeline import T1Result
 
 
 @pytest.fixture
-def client():
+def client(postgres_store):
     def t1_factory(doc_id):
         def t1(chunk):
             ents = [{"text": v, "type": "PERSON"} for v in ("Raj Patel", "Jo Smith") if v in chunk]
@@ -22,7 +22,10 @@ def client():
 
     app.state.t1_factory = t1_factory
     app.state.t2 = t2
-    yield TestClient(app)
+    with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as test_client:
+        response = test_client.post("/api/auth/register", json={"email": f"api-{postgres_store.test_suffix}@example.test", "password": "test-password"})
+        assert response.status_code == 201
+        yield test_client
     app.state.t1_factory = None
     app.state.t2 = None
 
@@ -79,9 +82,44 @@ def test_unknown_document_is_404(client):
     assert client.post("/api/documents/nope/redact").status_code == 404
 
 
-def test_health_reports_whether_the_model_is_on():
+def test_health_reports_whether_the_model_is_on(client):
     app.state.t1_factory = None
-    assert TestClient(app).get("/api/health").json()["model"] == "off"
+    assert client.get("/api/health").json()["model"] == "off"
+
+
+def test_document_and_corrections_survive_app_restart(client):
+    doc = client.post("/api/documents", data={"text": "Jo Smith, client CL-20931."}).json()
+    path = f"/api/documents/{doc['doc_id']}"
+    assert client.get(path).json()["result"] is None
+    client.post(path + "/redact")
+    client.post(path + "/corrections", json={"action": "hide", "text": "CL-20931"})
+    # Run a fresh application lifespan (no process-local document/result dictionaries).
+    with TestClient(app, headers={"X-Veil-Request": "1"}, cookies=client.cookies) as restarted:
+        saved = restarted.get(path).json()
+        assert saved["document"] == doc
+        assert saved["revision"] == 2
+        assert saved["result"]["redacted_text"] == "[PERSON_1], client [CUSTOM_1]."
+        assert restarted.post(path + "/ask", json={"question": "Who?"}).json()["answer"] == "The tenant is Jo Smith."
+        assert restarted.delete(path).status_code == 204
+        assert restarted.get(path).status_code == 404
+        assert restarted.get(path + "/file").status_code == 404
+
+
+def test_read_and_delete_unknown_document(client):
+    assert client.get("/api/documents/missing").status_code == 404
+    assert client.delete("/api/documents/missing").status_code == 404
+
+
+def test_database_errors_are_sanitized(client, postgres_store, monkeypatch):
+    import psycopg
+
+    def fail():
+        raise psycopg.OperationalError("secret connection string")
+
+    monkeypatch.setattr(postgres_store, "healthy", fail)
+    response = client.get("/api/health")
+    assert response.status_code == 503
+    assert "secret" not in response.text
 
 
 def test_samples_are_listed_and_open_as_documents(client, tenancy_pdf, tmp_path, monkeypatch):

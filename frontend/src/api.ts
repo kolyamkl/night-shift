@@ -31,6 +31,11 @@ export type AskResult = {
 };
 
 export type Health = { model: "on" | "off"; t1_model: string | null; t2_model: string | null };
+export type User = { id: string; email: string };
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
 export type Sample = {
   name: string;
   label: string;
@@ -44,13 +49,18 @@ export type Sample = {
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path, init);
+    const headers = new Headers(init?.headers);
+    if (init?.method && !["GET", "HEAD"].includes(init.method)) headers.set("X-Veil-Request", "1");
+    res = await fetch(path, { ...init, headers, credentials: "same-origin" });
   } catch {
     throw new Error("The Veil backend is not running. Start it on port 8000 and try again.");
   }
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `The backend answered ${res.status}.`);
+    if (res.status === 401 && !path.startsWith("/api/auth/")) {
+      window.dispatchEvent(new Event("veil:unauthorized"));
+    }
+    throw new ApiError(typeof body?.detail === "string" ? body.detail : `The backend answered ${res.status}.`, res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -62,6 +72,13 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const api = {
+  me: () => call<User>("/api/auth/me"),
+  register: (email: string, password: string) => call<User>("/api/auth/register", json({ email, password })),
+  login: (email: string, password: string) => call<User>("/api/auth/login", json({ email, password })),
+  logout: () => call<{ ok: boolean }>("/api/auth/logout", json({})),
+  document: (id: string) => call<{ document: DocPayload; result: RedactResult | null; revision: number }>(
+    `/api/documents/${encodeURIComponent(id)}`,
+  ),
   health: () => call<Health>("/api/health"),
   samples: () => call<Sample[]>("/api/samples"),
   openSample: (name: string) => call<DocPayload>(`/api/samples/${encodeURIComponent(name)}`, { method: "POST" }),

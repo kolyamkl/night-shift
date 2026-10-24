@@ -1,8 +1,8 @@
 # What Veil saves in PostgreSQL
 
-This describes the database and email/password authentication implementation in
-the local working tree on 24 October 2026. The application changes remain
-uncommitted at the time of writing; this commit contains only the summary.
+This describes Veil's PostgreSQL storage and email/password authentication as
+implemented on 24 October 2026. See [DATABASE.md](DATABASE.md) for local setup,
+configuration, and verification commands.
 
 ## Saved data
 

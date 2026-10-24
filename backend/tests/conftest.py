@@ -1,5 +1,51 @@
+import os
+import uuid
+
 import pymupdf
 import pytest
+
+from app.storage import MissingDocument, PostgresStore
+
+
+@pytest.fixture
+def postgres_store(monkeypatch):
+    """Integration tests use only an explicitly configured, separate database."""
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("Set TEST_DATABASE_URL to run PostgreSQL/API integration tests.")
+    if url == os.environ.get("DATABASE_URL"):
+        pytest.fail("TEST_DATABASE_URL must be separate from DATABASE_URL")
+    # The test database persists between runs, so its test key must be stable too.
+    key = os.environ.get("VEIL_STORAGE_KEY") or "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    suffix = uuid.uuid4().hex
+    owner_id = uuid.uuid4().hex
+
+    class TestStore(PostgresStore):
+        test_suffix = suffix
+        test_owner = owner_id
+
+        def create(self, doc, *, owner_id=owner_id):
+            return super().create(doc, owner_id=owner_id)
+
+        def get(self, doc_id, *, owner_id=owner_id):
+            return super().get(doc_id, owner_id=owner_id)
+
+        def save_result(self, doc_id, result, revision, *, owner_id=owner_id):
+            return super().save_result(doc_id, result, revision, owner_id=owner_id)
+
+        def delete(self, doc_id, *, owner_id=owner_id):
+            return super().delete(doc_id, owner_id=owner_id)
+
+    store = TestStore(url, key)
+    store.initialize()
+    with store.connect() as conn:
+        conn.execute("INSERT INTO veil_users (user_id, email, password_hash) VALUES (%s, %s, %s)",
+                     (owner_id, f"storage-{suffix}@example.test", "unused-test-hash"))
+    monkeypatch.setattr(PostgresStore, "from_env", classmethod(lambda cls: store))
+    yield store
+    with store.connect() as conn:
+        conn.execute("DELETE FROM veil_users WHERE email LIKE %s", (f"%-{suffix}@example.test",))
+
 
 
 def make_pdf(lines_per_page: list[list[str]]) -> bytes:
