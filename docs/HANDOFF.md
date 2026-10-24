@@ -24,9 +24,9 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 | `backend/app/extract.py` | Dmytro | PDF via PyMuPDF: text plus every word's box and character range (needed for true redaction) | Working |
 | `backend/app/pipeline.py` | Dmytro | regex + T1 per chunk, merge spans, vault placeholders, boxes per line, `rebuild()` for reviewer fixes | Working |
 | `backend/app/pdfout.py` | Dmytro | True PDF redaction (`add_redact_annot` + `apply_redactions`) | Working |
-| `backend/app/llm.py` | Dmytro | T1 and T2 calls through Mubit; key from env or `backend/.env` | Working with a valid key |
+| `backend/app/llm.py` | Dmytro | T1 (two prompts, `VEIL_T1_PROMPT`) and T2 calls through Mubit; key from env, `backend/.env` or root `.env` | Working with a valid key |
 | `backend/app/ingest/` | Mykola (PR #9) | Local reading of PDFs and images: pdfium text layer, Apple Vision OCR (macOS), identifier repairs after OCR. See its README | Merged; wired into uploads (section 4) |
-| `backend/app/prompts.py` | Mykola | **A second T1 prompt** (rewrite design, `claude-haiku-4-5`). NOT used by the app. See section 8 | Conflict, decide |
+| `backend/app/prompts.py` | Mykola | **A second T1 prompt** (rewrite design, `claude-haiku-4-5`). Used by the app only with `VEIL_T1_PROMPT=rewrite`. See section 8 | Conflict, decide |
 | `backend/tests/` | Dmytro | API, extract, llm, pdfout, pipeline tests | Not re-run after merge |
 | `evalkit/` | Dmytro | Frozen T1 prompt the app uses (`evalkit/src/evalkit/prompts.py`), scorer, regex baseline, vault/restore, round builder, Mubit sender, `autosend.sh` | Used by backend (path dependency) |
 | `datagen/` | Dmytro | Synthetic UK documents with gold spans (100k run, seed 42) and demo PDFs | Outputs in `data/synthetic/` (gitignored except `pdfs/`) |
@@ -57,10 +57,13 @@ upload / paste / sample
        ├─ PDF without text (scan) → ingest.extract (Apple Vision OCR) → text only
        ├─ image (jpg png heic tiff webp) → ingest.extract → text only
        ├─ .eml → headers + body text
-       └─ .txt .md .csv .json → text
-  └─ POST /api/documents/{id}/redact
+       ├─ .txt .md .csv .json, code and config files (.py .ts .yaml .sql .html ...) → text
+       └─ any other file that is UTF-8 with no NUL byte in its first 8 KB → text (else 415)
+  └─ POST /api/documents/{id}/redact/stream   (server-sent events, what the UI should use)
+     or POST /api/documents/{id}/redact        (same result in one JSON answer)
        pipeline.run_pipeline:
-         chunk text (≤4000 chars, paragraph cuts) → T1 per chunk in parallel (6 workers)
+         chunk text (≤4000 chars for evalkit, ≤1400 for rewrite; paragraph cuts)
+         → T1 per chunk in parallel (6 workers); each finished chunk is streamed as it lands
          every value T1 returns is located across the WHOLE document (evalkit.spans.locate)
          + regex layer (evalkit.regex_baseline) → merge overlaps → Vault placeholders
          → boxes: words overlapping a span, one rectangle per line (PDF only)
@@ -70,11 +73,14 @@ upload / paste / sample
 ```
 
 Model calls (both through Mubit, `backend/app/llm.py`):
-- **T1**: `evalkit` frozen system prompt, model `VEIL_T1_MODEL` (default `gpt-6-luna`), recording ON (calls keep training the Mubit task), session `doc-<doc_id>`, answer = JSON list of `{text, type}` parsed by `evalkit.send_batch.parse_entities`.
+- **T1**, recording ON (calls keep training a Mubit task), session `doc-<doc_id>`. `VEIL_T1_PROMPT` picks the prompt, and each prompt is its own Mubit task:
+  - `evalkit` (default): frozen prompt `evalkit/src/evalkit/prompts.py`, model `VEIL_T1_MODEL` (default `gpt-6-luna`), chunks ≤4000 chars, answer = JSON list of `{text, type}` parsed by `evalkit.send_batch.parse_entities`. Mubit task "Find personal data".
+  - `rewrite`: Mykola's `backend/app/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (Mubit's reviewer reads only about the first 1,530 chars of a call), each sent stripped of surrounding whitespace as `scripts/dataset/build_chunks.py` made the training chunks. Values with fewer than two letters or digits, and PERSON values that are only a title, are dropped, since every value is hidden everywhere in the document. Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
 - **T2**: model `VEIL_T2_MODEL` (default `claude-haiku-4-5`), header `x-middleware-record: off` (no second task, Mubit stores no user questions).
-- No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now").
+- Key and settings: the first value starting with `mbt_` in `MUBIT_API_KEY`, then `backend/.env`, then the repo-root `.env` (where `scripts/dataset/send_batch.py` reads it too). `VEIL_T1_PROMPT`, `VEIL_T1_MODEL` and `VEIL_T2_MODEL` are looked up the same way (section 5). `/api/health` reports where the key came from (`key_source`), never the key.
+- No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now"). The startup log says which prompt, model and key source are in use.
 
-Storage: documents and results live in memory (`DOCS`, `RESULTS` dicts) for the server's lifetime. Nothing is written to disk; document text is never logged.
+Storage: documents and results live in memory (`DOCS`, `RESULTS` dicts) for the server's lifetime. Nothing is written to disk; document text is never logged. Per chunk the log holds only doc id, chunk index, status, latency, `mreq_` id and the number of values found.
 
 ## 4. OCR integration (done in this merge, minimal)
 
@@ -90,9 +96,10 @@ Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each li
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/api/health` | `{model: on/off, t1_model, t2_model}` |
+| GET | `/api/health` | `{model: on/off, t1_model, t1_prompt: evalkit/rewrite, t2_model, key_source: env/backend/.env/.env/null}` |
 | POST | `/api/documents` | form `text` or `file` (≤20 MB) → `{doc_id, kind, filename, text, pages}` |
-| POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}` |
+| POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}`; each chunk is `{index, chunk_id, start, end, status, error, mreq_id, latency_ms, found}`. Optional `?retry=failed` (below) |
+| POST | `/api/documents/{id}/redact/stream` | the same run as server-sent events (contract below). Optional `?retry=failed` |
 | GET | `/api/documents/{id}/pages/{n}.png` | page image (PDF only) |
 | GET | `/api/documents/{id}/file` | redacted PDF or text download |
 | POST | `/api/documents/{id}/ask` | `{question}` → `{answer, answer_with_placeholders, sent_text, unknown_placeholders, mreq_id}` |
@@ -101,14 +108,35 @@ Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each li
 | GET | `/api/samples/{name}/thumb.png` | thumbnail (width 120, darkened) |
 | POST | `/api/samples/{name}` | opens a sample as a document |
 
-Env: `MUBIT_API_KEY` (or `backend/.env`), `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`.
+Stream contract (`/redact/stream`, fixed: the frontend builds against it):
+- Unknown doc: 404 JSON `{"detail": "Document not found. Upload it again."}` before any stream. Otherwise 200 with `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`.
+- Each event is `event: <name>\ndata: <one-line JSON>\n\n`; a comment `: ping\n\n` goes out every 5 s while waiting.
+- Events in order: `start` once `{doc_id, model, t1_model, t1_prompt, chunks: [{index, chunk_id, start, end}]}`; `regex` once `{entities: [{start, end, text, type, source: "regex"}]}`; `chunk` once per chunk in the order chunks finish `{index, chunk_id, start, end, status: ok/error/empty/off, error, mreq_id, latency_ms, found, entities: [{..., source: "model"}]}`; `done` once, exactly the `/redact` JSON from the same builder (`RESULTS` is stored first, so `/file`, `/ask` and `/corrections` work right away). `error` `{message}` only for an unexpected failure that stops the run; a failed chunk is a `chunk` with `status: "error"`.
+- `entities` of a chunk are the occurrences, inside its `[start, end)`, of the values T1 returned for it; `found` is the number of values T1 returned. `off` = no key, no call; `empty` = whitespace-only chunk, no call. All offsets are character offsets into the `text` from `POST /api/documents`.
+
+Retry only what failed: `POST /api/documents/{id}/redact/stream?retry=failed` (and `POST /redact?retry=failed`):
+- Same events, in the same order, as a normal run.
+- If `RESULTS` holds an earlier run of this document with the same chunk plan (same T1 prompt and the same ranges), its chunks with status `ok` or `empty` make no new T1 call: their `chunk` events go out at once with the stored `mreq_id`, `latency_ms`, `found` and `entities`. Only chunks that were `error` (or `off`, when the model is now on) call T1. `done` is then what a full run would give; like any scan, it starts without reviewer corrections.
+- With no earlier result or a different plan, every chunk runs, as without the parameter. Any other value of `retry` is a 422.
+- `PipelineResult.chunk_values` keeps what T1 returned per chunk and `PipelineResult.plan` the prompt, for this.
+
+One scan per document at a time: each scan (`/redact` or `/redact/stream`, with or without `retry`) gets a generation number. Only the newest may store `RESULTS[doc_id]` and send `done`. An older one stops making new T1 calls, goes quiet and ends with `error` `{"message": "A newer scan of this document started, so this one stopped."}`; an older `/redact` gets 409 with the same text.
+
+Settings and key lookup: `MUBIT_API_KEY`, `VEIL_T1_PROMPT` (`evalkit` default, or `rewrite`), `VEIL_T1_MODEL` (evalkit prompt only) and `VEIL_T2_MODEL` are each read from a real environment variable first, then from `backend/.env`, then from the repo-root `.env` (so the root `.env` that holds the key can also say `VEIL_T1_PROMPT=rewrite`). Only these names are read from the files; nothing is loaded into `os.environ`. For the key, only a value starting with `mbt_` counts. The startup log names the prompt and where it came from, for example `T1 on: prompt rewrite (VEIL_T1_PROMPT from .env), model claude-haiku-4-5, 1400-character chunks, Mubit key from .env`; a bad `VEIL_T1_PROMPT` stops startup. `VEIL_CORS` and `VEIL_SAMPLES_DIR` are read from the environment only.
 
 ## 6. How to run
 
 ```bash
 # backend (Python 3.12/3.13, uv); evalkit is a path dependency
 cd backend && uv sync && uv run uvicorn app.main:app --reload --port 8000
-# key: create backend/.env with one line MUBIT_API_KEY=mbt_...  (gitignored; or export it)
+# key: one line MUBIT_API_KEY=mbt_... in the root .env (or backend/.env, or export it); all gitignored.
+# Lookup order: environment, backend/.env, .env. The startup log and /api/health show the source.
+# Second T1 prompt (Mykola's rewrite design): VEIL_T1_PROMPT=rewrite in the same .env (see .env.example),
+# or VEIL_T1_PROMPT=rewrite uv run uvicorn app.main:app --port 8000
+
+# watch a scan stream (synthetic sample only)
+DOC=$(curl -s -X POST localhost:8000/api/samples/01_tenancy_agreement.pdf | python3 -c "import json,sys; print(json.load(sys.stdin)['doc_id'])")
+curl -N -X POST localhost:8000/api/documents/$DOC/redact/stream
 
 # frontend (Vite proxies /api to 127.0.0.1:8000)
 npm --prefix frontend install && npm --prefix frontend run dev   # http://localhost:5173
@@ -135,7 +163,7 @@ Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly.
 
 ## 8. Open conflicts to resolve (team decision, do not pick silently)
 
-1. **Two T1 designs.**
+1. **Two T1 designs.** The app can now run either (`VEIL_T1_PROMPT`, default `evalkit`); which one is canonical is still open.
    - App + all Mubit training so far: `evalkit/src/evalkit/prompts.py` (`PROMPT_VERSION = 1`), output = JSON list of entities, teacher `gpt-6-luna`. Mubit console task "Find personal data", Training v1.
    - Mykola: `backend/app/prompts.py`, output = the chunk rewritten with placeholders, model `claude-haiku-4-5`, used by `scripts/dataset/send_batch.py`. Marked "DRAFT pending Nick's review".
    - Mubit fingerprints a task by model + system prompt + tools + output format. Any change creates a new task with zero kept examples. Pick one before more training traffic. `evalkit` can already send Mykola's documents (`evalkit/src/evalkit/team_docs.py`, rounds `team_train` / `team_eval`) and recover spans from rewrite answers (`rewrite.py`).
