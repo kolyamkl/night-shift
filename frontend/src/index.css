@@ -15,6 +15,19 @@
   --font-pixel: "Pixelify Sans Variable", "Pixelify Sans", ui-monospace, monospace;
   --font-label: "Silkscreen", "Pixelify Sans Variable", ui-monospace, monospace;
   --font-serif: "Source Serif 4 Variable", Georgia, serif;
+  /* Landing type scale: one size per role, so texts that carry the same weight look the same. */
+  --text-hero: clamp(36px, 4.8vw, 66px);
+  --text-hero--line-height: 1.04;
+  --text-headline: clamp(32px, 4vw, 56px);
+  --text-headline--line-height: 1.05;
+  --text-subhead: clamp(22px, 2vw, 26px);
+  --text-subhead--line-height: 1.2;
+  --text-lede: clamp(18px, 1.5vw, 21px);
+  --text-lede--line-height: 1.5;
+  --text-copy: 18px;
+  --text-copy--line-height: 1.5;
+  --text-note: 14px;
+  --text-note--line-height: 1.45;
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-soft: cubic-bezier(0.22, 0.8, 0.2, 1);
 }

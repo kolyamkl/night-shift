@@ -7,7 +7,7 @@ import { animate, motion, useReducedMotion, type MotionValue } from "motion/reac
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Sprite } from "../sprites";
-import { Button, Icon } from "../ui/kit";
+import { Button, LinkButton } from "../ui/kit";
 import { CASTLE, CASTLE_H, CASTLE_TOP, CASTLE_W, CLOUD, DOOR, HILLS_FAR, HILLS_NEAR, PENNANT, TORCH } from "./art";
 import { Hills } from "./Hills";
 
@@ -77,10 +77,9 @@ export function HeroScene({ p, farY, onPlayed }: {
       </div>
       <div className="relative z-10 flex flex-col items-center gap-4 bg-mist px-4 pt-2 pb-8">
         <div ref={setSlot} className="contents" />
-        <a href="#journey" className="scroll-cue flex items-center gap-2 bg-paper px-3 py-2 px-frame-thin">
-          <Icon name="down" />
-          <span className="px-label">Follow a document</span>
-        </a>
+        <LinkButton href="#journey" variant="secondary" icon="down" className="scroll-cue">
+          Follow a document
+        </LinkButton>
       </div>
     </>
   );

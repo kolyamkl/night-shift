@@ -204,8 +204,8 @@ function Stage({ p, still }: { p: MotionValue<number>; still: boolean }) {
 function Caption({ i, step }: { i: number; step: number }) {
   return (
     <div className={`caption absolute inset-0 ${step === i ? "is-on" : ""}`} aria-hidden={step !== i}>
-      <h3 className="font-pixel text-[clamp(24px,2.6vw,34px)] leading-tight font-bold">{STEPS[i][0]}</h3>
-      <p className="mt-2 max-w-[62ch] text-[16px] text-quiet">{STEPS[i][1]}</p>
+      <h3 className="font-pixel text-headline font-bold">{STEPS[i][0]}</h3>
+      <p className="mt-3 max-w-[60ch] text-lede text-quiet">{STEPS[i][1]}</p>
     </div>
   );
 }
@@ -227,7 +227,7 @@ export function Journey() {
     const still = Math.min(1.2, width / W);
     return (
       <section id="journey" ref={section} className="py-20">
-        <h2 className="mx-auto max-w-6xl px-4 font-pixel text-[clamp(28px,3vw,40px)] font-bold sm:px-8">How MuGuard keeps a document inside the walls</h2>
+        <h2 className="mx-auto max-w-6xl px-4 font-pixel text-headline font-bold sm:px-8">How MuGuard keeps a document inside the walls</h2>
         <div ref={box} className="relative mt-8" style={{ height: H * still }}>
           <Scene p={p} still scale={still} width={width} pan={false} camX={camX} />
         </div>
@@ -236,8 +236,8 @@ export function Journey() {
             <li key={t} className="flex gap-4">
               <span className="step-dot is-on">{i + 1}</span>
               <span>
-                <b className="text-[18px]">{t}</b>
-                <span className="mt-1 block text-quiet">{d}</span>
+                <b className="text-subhead">{t}</b>
+                <span className="mt-1 block text-copy text-quiet">{d}</span>
               </span>
             </li>
           ))}
@@ -254,11 +254,11 @@ export function Journey() {
             {STEPS.map(([t], i) => (
               <li key={t} className={`step ${step === i ? "is-on" : step > i ? "is-done" : ""}`}>
                 <span className="step-dot">{i + 1}</span>
-                <span className="hidden text-[13px] md:inline">{t}</span>
+                <span className="hidden text-copy md:inline">{t}</span>
               </li>
             ))}
           </ol>
-          <div className="relative mt-4 h-[150px] sm:h-[100px]" aria-live="polite">
+          <div className="relative mt-5 h-[210px] sm:h-[150px] lg:h-[170px]" aria-live="polite">
             {STEPS.map((_, i) => (
               <Caption key={i} i={i} step={step} />
             ))}

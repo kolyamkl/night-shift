@@ -84,10 +84,10 @@ function Hero() {
   return (
     <section ref={ref} className="hero relative overflow-hidden">
       <motion.div ref={text} style={{ y: textY, opacity: textOpacity }} className="relative z-10 mx-auto max-w-5xl px-4 pt-8 text-center sm:pt-10">
-        <h1 className="mx-auto max-w-[21ch] font-pixel text-[clamp(36px,4.8vw,66px)] leading-[1.04] font-bold text-balance">
+        <h1 className="mx-auto max-w-[21ch] font-pixel text-hero font-bold text-balance">
           Your documents stay inside the walls.
         </h1>
-        <p className="mx-auto mt-5 max-w-[56ch] text-[clamp(16px,1.4vw,19px)] text-quiet">
+        <p className="mx-auto mt-5 max-w-[56ch] text-lede text-quiet">
           MuGuard hides names, account numbers and IDs before a document goes to an AI, then puts the real values back in the answer.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
@@ -111,8 +111,8 @@ function Learn() {
   return (
     <section id="learns" className="relative bg-bone px-4 pt-20 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <h2 className="max-w-[22ch] font-pixel text-[clamp(28px,3vw,40px)] leading-tight font-bold">It learns your firm's own codes</h2>
-        <p className="mt-4 max-w-[60ch] text-[17px] text-quiet">
+        <h2 className="max-w-[22ch] font-pixel text-headline font-bold">It learns your firm's own codes</h2>
+        <p className="mt-5 max-w-[60ch] text-lede text-quiet">
           Rules cannot learn, and a frontier model reads your data before it hides it. The MuGuard knight is trained through Mubit, and
           every miss you fix becomes a training example for its next version. In our test on 1,459 synthetic documents, pattern rules
           alone hid 38.5% of personal values.
@@ -126,8 +126,8 @@ function Learn() {
           </span>
         </div>
         <div className="learn-demo mb-6 bg-paper p-6 px-frame">
-          <h3 className="font-pixel text-[22px] font-bold">The guard's ledger</h3>
-          <p className="mt-1 text-[14px] text-quiet">The guard missed a client code. Fix it once.</p>
+          <h3 className="font-pixel text-subhead font-bold">The guard's ledger</h3>
+          <p className="mt-1 text-copy text-quiet">The guard missed a client code. Fix it once.</p>
           <p className="mt-4 bg-bone p-4 font-serif text-[19px] leading-relaxed px-frame-thin">
             Invoice for client ref{" "}
             <span className={`learn-val ${hidden ? "is-hidden" : ""}`} data-p="CUSTOM_1">
@@ -163,7 +163,7 @@ function Learn() {
               <span className="font-label text-[20px] tabular-nums">{examples}</span>
             </span>
           </div>
-          <p className="mt-4 min-h-[1.5em] text-[14px] text-quiet" aria-live="polite">
+          <p className="mt-4 min-h-[1.5em] text-copy text-quiet" aria-live="polite">
             {hidden ? "Fixed once. The next model version learns to catch client codes like this." : ""}
           </p>
         </div>
@@ -200,7 +200,7 @@ function Numbers() {
       <div className="notice relative mx-auto max-w-4xl bg-paper px-6 py-8 px-frame sm:px-10">
         <span className="nail left-3 top-3" aria-hidden />
         <span className="nail right-3 top-3" aria-hidden />
-        <h2 className="max-w-[24ch] font-pixel text-[clamp(26px,2.8vw,36px)] leading-tight font-bold">
+        <h2 className="max-w-[24ch] font-pixel text-headline font-bold">
           Notice: people already pass client documents to AI
         </h2>
         <ol className="mt-6">
@@ -210,17 +210,17 @@ function Numbers() {
                 <Counter to={n.to} prefix={n.prefix} suffix={n.suffix} />
               </p>
               <div>
-                <p className="text-[17px]">{n.text}</p>
-                <a href={n.href} className="mt-2 inline-block text-[12px] text-quiet underline underline-offset-4 hover:text-signal-deep">
+                <p className="text-copy">{n.text}</p>
+                <a href={n.href} className="mt-2 inline-block text-note text-quiet underline underline-offset-4 hover:text-signal-deep">
                   {n.source}
                 </a>
               </div>
             </li>
           ))}
         </ol>
-        <p className="border-t-2 border-ink pt-5 text-[17px]">
+        <p className="border-t-2 border-ink pt-5 text-copy">
           The solicitors' regulator has seen <q>confidential client information being entered into public AI tools</q>.{" "}
-          <a href="https://www.sra.org.uk/solicitors/guidance/misuse-ai/" className="text-[12px] whitespace-nowrap text-quiet underline underline-offset-4 hover:text-signal-deep">
+          <a href="https://www.sra.org.uk/solicitors/guidance/misuse-ai/" className="text-note whitespace-nowrap text-quiet underline underline-offset-4 hover:text-signal-deep">
             SRA warning notice, 17 Aug 2026
           </a>
         </p>
@@ -235,8 +235,8 @@ function FinalCta() {
       <Hills rows={HILLS_FAR} edge="#0d0d0d" fill="#0d0d0d" cell={6} className="bg-bone" />
       <div className="mx-auto grid max-w-6xl items-end gap-10 px-4 pt-12 sm:px-8 lg:grid-cols-[1fr_auto]">
         <div className="min-w-0 pb-16">
-          <h2 className="max-w-[18ch] font-pixel text-[clamp(32px,4vw,56px)] leading-[1.05] font-bold">Protect your first document</h2>
-          <p className="mt-4 max-w-[50ch] text-[17px] text-bone/80">
+          <h2 className="max-w-[18ch] font-pixel text-headline font-bold">Protect your first document</h2>
+          <p className="mt-5 max-w-[50ch] text-lede text-bone/80">
             Open MuGuard, drop a contract, a payslip or a client email, and approve every hidden value before any AI sees it.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
@@ -266,7 +266,7 @@ export function Landing() {
         <FinalCta />
       </main>
       <footer className="border-t-4 border-signal bg-ink px-4 py-8 text-bone/75 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-2 text-[13px]">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-2 text-note">
           <span className="font-pixel text-[20px] font-bold text-bone">MuGuard</span>
           <span>Pseudonymised, not anonymised: placeholders map back to real values only on your side.</span>
           <span data-cursor="Mubit trains the MuGuard knight">Demo documents are synthetic. Built at Night Shift, London, on Mubit.</span>

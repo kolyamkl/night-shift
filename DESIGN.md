@@ -238,9 +238,12 @@ A near-monochrome warm-paper palette with a single hot red that means "this valu
 
 ### Hierarchy
 - **Display** (Pixelify 700, clamp 44px to 120px, line-height 1): the victory title only.
-- **Hero** (Pixelify 700, clamp 36px to 66px, line-height 1.04, balanced, max 21ch): the landing headline.
-- **Headline** (Pixelify 700, clamp 28px to 40px): section headings on the landing and the intake heading; the final call to action runs up to 56px. Sub-headings drop to 24px.
-- **Title** (Pixelify 700, 22px): the open file's name, the dropzone prompt, step captions on the landing (24px to 34px).
+- **Hero** (Pixelify 700, `text-hero`: clamp 36px to 66px, line-height 1.04, balanced, max 21ch): the landing headline.
+- **Headline** (Pixelify 700, `text-headline`: clamp 32px to 56px, line-height 1.05): every landing section heading, the journey's step titles and the final call to action, all one size. The app's intake heading stays at 28px to 40px.
+- **Subhead** (Pixelify 700, `text-subhead`: clamp 22px to 26px): card headings on the landing (the guard's ledger, the step list in the still journey).
+- **Lede** (Pixelify 500, `text-lede`: clamp 18px to 21px, line-height 1.5, quiet, 50ch to 60ch): the paragraph right under a landing heading: hero, journey steps, learning, final call.
+- **Copy** (Pixelify 500, `text-copy`: 18px): other landing text a visitor reads: the numbers' sentences, the regulator line, step pills, ledger hints. **Note** (`text-note`: 14px): sources and the footer.
+- **Title** (Pixelify 700, 22px): the open file's name and the dropzone prompt in the app.
 - **Body** (Pixelify 500, 15px, line-height 1.5): the whole interface: messages, status lines, chat questions, card titles (600, 14px to 16px). Ledes run 16px to 19px in quiet, capped at 52ch to 64ch.
 - **Button** (Pixelify 600, 15px, line-height 1): sentence case. 13px small, 20px large, 26px extra large.
 - **Label** (Silkscreen 400, 11px, uppercase, 0.04em): panel and field labels, chips, tabs, top bar links, step numbers. 10px for stage labels and meta lines.

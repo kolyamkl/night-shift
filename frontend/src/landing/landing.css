@@ -49,7 +49,7 @@
 }
 @keyframes cue {
   50% {
-    transform: translateY(6px);
+    translate: 0 6px;
   }
 }
 
@@ -66,8 +66,8 @@
 .step {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px 6px 6px;
+  gap: 10px;
+  padding: 7px 14px 7px 7px;
   border: 2px solid transparent;
   border-image: var(--px-stone) 1 / 2px stretch;
   background-clip: padding-box;
@@ -88,9 +88,9 @@
 .step-dot {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  font: 400 11px/1 var(--font-label);
+  width: 28px;
+  height: 28px;
+  font: 400 13px/1 var(--font-label);
   background: var(--color-mist);
   color: var(--color-ink);
 }
