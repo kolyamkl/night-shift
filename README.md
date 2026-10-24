@@ -31,7 +31,7 @@ Without a key the app runs on the regex layer only. `VEIL_T1_PROMPT=evalkit` swi
 
 ## Tests
 
-362 tests on 24 Oct, all passing (184 backend, 48 OCR, 63 dataset, 10 evalkit, 57 frontend). The backend API tests need the local database from `scripts/local_db.py`; without `TEST_DATABASE_URL` they are skipped.
+370 tests on 24 Oct, all passing (192 backend, 48 OCR, 63 dataset, 10 evalkit, 57 frontend). The backend API tests need the local database from `scripts/local_db.py`; without `TEST_DATABASE_URL` they are skipped.
 
 ```bash
 cd backend && uv run --env-file ../.env pytest -q                              # API, auth, storage, stream, pipeline, regex rules, addresses, PDF, OCR boxes

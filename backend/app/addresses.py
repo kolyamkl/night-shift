@@ -1,11 +1,11 @@
 """Widen an ADDRESS span to the whole postal address around it.
 
-T1 often hides only the street: "Flat 3306, Amory Tower, [ADDRESS_1], London, [POSTCODE_1]", though its
+T1 often hides only the street: "Flat 2714, Halcyon Tower, [ADDRESS_1], London, [POSTCODE_1]", though its
 prompt counts the flat, the building, the town and the county as part of the address. So after the
 spans are merged, each ADDRESS span takes in its neighbours, segment by segment (a segment ends at a
 comma or a line break, never at a blank line):
-- before it, a flat or unit ("Flat 3306", "Level 12", "2nd Floor") or a building name that ends in a
-  building word ("Amory Tower", "Halden House");
+- before it, a flat or unit ("Flat 2714", "Level 12", "2nd Floor") or a building name that ends in a
+  building word ("Halcyon Tower", "Halden House");
 - after it, a town or county ("London", "Newcastle upon Tyne", "LONDON"), but only when a POSTCODE or
   another ADDRESS span follows, so "Ms Smith, 4 Oak Road, Landlord" keeps "Landlord" visible.
 The postcode keeps its own span.
@@ -32,7 +32,7 @@ BUILDING = re.compile(
     r"|Yard|Place|Close|Mews)"
 )
 STREET = re.compile(r"\d+[A-Za-z]?(?:-\d+[A-Za-z]?)?\s+[A-Z][\w'’.-]*(?:\s+[A-Z][\w'’.-]*){0,4}")
-# The same after a label or a lower-case word: "Relating to: Flat 3306", "address Rose Court".
+# The same after a label or a lower-case word: "Relating to: Flat 2714", "address Rose Court".
 _AFTER_LABEL = r"(?:[:;]|\b[a-z]+)\s+"
 LABELLED_PART = re.compile(_AFTER_LABEL + "(" + UNIT.pattern + "|" + BUILDING.pattern + r")$")
 LABELLED_STREET = re.compile(_AFTER_LABEL + "(" + STREET.pattern + r")$")
@@ -81,7 +81,7 @@ def _left(text: str, lo: int, start: int) -> int:
         if UNIT.fullmatch(seg) or BUILDING.fullmatch(seg):
             new = s
             continue
-        labelled = LABELLED_PART.search(seg)  # "Relating to: Flat 3306": the label stays visible
+        labelled = LABELLED_PART.search(seg)  # "Relating to: Flat 2714": the label stays visible
         if labelled:
             new = s + labelled.start(1)
         break
