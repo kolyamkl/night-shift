@@ -314,6 +314,11 @@ fonts by [`frontend/scripts/readme_art.py`](frontend/scripts/readme_art.py).
 - [Developer handoff](docs/HANDOFF.md), [deployment](docs/DEPLOY.md), [design system](DESIGN.md).
 - [All documentation](docs/README.md), including datasets and historical research.
 
+## License
+
+[MIT](LICENSE) © 2026 Glib. Sample documents contain invented people only;
+external datasets keep their own licences (see [dataconv](dataconv/README.md)).
+
 <p align="center">
   <img src="docs/readme/footer.svg" width="100%" alt="MuGuard. Pseudonymised, not anonymised: placeholders map back to real values only on your side. Built at Night Shift, London, on Mubit.">
 </p>
