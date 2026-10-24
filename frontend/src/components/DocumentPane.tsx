@@ -2,8 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from "
 import { api, pageScale } from "../api";
 import { changeList, stepMs, toLines, type Line } from "../redaction";
 import { advancePasses, hiddenSoFar, liveEntities, partAt, partLines, partsOf, passesDone, settledPasses, sweeping as sweepingAny, withLive } from "../scan";
-import type { Session } from "../session";
-import { Button, Chip, Icon, LinkButton, Tabs } from "../ui/kit";
+import type { Open } from "../session";
+import { Button, Chip, Icon, LinkButton, Spinner, Tabs } from "../ui/kit";
 import { Routing } from "./Routing";
 
 const TYPES: [string, string][] = [
@@ -40,7 +40,7 @@ type Pop = { entity: number; x: number; y: number };
 type Pick = { text: string; x: number; y: number };
 
 export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecline, onRetry, onCorrect }: {
-  session: Session;
+  session: Open;
   onRevealed: () => void;
   onApprove: () => void;
   onReopen: () => void;
@@ -64,6 +64,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
   const spans = useMemo(() => partLines(parts, lines.map((l) => l.start)), [parts, lines]);
   const partOfLine = useMemo(() => lines.map((l) => partAt(parts, l.start)), [lines, parts]);
   const done = session.revealed || status === "approved" || status === "declined";
+  const idle = status === "new" || status === "failed"; // no redaction to show: Scan or Try again
   const editable = status === "review" && session.revealed;
 
   // Parts read while this document was off screen start out swept: no replay of passes that ended.
@@ -173,15 +174,15 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
         <h2 className="min-w-0 max-w-full truncate font-pixel text-[22px] leading-tight font-bold" title={doc.filename}>
           {doc.filename}
         </h2>
-        <Chip>{status === "failed" ? "Not finished" : status === "scanning" && !finished ? "Reading" : plural(hidden, "change")}</Chip>
-        {modelOff && status !== "failed" && <Chip>Numbers only</Chip>}
-        {unchecked.length > 0 && status !== "failed" && (
+        <Chip>{status === "new" ? "Not scanned" : status === "failed" ? "Not finished" : status === "scanning" && !finished ? "Reading" : plural(hidden, "change")}</Chip>
+        {modelOff && !idle && <Chip>Numbers only</Chip>}
+        {unchecked.length > 0 && !idle && (
           <span title={why || undefined}>
             <Chip tone="red">{plural(unchecked.length, "part")} not checked by the AI</Chip>
           </span>
         )}
         <span className="ml-auto flex items-center gap-3">
-          {doc.kind === "pdf" && done && (
+          {doc.kind === "pdf" && done && !idle && (
             <Tabs
               label="View"
               value={view}
@@ -192,7 +193,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
               }}
             />
           )}
-          {!done && status !== "failed" && (
+          {!done && !idle && (
             <span className="relative block h-3 w-[142px] text-stone/40 segments" role="progressbar" aria-label="Parts read" aria-valuenow={Math.round(progress * 100)}>
               <span
                 className={`absolute inset-y-0 left-0 block text-signal segments ${!total ? "indeterminate w-full" : ""}`}
@@ -215,13 +216,21 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
       )}
 
       <div ref={body} onMouseUp={onMouseUp} className={`relative min-h-0 flex-1 overflow-y-auto px-3 pt-6 pb-44 sm:px-6 ${fixing ? "cursor-text" : ""}`}>
-        {modelOff && status !== "failed" && view === "lines" && (
+        {modelOff && !idle && view === "lines" && (
           <p className="mx-auto mb-4 flex max-w-[860px] items-center gap-2 bg-paper px-3 py-2 text-[14px] px-frame-thin">
             <span className="inline-block h-2.5 w-2.5 shrink-0 bg-stone" aria-hidden />
             Numbers only for now. The AI model did not run, so names and addresses were not looked for.
           </p>
         )}
-        {status === "failed" ? (
+        {status === "new" ? (
+          <div className="mx-auto max-w-[760px] bg-paper p-5 px-frame">
+            <p className="font-semibold">Not scanned yet.</p>
+            <p className="mt-1 text-quiet">Scan it to find the personal data, then review what Veil hides.</p>
+            <Button className="mt-4" variant="primary" icon="right" onClick={() => onRetry("all")}>
+              Scan
+            </Button>
+          </div>
+        ) : status === "failed" ? (
           <div className="mx-auto max-w-[760px] bg-paper p-5 px-frame px-frame-red">
             <p className="font-semibold text-signal-deep">The redaction did not finish.</p>
             <p className="mt-1 text-quiet">{session.error}</p>
@@ -370,7 +379,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
       {status === "review" && (
         <div className={`review-bar absolute right-4 bottom-4 left-4 z-20 flex flex-col gap-3 bg-ink px-4 py-3 text-bone px-frame ${session.revealed ? "is-up" : ""}`}>
           <p className={`min-w-0 truncate text-[14px] ${fixing ? "font-semibold text-signal-soft" : "text-bone/85"}`} aria-live="polite">
-            {fixing ? "Select the missed text on the page, then press Hide." : (note ?? statusNote)}
+            {fixing ? "Select the missed text on the page, then press Hide." : (session.notice ?? note ?? statusNote)}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="mr-auto font-label text-[12px] whitespace-nowrap tabular-nums">
@@ -386,10 +395,14 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
       )}
       {status === "approved" && (
         <div className="absolute right-4 bottom-4 left-4 z-20 flex flex-wrap items-center gap-3 bg-paper px-4 py-3 px-frame">
-          <span className="mr-auto flex items-center gap-2 text-[15px]">
-            <Icon name="check" className="text-signal" />
-            Approved. Ask about it on the right; the AI only sees the placeholders.
-          </span>
+          {session.notice ? (
+            <span role="alert" className="mr-auto text-[15px] text-signal-deep">{session.notice}</span>
+          ) : (
+            <span className="mr-auto flex items-center gap-2 text-[15px]">
+              <Icon name="check" className="text-signal" />
+              Approved. Ask about it on the right; the AI only sees the placeholders.
+            </span>
+          )}
           <Button size="sm" icon="marker" onClick={onReopen}>Edit redactions</Button>
           <LinkButton href={api.fileUrl(doc.doc_id)} download variant="dark" icon="download">
             Download redacted {doc.kind === "pdf" ? "PDF" : "text"}
@@ -402,6 +415,36 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
           Declined. Nothing from this document was sent to the AI provider.
         </div>
       )}
+    </section>
+  );
+}
+
+// A saved document while it loads, or why it did not.
+export function Opening({ filename, error, onRetry }: { filename?: string; error: string | null; onRetry: () => void }) {
+  return (
+    <section className="relative flex min-h-0 flex-col bg-bone">
+      <header className="flex min-h-[64px] items-center border-b-4 border-ink bg-paper px-5 py-3.5">
+        {filename && (
+          <h2 className="min-w-0 max-w-full truncate font-pixel text-[22px] leading-tight font-bold" title={filename}>
+            {filename}
+          </h2>
+        )}
+      </header>
+      <div className="px-3 pt-6 sm:px-6">
+        {error ? (
+          <div className="mx-auto max-w-[760px] bg-paper p-5 px-frame px-frame-red" role="alert">
+            <p className="font-semibold text-signal-deep">This document did not open.</p>
+            <p className="mt-1 text-quiet">{error}</p>
+            <Button className="mt-4" icon="right" onClick={onRetry}>
+              Try again
+            </Button>
+          </div>
+        ) : (
+          <p className="mx-auto flex max-w-[760px] items-center gap-3 text-[15px] text-quiet">
+            <Spinner label="Opening the document" /> Opening the document
+          </p>
+        )}
+      </div>
     </section>
   );
 }

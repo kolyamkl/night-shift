@@ -67,6 +67,44 @@ export type AskResult = {
   sent_text: string;
   unknown_placeholders: string[];
   mreq_id: string | null;
+  turn_id?: number; // a backend that keeps the chat has stored the turn already
+  created_at?: string;
+};
+
+// What the backend keeps per document. "review" is set by the backend when a scan finishes.
+export type StoredStatus = "new" | "review" | "approved" | "declined";
+
+// One row of GET /api/documents: no document text.
+export type DocSummary = {
+  doc_id: string;
+  filename: string;
+  kind: "pdf" | "text";
+  pages: number;
+  status: StoredStatus;
+  created_at: string;
+  updated_at: string;
+  has_result: boolean;
+  changes: number | null;
+  turns: number;
+};
+
+export type StoredTurn = {
+  turn_id: number;
+  created_at: string;
+  question: string;
+  answer: string;
+  answer_with_placeholders: string;
+  unknown_placeholders: string[];
+  mreq_id: string | null;
+};
+
+// GET /api/documents/{id}. An older backend sends no status and no turns.
+export type StoredDoc = {
+  document: DocPayload;
+  revision: number;
+  result: RedactResult | null;
+  status?: StoredStatus;
+  turns?: StoredTurn[];
 };
 
 export type Health = {
@@ -109,20 +147,31 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const json = (body: unknown): RequestInit => ({
-  method: "POST",
+const json = (body: unknown, method = "POST"): RequestInit => ({
+  method,
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(body),
 });
+
+// FastAPI answers a route it does not have with 404 "Not Found", or 405 when the path exists for another
+// method (GET /api/documents on a backend that only has POST there).
+export const routeMissing = (e: unknown) =>
+  e instanceof ApiError && (e.status === 405 || (e.status === 404 && e.message === "Not Found"));
+
+// null: this backend is older and does not have the route.
+const orMissing = <T>(p: Promise<T>): Promise<T | null> => p.catch((e) => (routeMissing(e) ? null : Promise.reject(e)));
 
 export const api = {
   me: () => call<User>("/api/auth/me"),
   register: (email: string, password: string) => call<User>("/api/auth/register", json({ email, password })),
   login: (email: string, password: string) => call<User>("/api/auth/login", json({ email, password })),
   logout: () => call<{ ok: boolean }>("/api/auth/logout", json({})),
-  document: (id: string) => call<{ document: DocPayload; result: RedactResult | null; revision: number }>(
-    `/api/documents/${encodeURIComponent(id)}`,
-  ),
+  // The signed-in person's saved documents, most recently updated first; null on a backend without the list.
+  documents: () => orMissing(call<DocSummary[]>("/api/documents")),
+  document: (id: string) => call<StoredDoc>(`/api/documents/${encodeURIComponent(id)}`),
+  // null on a backend that does not store the review status.
+  setStatus: (id: string, status: Exclude<StoredStatus, "new">) =>
+    orMissing(call<{ doc_id: string; status: StoredStatus }>(`/api/documents/${encodeURIComponent(id)}`, json({ status }, "PATCH"))),
   health: () => call<Health>("/api/health"),
   samples: () => call<Sample[]>("/api/samples"),
   openSample: (name: string) => call<DocPayload>(`/api/samples/${encodeURIComponent(name)}`, { method: "POST" }),

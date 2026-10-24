@@ -182,3 +182,47 @@ describe("pageScale", () => {
     expect(receipt.width * s * receipt.height * s).toBeLessThanOrEqual(8_000_000);
   });
 });
+
+describe("the saved list on an older backend", () => {
+  const row = { doc_id: "a1", filename: "lease.pdf", kind: "pdf", pages: 3, status: "approved", created_at: "2026-10-24T17:00:00Z",
+    updated_at: "2026-10-24T18:00:00Z", has_result: true, changes: 9, turns: 2 };
+
+  it("reads the list from GET /api/documents", async () => {
+    const fetch = vi.fn(() => Promise.resolve(jsonResponse(200, [row])));
+    vi.stubGlobal("fetch", fetch);
+    expect(await api.documents()).toEqual([row]);
+    expect(fetch.mock.calls[0]).toMatchObject(["/api/documents", { credentials: "same-origin" }]);
+  });
+
+  it.each([
+    [404, "Not Found"],
+    [405, "Method Not Allowed"], // the backend on main has only POST /api/documents
+  ])("gives null, not an error, when the list route answers %i %s", async (status, detail) => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(status, { detail }))));
+    await expect(api.documents()).resolves.toBeNull();
+  });
+
+  it("still fails on a real error", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(500, { detail: "Database unavailable." }))));
+    await expect(api.documents()).rejects.toThrow("Database unavailable.");
+  });
+
+  it("saves a review step with PATCH, and gives null on a backend without the route", async () => {
+    const fetch = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, { doc_id: "a1", status: "approved" })));
+    vi.stubGlobal("fetch", fetch);
+    await expect(api.setStatus("a1", "approved")).resolves.toEqual({ doc_id: "a1", status: "approved" });
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("/api/documents/a1");
+    expect(init?.method).toBe("PATCH");
+    expect(new Headers(init?.headers).get("X-Veil-Request")).toBe("1");
+    expect(JSON.parse(String(init?.body))).toEqual({ status: "approved" });
+
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(405, { detail: "Method Not Allowed" }))));
+    await expect(api.setStatus("a1", "declined")).resolves.toBeNull();
+  });
+
+  it("treats a missing document as a real error, not an older backend", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(404, { detail: "Document not found." }))));
+    await expect(api.setStatus("gone", "review")).rejects.toThrow("Document not found.");
+  });
+});

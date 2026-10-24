@@ -16,7 +16,7 @@ import {
   withLive,
   type Scan,
 } from "./scan";
-import type { Session } from "./session";
+import type { Open } from "./session";
 
 // Three parts of a short letter, one line each, as the backend would cut it.
 const TEXT = "Dear Raj Patel,\nSort code 20-45-77, account 31926819.\nCall 07700 900123 or write to Mia Chen.";
@@ -202,8 +202,9 @@ describe("synthesise (backend without the stream route)", () => {
 });
 
 describe("applyEvent", () => {
-  const session = (text = TEXT): Session => ({
+  const session = (text = TEXT): Open => ({
     id: "d0c",
+    filename: "letter.txt",
     doc: { doc_id: "d0c", kind: "text", filename: "letter.txt", text, pages: [] },
     status: "scanning",
     revealed: false,

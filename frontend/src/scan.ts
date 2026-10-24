@@ -1,9 +1,9 @@
 // Live scan state: what the backend has really done so far, built from its stream events.
 // Pure functions only, so the event-to-state logic can be unit tested.
 
-import { normaliseChunk, type ChunkInfo, type RedactResult, type ScanEntity, type ScanEvent } from "./api";
+import { normaliseChunk, synthesise, type ChunkInfo, type RedactResult, type ScanEntity, type ScanEvent } from "./api";
 import type { Entity } from "./redaction";
-import type { Session } from "./session";
+import type { Open, Session } from "./session";
 
 export type PartStatus = "pending" | ChunkInfo["status"];
 
@@ -117,6 +117,11 @@ export function scanReducer(scan: Scan, ev: ScanEvent): Scan {
 
 type ChunkRangeLike = Pick<ChunkInfo, "index" | "start" | "end">;
 
+// The scan behind a stored result, as if it had just been read: a reopened document can then retry only
+// the parts the AI could not check, and the other parts keep their bars. Parts get the order of their
+// index, as partsOf gives them, so no pass is replayed.
+export const scanOf = (result: RedactResult): Scan => synthesise(result).reduce(scanReducer, emptyScan());
+
 // ---------- Offsets ----------
 
 // The backend counts characters as Python code points; JS strings count UTF-16 units. They differ only
@@ -171,7 +176,7 @@ export function eventInUnits(ev: ScanEvent, text: string): ScanEvent {
 
 // One stream event applied to a session: the scan state, plus the result and status when the run ends.
 // A scan that ends while its document is not on screen has nothing left to show: it goes straight to review.
-export function applyEvent(s: Session, raw: ScanEvent, visible = true): Partial<Session> {
+export function applyEvent(s: Open, raw: ScanEvent, visible = true): Partial<Session> {
   const ev = eventInUnits(raw, s.doc.text);
   const scan = scanReducer(s.scan ?? emptyScan(), ev);
   if (ev.type === "done") return { scan, status: "review", result: ev.data, ...(visible ? {} : { revealed: true }) };

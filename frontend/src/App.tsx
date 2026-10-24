@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type DocPayload, type Health, type User } from "./api";
+import { api, type DocPayload, type Health, type StoredStatus, type User } from "./api";
 import { AuthGate } from "./components/AuthGate";
 import { AskPanel } from "./components/AskPanel";
-import { DocumentPane } from "./components/DocumentPane";
+import { DocumentPane, Opening } from "./components/DocumentPane";
 import { Intake } from "./components/Intake";
 import { Rail } from "./components/Rail";
 import { Victory } from "./components/Victory";
-import { applyEvent, emptyScan, resultInUnits, retryScan } from "./scan";
-import type { Session } from "./session";
+import { applyEvent, emptyScan, resultInUnits, retryScan, scanOf } from "./scan";
+import { fromStored, isOpen, mergeList, withOpened, type Saved, type Session, type Status } from "./session";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");
 const distinct = (s: Session) => new Set(s.result?.entities.map((e) => e.placeholder)).size;
+const docUrl = (id: string) => `/app?doc=${encodeURIComponent(id)}`;
 
 export default function App() {
   return <AuthGate>{(user, logout) => <Workspace key={user.id} user={user} onLogout={logout} />}</AuthGate>;
@@ -27,6 +28,10 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
   const [victory, setVictory] = useState<number | null>(null);
 
   const [checked, setChecked] = useState(false);
+  const [saved, setSaved] = useState<Saved>("loading");
+  const [listRun, setListRun] = useState(0);
+  // Documents being fetched to open: null while the request runs, else why it failed.
+  const [fetching, setFetching] = useState<Record<string, string | null>>({});
   const streams = useRef(new Map<string, AbortController>());
   const visible = useRef<string | null>(null);
 
@@ -38,6 +43,31 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
       .finally(() => setChecked(true));
   }, []);
 
+  // Every document the person has, so going to the landing page and back, or a reload, loses nothing.
+  // Each one is opened only when clicked.
+  useEffect(() => {
+    let cancelled = false;
+    setSaved("loading");
+    api.documents().then((list) => {
+      if (cancelled) return;
+      setSaved(list ? "on" : "off");
+      if (list) setSessions((all) => mergeList(all, list));
+    }).catch(() => { if (!cancelled) setSaved("error"); });
+    return () => { cancelled = true; };
+  }, [listRun]);
+
+  // A stored document, opened: its result, review status and chat.
+  async function openSaved(id: string) {
+    setFetching((f) => ({ ...f, [id]: null }));
+    try {
+      const opened = fromStored(await api.document(id));
+      setSessions((all) => withOpened(all, opened));
+      setFetching(({ [id]: _, ...rest }) => rest);
+    } catch (e) {
+      setFetching((f) => ({ ...f, [id]: message(e) }));
+    }
+  }
+
   // Only the document ID goes in browser history; content stays in the backend.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,19 +77,9 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
       window.history.replaceState(null, "", "/app");
       void open(() => api.openSample(sample));
     } else if (id) {
-      let cancelled = false;
-      setBusy(true);
-      api.document(id).then(({ document: doc, result }) => {
-        if (cancelled) return;
-        setSessions([{ id, doc, result: result ? resultInUnits(result, doc.text) : undefined,
-          status: result ? "review" : "failed", revealed: false, at: Date.now(), turns: [],
-          error: result ? undefined : "This document has not finished scanning. Retry to scan it." }]);
-        setActiveId(id);
-          window.history.replaceState(null, "", `/app?doc=${encodeURIComponent(id)}`);
-        setIntake(false);
-      }).catch((e) => { if (!cancelled) setError(message(e)); })
-        .finally(() => { if (!cancelled) setBusy(false); });
-      return () => { cancelled = true; };
+      setActiveId(id);
+      setIntake(false);
+      void openSaved(id);
     }
   }, []);
 
@@ -76,16 +96,18 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
     const ctrl = new AbortController();
     streams.current.set(id, ctrl);
     const mine = () => streams.current.get(id) === ctrl && !ctrl.signal.aborted;
-    update(id, (s) =>
-      run === "failed" && s.scan
-        ? { status: "scanning", error: undefined, revealed: false, scan: retryScan(s.scan) }
-        : { status: "scanning", error: undefined, revealed: false, result: undefined, scan: emptyScan(s.scan?.seq) },
-    );
+    update(id, (s) => {
+      // A reopened document has its stored result but no scan yet: rebuild the scan so only failed parts sweep.
+      const scan = s.scan ?? (s.result ? scanOf(s.result) : undefined);
+      return run === "failed" && scan
+        ? { status: "scanning", error: undefined, notice: undefined, revealed: false, scan: retryScan(scan) }
+        : { status: "scanning", error: undefined, notice: undefined, revealed: false, result: undefined, scan: emptyScan(scan?.seq) };
+    });
     try {
       await api.redactStream(
         id,
         {
-          onEvent: (ev) => mine() && update(id, (s) => applyEvent(s, ev, visible.current === id)),
+          onEvent: (ev) => mine() && update(id, (s) => (isOpen(s) ? applyEvent(s, ev, visible.current === id) : {})),
           onFallback: () => mine() && update(id, (s) => ({ scan: { ...(s.scan ?? emptyScan()), live: false } })),
         },
         ctrl.signal,
@@ -104,10 +126,10 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
     setError(null);
     try {
       const doc = await load();
-      const session: Session = { id: doc.doc_id, doc, status: "scanning", scan: emptyScan(), revealed: false, at: Date.now(), turns: [] };
-      setSessions((all) => [session, ...all]);
+      const session: Session = { id: doc.doc_id, filename: doc.filename, doc, status: "scanning", scan: emptyScan(), revealed: false, at: Date.now(), turns: [] };
+      setSessions((all) => [session, ...all.filter((s) => s.id !== doc.doc_id)]);
       setActiveId(doc.doc_id);
-      window.history.replaceState(null, "", `/app?doc=${encodeURIComponent(doc.doc_id)}`);
+      window.history.replaceState(null, "", docUrl(doc.doc_id));
       setIntake(false);
       void redact(doc.doc_id);
     } catch (e) {
@@ -117,6 +139,17 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
     }
   }
 
+  // Approve, Decline and Edit redactions are kept by the backend too, so they are still there after leaving.
+  // The page changes at once; if the backend cannot save the step, the page goes back and says so.
+  function review(id: string, status: Exclude<StoredStatus, "new">, back: Status) {
+    update(id, () => ({ status, notice: undefined }));
+    if (saved === "off") return;
+    api.setStatus(id, status).catch((e) =>
+      update(id, (s) => (s.status === status ? { status: back, notice: `Not saved. ${message(e)}` } : {})),
+    );
+  }
+
+  // The backend stores each turn as it answers, so a new ask is simply added to the chat.
   async function ask(id: string, question: string) {
     update(id, (s) => ({ turns: [...s.turns, { question }] }));
     const settle = (patch: object) =>
@@ -129,7 +162,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
   }
 
   const active = sessions.find((s) => s.id === activeId) ?? null;
-  const showIntake = intake || !active;
+  const showIntake = intake || !activeId;
   const visibleId = showIntake ? null : activeId;
 
   // Leaving a document mid-pass: its scan carries on, but nobody is watching the pass, so its review is
@@ -144,7 +177,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
     return () => all.forEach((ctrl) => ctrl.abort());
   }, []);
 
-  const askOpen = !showIntake && active?.status === "approved";
+  const askOpen = !showIntake && isOpen(active) && active.status === "approved";
   const layout = askOpen
     ? "grid-rows-[auto_minmax(70vh,1fr)_minmax(420px,auto)] lg:grid-cols-[240px_minmax(0,1fr)_340px] xl:grid-cols-[270px_minmax(0,1fr)_400px]"
     : "grid-rows-[auto_minmax(70vh,1fr)] lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)]";
@@ -156,11 +189,14 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
         email={user.email}
         onLogout={onLogout}
         sessions={sessions}
+        saved={saved}
+        onReloadList={() => setListRun((n) => n + 1)}
         activeId={showIntake ? null : activeId}
         onSelect={(id) => {
           setActiveId(id);
-          window.history.replaceState(null, "", `/app?doc=${encodeURIComponent(id)}`);
+          window.history.replaceState(null, "", docUrl(id));
           setIntake(false);
+          if (!sessions.find((s) => s.id === id)?.doc && fetching[id] !== null) void openSaved(id);
         }}
         onNew={() => {
           window.history.replaceState(null, "", "/app");
@@ -177,23 +213,25 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
           onText={(t) => open(() => api.paste(t))}
           onSample={(name) => open(() => api.openSample(name))}
         />
-      ) : (
+      ) : isOpen(active) ? (
         <DocumentPane
           key={`pane-${active.id}`}
           session={active}
           onRevealed={revealedFor(active.id)}
           onApprove={() => {
-            update(active.id, () => ({ status: "approved" }));
+            review(active.id, "approved", "review");
             setVictory(distinct(active));
           }}
-          onReopen={() => update(active.id, () => ({ status: "review" }))}
-          onDecline={() => update(active.id, () => ({ status: "declined" }))}
+          onReopen={() => review(active.id, "review", "approved")}
+          onDecline={() => review(active.id, "declined", "review")}
           onRetry={(only) => void redact(active.id, only)}
           onCorrect={async (action, text, type) => {
             const result = await api.correct(active.id, action, text, type);
-            update(active.id, (s) => ({ result: resultInUnits(result, s.doc.text) }));
+            update(active.id, () => ({ result: resultInUnits(result, active.doc.text), notice: undefined }));
           }}
         />
+      ) : (
+        <Opening filename={active?.filename} error={fetching[activeId] ?? null} onRetry={() => void openSaved(activeId)} />
       )}
       {askOpen && (
         <AskPanel key={active.id} session={active} t2Model={health?.t2_model ?? null} onAsk={(q) => ask(active.id, q)} />
