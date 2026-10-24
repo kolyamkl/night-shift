@@ -225,7 +225,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
         {status === "new" ? (
           <div className="mx-auto max-w-[760px] bg-paper p-5 px-frame">
             <p className="font-semibold">Not scanned yet.</p>
-            <p className="mt-1 text-quiet">Scan it to find the personal data, then review what Veil hides.</p>
+            <p className="mt-1 text-quiet">Scan it to find the personal data, then review what MuGuard hides.</p>
             <Button className="mt-4" variant="primary" icon="right" onClick={() => onRetry("all")}>
               Scan
             </Button>

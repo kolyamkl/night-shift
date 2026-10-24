@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Veil, Bitmap Bone v2. Everything Veil says is pixel; everything that is your document is paper. */
+/* MuGuard, Bitmap Bone v2. Everything MuGuard says is pixel; everything that is your document is paper. */
 @theme {
   --color-bone: #ecebe5;
   --color-paper: #f8f7f3;
@@ -544,9 +544,9 @@ body {
   animation: v-in 0.4s var(--ease-out-soft) both;
 }
 .v-title {
-  font-size: clamp(44px, 7.5vw, 120px);
+  font-size: clamp(32px, 7.5vw, 120px); /* "Secured by MuGuard" fits a 390px phone */
   clip-path: inset(0 100% 0 0);
-  animation: v-type 0.9s steps(15, jump-none) 2.35s forwards;
+  animation: v-type 0.9s steps(18, jump-none) 2.35s forwards; /* one step per character of "Secured by MuGuard" */
 }
 .v-px {
   position: absolute;

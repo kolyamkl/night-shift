@@ -1,8 +1,8 @@
-# How Veil works
+# How MuGuard works
 
 [Documentation index](README.md) · [Mubit](MUBIT.md) · [Data protection](SECURITY.md)
 
-Veil has a React browser interface, a FastAPI backend and PostgreSQL storage.
+MuGuard has a React browser interface, a FastAPI backend and PostgreSQL storage.
 The backend extracts document text, finds sensitive values, builds a redacted
 copy and keeps the mapping needed to restore values in answers. Mubit is the
 gateway for both detection (**T1**) and document questions (**T2**).
@@ -12,7 +12,7 @@ gateway for both detection (**T1**) and document questions (**T2**).
 ```mermaid
 flowchart LR
     U["User's browser"] -->|"HTTPS: upload, review, question"| W["Web: React and Caddy"]
-    subgraph V["Veil deployment on Railway"]
+    subgraph V["MuGuard deployment on Railway"]
         W -->|"Private network: API requests"| B["FastAPI backend"]
         B <-->|"Encrypted content; account metadata"| D[("PostgreSQL")]
         K["Server encryption key"] --> B
@@ -75,7 +75,7 @@ flowchart TD
 sequenceDiagram
     actor User
     participant UI as Browser
-    participant API as Veil backend
+    participant API as MuGuard backend
     participant DB as PostgreSQL
     participant M as Mubit and answering model
     User->>UI: Approve review, then ask a question

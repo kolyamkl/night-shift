@@ -73,7 +73,7 @@ export function AskPanel({ session, t2Model, onAsk }: {
           )}
           {lastSent && (
             <>
-              <p className="mt-5 px-label text-quiet">Its last answer, before Veil put the values back</p>
+              <p className="mt-5 px-label text-quiet">Its last answer, before MuGuard put the values back</p>
               <div className="mt-2 bg-paper p-3 font-serif text-[14px] leading-relaxed px-frame-thin">
                 <Placeholders text={lastSent.answer_with_placeholders} />
               </div>
@@ -114,7 +114,7 @@ export function AskPanel({ session, t2Model, onAsk }: {
                     )}
                   </p>
                   <p className="mt-2 px-label text-[10px] text-quiet">
-                    {t2Model ?? "AI"} · real values put back by Veil
+                    {t2Model ?? "AI"} · real values put back by MuGuard
                     {t.answer.unknown_placeholders.length > 0 && ` · ${t.answer.unknown_placeholders.join(", ")} not found`}
                   </p>
                 </div>

@@ -81,7 +81,7 @@ export function Intake({ busy, error, onFile, onText, onSample }: {
       <div className="mx-auto max-w-6xl">
         <h2 className="font-pixel text-[clamp(28px,3.4vw,40px)] leading-none font-bold">Hide the personal data in a document</h2>
         <p className="mt-3 max-w-[64ch] text-[16px] text-quiet">
-          Drop a file or paste text. Veil blacks out names, addresses, account numbers and IDs line by line, and you approve every
+          Drop a file or paste text. MuGuard blacks out names, addresses, account numbers and IDs line by line, and you approve every
           change before the AI you ask sees the document. It only ever sees the placeholders.
         </p>
 

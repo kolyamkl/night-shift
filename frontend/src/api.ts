@@ -1,4 +1,4 @@
-// Typed calls to the Veil backend (FastAPI in backend/, proxied at /api by Vite).
+// Typed calls to the MuGuard backend (FastAPI in backend/, proxied at /api by Vite).
 
 import type { Entity } from "./redaction";
 import { sseParser } from "./sse";
@@ -127,7 +127,7 @@ export type Sample = {
   types: Record<string, number>;
 };
 
-const OFFLINE = "The Veil backend is not running. Start it on port 8000 and try again.";
+const OFFLINE = "The MuGuard backend is not running. Start it on port 8000 and try again.";
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;

@@ -1,4 +1,4 @@
-// Veil's pointer is the guard's sword. The sprites ride on native CSS cursors, so the pointer never lags;
+// MuGuard's pointer is the guard's sword. The sprites ride on native CSS cursors, so the pointer never lags;
 // one canvas draws the embers a fast swing leaves and the sparks a click strikes, and sleeps when nothing moves.
 // Hot (clickable) things turn the blade red, text fields swap it for a quill, disabled controls show a shield.
 // Elements with data-cursor="..." show that text on a pixel tag beside the pointer.

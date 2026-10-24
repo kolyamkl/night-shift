@@ -1,8 +1,8 @@
-# Veil
+# MuGuard
 
 **Review sensitive information before sharing a document with an answering AI.**
 
-Veil finds personal values in documents, lets you correct the redactions, and
+MuGuard finds personal values in documents, lets you correct the redactions, and
 replaces those values with placeholders for document Q&A. It restores names and
 other values in the answer so the result remains useful to you. Built for the
 Mubit Night Shift hackathon in London, 23–25 October 2026.
@@ -13,13 +13,64 @@ Mubit Night Shift hackathon in London, 23–25 October 2026.
 
 > **Current privacy boundary:** detection sends original document chunks through
 > Mubit, with recording enabled by default. Q&A receives the redacted document
-> and a filtered question. Veil does not yet guarantee that original personal
+> and a filtered question. MuGuard does not yet guarantee that original personal
 > data never reaches an external AI provider. Use synthetic documents for demos;
 > see [implemented protections and limits](docs/SECURITY.md).
 
 ## How it works
 
-### End-to-end pipeline
+### The big picture
+
+```mermaid
+flowchart LR
+    D["Your document"] --> H["MuGuard finds and hides personal data"]
+    H --> R["You review and approve"]
+    R --> A["AI answers, seeing only placeholders"]
+    A --> B["MuGuard puts the real values back"]
+    B --> Y["An answer you can use"]
+```
+
+### What runs where
+
+```mermaid
+flowchart LR
+    U["Your browser"] --> W["MuGuard web app"]
+    W --> API["MuGuard backend"]
+    API <--> DB[("Database, encrypted")]
+    API <--> M["Mubit"]
+    M <--> AI["AI models"]
+```
+
+The browser only talks to the web app. The backend holds the database, the
+encryption key and the Mubit key, and is not reachable from the internet.
+Every AI call goes through Mubit.
+
+### Step by step
+
+1. **Ingest.** The browser sends the document to Caddy, which forwards `/api`
+   to the private backend. The backend extracts text and word positions and saves
+   the source encrypted.
+2. **Detect, two ways at once.** Deterministic rules find structured values
+   (emails, phones, postcodes, sort codes, account numbers, IBANs, cards, NI,
+   passport, licence and NHS numbers, IP addresses and labelled references).
+   In parallel the text is split into chunks, and each chunk goes to **T1**
+   through Mubit, which returns it rewritten with placeholders. MuGuard aligns that
+   rewrite back to the original to recover the exact values.
+3. **Build.** Every value found anywhere is located throughout the document,
+   overlaps are merged, and each distinct value gets a stable placeholder in the
+   vault (`Raj Patel` → `[PERSON_1]`). Progress streams to the browser chunk by chunk.
+4. **Review.** Hiding or unhiding a value rebuilds the result locally, with no
+   model call, and the correction survives rescans.
+5. **Ask.** After approval, the question is pseudonymised with the same vault,
+   then **T2** receives only the redacted document and redacted question. The
+   backend swaps placeholders back to real values before the answer is shown.
+6. **Download.** The PDF is truly redacted: covered text and image pixels are
+   removed from the file and hidden metadata is stripped. It is not a black box
+   drawn on top.
+
+
+<details>
+<summary>Full pipeline diagram</summary>
 
 ```mermaid
 flowchart TD
@@ -70,26 +121,7 @@ flowchart TD
     U5 --> U9 <-->|"redacted file"| PO
 ```
 
-1. **Ingest.** The browser sends the document to Caddy, which forwards `/api`
-   to the private backend. The backend extracts text and word positions and saves
-   the source encrypted.
-2. **Detect, two ways at once.** Deterministic rules find structured values
-   (emails, phones, postcodes, sort codes, account numbers, IBANs, cards, NI,
-   passport, licence and NHS numbers, IP addresses and labelled references).
-   In parallel the text is split into chunks, and each chunk goes to **T1**
-   through Mubit, which returns it rewritten with placeholders. Veil aligns that
-   rewrite back to the original to recover the exact values.
-3. **Build.** Every value found anywhere is located throughout the document,
-   overlaps are merged, and each distinct value gets a stable placeholder in the
-   vault (`Raj Patel` → `[PERSON_1]`). Progress streams to the browser chunk by chunk.
-4. **Review.** Hiding or unhiding a value rebuilds the result locally, with no
-   model call, and the correction survives rescans.
-5. **Ask.** After approval, the question is pseudonymised with the same vault,
-   then **T2** receives only the redacted document and redacted question. The
-   backend swaps placeholders back to real values before the answer is shown.
-6. **Download.** The PDF is truly redacted: covered text and image pixels are
-   removed from the file and hidden metadata is stripped. It is not a black box
-   drawn on top.
+</details>
 
 Illustrative transformation:
 
@@ -105,17 +137,34 @@ pseudonymisation, not a guarantee of anonymity or perfect detection.
 
 ## Mubit and data protection
 
-### How Mubit works in Veil
+### How Mubit works in MuGuard
 
-Mubit sits between Veil and the model providers. Veil uses the normal Anthropic
+Mubit sits between MuGuard and the model providers. MuGuard uses the normal Anthropic
 request format but points it at `https://api.mubit.ai/anthropic` with a Mubit
 key (`mbt_…`). Mubit routes each call to a provider model or to a task adapter
 it has trained, records the call if recording is on, and returns a request ID
-(`x-middleware-request-id`, an `mreq_…` value) that Veil stores with each chunk.
+(`x-middleware-request-id`, an `mreq_…` value) that MuGuard stores with each chunk.
+
+```mermaid
+flowchart LR
+    APP["MuGuard backend"] -->|"T1: find personal data"| M["Mubit"]
+    APP -->|"T2: answer, redacted text only"| M
+    M --> AI["AI model or trained adapter"]
+    M -->|"records T1 calls"| T["Review, train, evaluate"]
+    T -->|"better redaction model"| AI
+```
+
+Every T1 call is recorded, so the redaction task builds up real examples. After
+review, Mubit trains an adapter on them and can route later T1 calls to it.
+T2 calls are sent with recording off.
+
+<details>
+<summary>Detailed Mubit calls and training loop</summary>
+
 
 ```mermaid
 sequenceDiagram
-    participant API as Veil backend
+    participant API as MuGuard backend
     participant M as Mubit gateway
     participant P as Provider model or trained adapter
     participant C as Mubit console
@@ -136,7 +185,7 @@ sequenceDiagram
 
 Recorded T1 calls feed Mubit's training loop. Each call with the same fixed
 instructions and model lands in the same **task**, so the task collects many
-real examples of the one job Veil needs done:
+real examples of the one job MuGuard needs done:
 
 ```mermaid
 flowchart LR
@@ -147,11 +196,13 @@ flowchart LR
     T --> E["Evaluate against held-out sessions"]
     E --> RT["Roll out: route T1 traffic to the adapter"]
     RT -->|"later T1 calls served by the adapter"| A
-    H["Hide or unhide in Veil"] -.->|"saved locally only; review its mreq_ in the console manually"| V
+    H["Hide or unhide in MuGuard"] -.->|"saved locally only; review its mreq_ in the console manually"| V
 ```
 
+</details>
+
 **T1 detects; T2 answers.** Both use Mubit. The default T1 request asks
-`claude-haiku-4-5` to rewrite a chunk with placeholders; Veil aligns that answer
+`claude-haiku-4-5` to rewrite a chunk with placeholders; MuGuard aligns that answer
 back to the original text and combines it with deterministic rules. T2 receives
 the redacted result and a pseudonymised question with recording off requested.
 Model routing and adapter rollout are configured in Mubit, not proven by the

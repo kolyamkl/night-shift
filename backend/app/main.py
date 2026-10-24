@@ -1,4 +1,4 @@
-"""Veil API: upload or paste, redact through Mubit, download the redacted file, ask about it, fix it.
+"""MuGuard API: upload or paste, redact through Mubit, download the redacted file, ask about it, fix it.
 
 Run from backend/: uv run --env-file ../.env uvicorn app.main:app --reload --port 8000
 Documents and redactions persist encrypted in PostgreSQL; document text is never logged.
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Veil", lifespan=lifespan)
+app = FastAPI(title="MuGuard", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("VEIL_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(","),

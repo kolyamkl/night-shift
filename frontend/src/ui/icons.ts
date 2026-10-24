@@ -1,4 +1,4 @@
-// Pixel icons on a 12-pixel grid ("c" = currentColor) and 16-pixel document pictograms in the Veil palette.
+// Pixel icons on a 12-pixel grid ("c" = currentColor) and 16-pixel document pictograms in the MuGuard palette.
 
 export const ICONS = {
   plus: ["............", ".....cc.....", ".....cc.....", ".....cc.....", ".....cc.....", ".cccccccccc.", ".cccccccccc.", ".....cc.....", ".....cc.....", ".....cc.....", ".....cc.....", "............"],

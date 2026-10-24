@@ -29,13 +29,13 @@ export function AuthGate({ children }: { children: (user: User, logout: () => Pr
     setUser(null);
   }
 
-  if (checking) return <main className="flex min-h-screen items-center justify-center gap-3 bg-bone"><Spinner label="Checking login" /> Opening Veil</main>;
+  if (checking) return <main className="flex min-h-screen items-center justify-center gap-3 bg-bone"><Spinner label="Checking login" /> Opening MuGuard</main>;
   if (user) return children(user, logout);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-bone px-5 py-12">
       <section className="w-full max-w-md bg-paper p-6 px-frame sm:p-8" aria-labelledby="auth-title">
-        <a href="/" className="font-pixel text-4xl font-bold">Veil</a>
+        <a href="/" className="font-pixel text-4xl font-bold">MuGuard</a>
         <h1 id="auth-title" className="mt-8 text-3xl font-semibold">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
         <p className="mt-2 text-quiet">{mode === "login" ? "Log in to work with your documents." : "Just your email and a password. No verification email."}</p>
         <form className="mt-6 flex flex-col gap-5" onSubmit={async (event) => {
@@ -68,7 +68,7 @@ export function AuthGate({ children }: { children: (user: User, logout: () => Pr
           </Button>
         </form>
         <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
-          <span>{mode === "login" ? "New to Veil?" : "Already have an account?"}</span>
+          <span>{mode === "login" ? "New to MuGuard?" : "Already have an account?"}</span>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => {
             setMode(mode === "login" ? "register" : "login"); setError(null); setPassword("");
           }}>{mode === "login" ? "Create account" : "Log in"}</Button>

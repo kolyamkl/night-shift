@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Saved-data summary](DATABASE-CONTENTS.md) · [Security](SECURITY.md)
 
-Veil saves documents, redactions, review status and chat in PostgreSQL.
+MuGuard saves documents, redactions, review status and chat in PostgreSQL.
 Email/password accounts protect every saved document. Registration signs the
 user in immediately; there is no verification email or code.
 Original text, filenames, source PDFs, extracted page layout, detected entities,

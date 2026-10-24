@@ -45,12 +45,12 @@ export function Rail({ sessions, saved, onReloadList, activeId, onSelect, onNew,
   return (
     <aside className="flex min-h-0 flex-col gap-3 border-b-4 border-ink bg-bone px-4 py-3 lg:gap-5 lg:border-r-4 lg:border-b-0 lg:pt-5 lg:pb-4">
       <div className="flex items-center gap-2 lg:flex-col lg:items-stretch lg:gap-5">
-        <a href="/" className="font-pixel text-[30px] leading-none font-bold lg:text-[38px]" aria-label="Veil home">
-          Veil
+        <a href="/" className="font-pixel text-[26px] leading-none font-bold lg:text-[38px]" aria-label="MuGuard home">
+          MuGuard
         </a>
         <Chip className="lg:hidden">{short}</Chip>
-        <Button variant="primary" icon="plus" onClick={onNew} className="ml-auto lg:ml-0 lg:w-full">
-          New document
+        <Button variant="primary" icon="plus" onClick={onNew} className="ml-auto lg:ml-0 lg:w-full" aria-label="New document">
+          New<span className="hidden sm:inline lg:inline"> document</span>
         </Button>
       </div>
 

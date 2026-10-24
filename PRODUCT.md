@@ -16,7 +16,7 @@ AI. This includes individuals and staff at firms handling client documents.
 
 ## Product purpose
 
-Veil is a document redaction and review desk: detect sensitive values, inspect
+MuGuard is a document redaction and review desk: detect sensitive values, inspect
 and correct them, export a redacted file, and ask questions using placeholders.
 The backend restores values in answers. Accounts keep saved documents, review
 status and chat available after a reload.
@@ -49,6 +49,6 @@ Use invented people and identifiers in demos. Show the review step and the actua
 redacted content, and label incomplete scans clearly. Keep the walkthrough under
 three minutes. Follow [DESIGN.md](DESIGN.md) for the pixel castle visual system,
 readable document typography and reduced-motion behavior. Public UI copy avoids
-em dashes. The current product name remains Veil.
+em dashes. The current product name remains MuGuard.
 
 [Documentation index](docs/README.md) · [Architecture](docs/ARCHITECTURE.md)

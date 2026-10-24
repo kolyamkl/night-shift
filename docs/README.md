@@ -1,4 +1,4 @@
-# Veil documentation
+# MuGuard documentation
 
 Start with the [project overview](../README.md), then follow the path that fits
 what you need. These guides describe the code checked on **24 October 2026**;

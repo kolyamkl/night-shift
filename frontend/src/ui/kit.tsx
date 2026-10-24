@@ -1,4 +1,4 @@
-// Veil's pixel component set. Frames, buttons, fields and chips share the notched 4px frame in index.css.
+// MuGuard's pixel component set. Frames, buttons, fields and chips share the notched 4px frame in index.css.
 
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, TextareaHTMLAttributes } from "react";
 import { Sprite } from "../sprites";

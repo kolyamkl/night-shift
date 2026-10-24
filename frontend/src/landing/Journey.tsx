@@ -11,9 +11,9 @@ const GROUND = 440;
 
 export const STEPS = [
   ["Inside the walls", "Your document starts on your side: a tenancy agreement, a payslip, a client email, with every name and account number still in it."],
-  ["The veil", "At the gate, Veil's guard, a redaction model trained through Mubit, blacks out each personal value. You review every change."],
+  ["The guard", "At the gate, the MuGuard knight, a redaction model trained through Mubit, blacks out each personal value. You review every change."],
   ["Only placeholders ride out", "A messenger carries the redacted copy to the AI provider. It reads PERSON_1 and ACCOUNT_1, never the real values."],
-  ["The answer comes home", "Back inside the walls, Veil swaps the placeholders for the real values, so the answer you read names the right people."],
+  ["The answer comes home", "Back inside the walls, MuGuard swaps the placeholders for the real values, so the answer you read names the right people."],
 ] as const;
 
 const DOC = [
@@ -157,8 +157,8 @@ function Stage({ p, still }: { p: MotionValue<number>; still: boolean }) {
       <span className="absolute" style={at(540, GROUND - 280)}>
         <Sprite rows={WALL_SIDE} scale={5} label="The castle wall and its gate" />
       </span>
-      <motion.span className="absolute block" style={{ left: 545, top: GROUND - 350, y: still ? 0 : guardY }} data-cursor="Veil's guard, trained through Mubit">
-        <Sprite rows={KNIGHT_SMALL} scale={5} label="Veil's guard on the wall" />
+      <motion.span className="absolute block" style={{ left: 545, top: GROUND - 350, y: still ? 0 : guardY }} data-cursor="The MuGuard knight, trained through Mubit">
+        <Sprite rows={KNIGHT_SMALL} scale={5} label="The MuGuard knight on the wall" />
       </motion.span>
       <span className="absolute" style={at(518, GROUND - 120)}>
         <span className="relative block">
@@ -166,7 +166,7 @@ function Stage({ p, still }: { p: MotionValue<number>; still: boolean }) {
           <Sprite rows={TORCH[1]} scale={4} className="flick flick-b absolute inset-0" />
         </span>
       </span>
-      <span className="stage-label absolute" style={at(478, GROUND + 14)}>Veil's guard, trained through Mubit</span>
+      <span className="stage-label absolute" style={at(478, GROUND + 14)}>The MuGuard knight, trained through Mubit</span>
 
       <span className="absolute" style={at(1040, GROUND - 256)} data-cursor="AI provider: sees placeholders only">
         <Sprite rows={AI_TOWER} scale={4} label="The AI provider's tower" />
@@ -231,7 +231,7 @@ export function Journey() {
     const still = Math.min(1.2, width / W);
     return (
       <section id="journey" className="py-20">
-        <h2 className="mx-auto max-w-6xl px-4 font-pixel text-[clamp(28px,3vw,40px)] font-bold sm:px-8">How Veil keeps a document inside the walls</h2>
+        <h2 className="mx-auto max-w-6xl px-4 font-pixel text-[clamp(28px,3vw,40px)] font-bold sm:px-8">How MuGuard keeps a document inside the walls</h2>
         <div ref={box} className="relative mt-8" style={{ height: H * still }}>
           <Scene p={p} still scale={still} width={width} pan={false} camX={camX} />
         </div>
@@ -251,7 +251,7 @@ export function Journey() {
   }
 
   return (
-    <section id="journey" ref={section} className="relative h-[460vh]" aria-label="How Veil keeps a document inside the walls">
+    <section id="journey" ref={section} className="relative h-[460vh]" aria-label="How MuGuard keeps a document inside the walls">
       <div className="sticky top-16 flex h-[calc(100svh-4rem)] flex-col overflow-hidden">
         <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-8 sm:pt-10">
           <ol className="flex flex-wrap gap-2" aria-label="Steps">

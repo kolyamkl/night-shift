@@ -1,16 +1,16 @@
-# Veil: handoff for the next agent
+# MuGuard: handoff for the next agent
 
 Written 2026-10-24 (hackathon day 2) for an AI coding agent picking this repo up cold. Start with the [documentation index](README.md) and [architecture diagrams](ARCHITECTURE.md), then use this implementation reference. Paths are relative to the repo root. Facts marked "not verified" were not re-checked after the last merge.
 
-## 1. What Veil is
+## 1. What MuGuard is
 
-Veil is a privacy layer for using AI chat with real client documents (Mubit "Night Shift" hackathon, London, 23 to 25 Oct 2026; repo github.com/BabyBoss45/night-shift, public).
+MuGuard is a privacy layer for using AI chat with real client documents (Mubit "Night Shift" hackathon, London, 23 to 25 Oct 2026; repo github.com/BabyBoss45/night-shift, public).
 
 1. The user uploads a PDF, photo, scan, email or pasted text.
 2. **T1** finds personal data. T1 is a model called through **Mubit** (requested model `claude-haiku-4-5`; serving route must be verified in the console; `gpt-6-luna` with `VEIL_T1_PROMPT=evalkit`), plus a regex layer for UK identifiers and labelled client references.
 3. The user reviews the redaction line by line: Approve all, Decline, "Not personal, show it" (unhide), "Fix a miss" (hide).
 4. Each distinct value becomes a placeholder such as `[PERSON_1]`. The download is a truly redacted PDF (text removed under the box) or redacted text.
-5. **T2** (any AI provider, default `claude-haiku-4-5` through Mubit with recording off) answers questions about the document. It receives the redacted document and a filtered question. Veil restores values on the backend; missed or deliberately unhidden values can remain visible.
+5. **T2** (any AI provider, default `claude-haiku-4-5` through Mubit with recording off) answers questions about the document. It receives the redacted document and a filtered question. MuGuard restores values on the backend; missed or deliberately unhidden values can remain visible.
 6. Reviewer corrections update the stored redaction without a model call. Mubit training feedback is a separate console workflow; the app does not automatically submit corrections.
 
 Current boundary: T1 receives original text with default recording. Review happens afterward. Saved approval controls the UI but is not enforced by `/ask`. Read [Security](SECURITY.md) before making privacy claims; see [Mubit](MUBIT.md) for inference versus training.
@@ -233,7 +233,7 @@ an old total as a current guarantee.
 - `src/landing/`: `Landing.tsx` (top bar, hero, learn demo, numbers notice, final CTA, footer), `Journey.tsx` (pinned scroll story, 4 steps, reduced-motion still version), `art.ts` (generated, do not hand-edit), `landing.css`.
 - `scripts/art.py` regenerates `src/landing/art.ts` (castle, gatehouse, tower, hills, pigeon...).
 - CSS: `src/index.css` tokens in `@theme`; all component classes inside `@layer components` (unlayered CSS overrides Tailwind utilities; that bug happened once).
-- Rules (from DESIGN.md): everything Veil says is pixel type, everything that is the user's document is serif paper; eased motion for movement, `steps()` only for sprite frames; respect `prefers-reduced-motion`; name the chat model "AI provider", never a vendor; no em dashes in copy.
+- Rules (from DESIGN.md): everything MuGuard says is pixel type, everything that is the user's document is serif paper; eased motion for movement, `steps()` only for sprite frames; respect `prefers-reduced-motion`; name the chat model "AI provider", never a vendor; no em dashes in copy.
 
 ## 8. Open conflicts to resolve (team decision, do not pick silently)
 

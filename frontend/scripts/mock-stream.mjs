@@ -499,6 +499,6 @@ http
     pass(req, res);
   })
   .listen(PORT, "127.0.0.1", () => {
-    console.log(`Veil mock stream on http://127.0.0.1:${PORT}, passing the rest to ${BACKEND.origin}`);
+    console.log(`MuGuard mock stream on http://127.0.0.1:${PORT}, passing the rest to ${BACKEND.origin}`);
     console.log(`model ${MODEL_ON ? "on (fake)" : "off"}, ${PARTS} parts, failed part: ${ERROR_PART < 0 ? "none" : ERROR_PART + 1}${FAIL ? ", error event after two parts" : ""}${NO_STREAM ? ", no stream route" : ""}${IGNORE_RETRY ? ", ignores retry=failed" : ""}${NO_LIST ? ", no saved list (older backend)" : ""}${LEAVE_STOPS ? ", a scan stops when the browser leaves" : ""}`);
   });

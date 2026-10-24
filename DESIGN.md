@@ -1,5 +1,5 @@
 ---
-name: Veil
+name: MuGuard
 description: A redaction desk you watch work, built as one pixel product on bone paper.
 colors:
   signal: "#e2231a"
@@ -179,7 +179,7 @@ components:
     rounded: "{rounded.none}"
 ---
 
-# Design System: Veil
+# Design System: MuGuard
 
 [Documentation index](docs/README.md) · [Product context](PRODUCT.md) · [Data protection](docs/SECURITY.md)
 
@@ -191,14 +191,14 @@ imply that a visual approval animation enforces server-side consent.
 
 **Creative North Star: "Bitmap Bone"**
 
-Veil is one pixel product on bone paper. Everything Veil says, every control, label and message, is drawn in bitmap: pixel type, 4px frames with notched corners, raised buttons that stand on a 4px pixel shadow and sink flat when pressed, icons on a 12-pixel grid. Everything that belongs to the person, their document, the text they paste and the answer an AI gives them, is set in a calm book serif on a paper sheet. The two materials never trade places, so a glance tells you whose words you are reading.
+MuGuard is one pixel product on bone paper. Everything MuGuard says, every control, label and message, is drawn in bitmap: pixel type, 4px frames with notched corners, raised buttons that stand on a 4px pixel shadow and sink flat when pressed, icons on a 12-pixel grid. Everything that belongs to the person, their document, the text they paste and the answer an AI gives them, is set in a calm book serif on a paper sheet. The two materials never trade places, so a glance tells you whose words you are reading.
 
 The palette is ink on warm off-white with one signal red. Red means the act of hiding a value or the commit that ends a task (New document, Approve all, Hide, Protect a document). Depth comes from inversion to ink, from pixel frames, and from the hard pixel shadow under things you can press; nothing is blurred and nothing is rounded.
 
-Motion is eased, not stepped. Things that move travel on a soft ease-out or, on the landing story, on a scroll-linked spring that runs backwards when the visitor scrolls up. Stepped timing is kept for sprite frame swaps: torches, pennants, wings, the blinking spinner cells. The signature moment is the line-by-line redaction pass, where each personal value flashes red and a black bar wipes across it and drops a red placeholder tag; the second is the full-screen knight victory after Approve all. The pointer is the guard's sword (`frontend/src/ui/cursor.tsx`), on fine pointers only: native CSS cursor sprites (sword; red-hot blade on clickable things; quill on text fields and in Fix a miss; shield on disabled controls), red embers on a 3px lattice behind a fast swing (the app needs a faster swing and sheds fewer), sparks on click, and an ink tag with a red pixel frame beside the pointer for elements with `data-cursor`. Reduced motion keeps the sprites and drops embers and sparks. The hero castle is a toy (`frontend/src/landing/HeroScene.tsx`): its gate glows and rattles until a press anywhere on the castle opens it on pointer down; documents fly out into a fan (5 on wide screens, 3 under 640px), the visitor slashes the four values of the tenancy agreement in 10 seconds, Veil's guard finishes the rest, every document gets a PROTECTED stamp and the band under the castle shows what the AI provider gets with and without Veil. Every run ends the same way; reduced motion jumps to that end.
+Motion is eased, not stepped. Things that move travel on a soft ease-out or, on the landing story, on a scroll-linked spring that runs backwards when the visitor scrolls up. Stepped timing is kept for sprite frame swaps: torches, pennants, wings, the blinking spinner cells. The signature moment is the line-by-line redaction pass, where each personal value flashes red and a black bar wipes across it and drops a red placeholder tag; the second is the full-screen knight victory after Approve all. The pointer is the guard's sword (`frontend/src/ui/cursor.tsx`), on fine pointers only: native CSS cursor sprites (sword; red-hot blade on clickable things; quill on text fields and in Fix a miss; shield on disabled controls), red embers on a 3px lattice behind a fast swing (the app needs a faster swing and sheds fewer), sparks on click, and an ink tag with a red pixel frame beside the pointer for elements with `data-cursor`. Reduced motion keeps the sprites and drops embers and sparks. The hero castle is a toy (`frontend/src/landing/HeroScene.tsx`): its gate glows and rattles until a press anywhere on the castle opens it on pointer down; documents fly out into a fan (5 on wide screens, 3 under 640px), the visitor slashes the four values of the tenancy agreement in 10 seconds, MuGuard's guard finishes the rest, every document gets a PROTECTED stamp and the band under the castle shows what the AI provider gets with and without MuGuard. Every run ends the same way; reduced motion jumps to that end.
 
 **Key Characteristics:**
-- Two materials: pixel for Veil's voice, paper and serif for the person's content.
+- Two materials: pixel for MuGuard's voice, paper and serif for the person's content.
 - Bone and paper grounds, ink frames, one signal red for redaction and commit.
 - Notched 4px pixel frames on every container and control; 0px radius everywhere.
 - Raised pixel buttons with a hard 4px shadow that collapses on press.
@@ -234,7 +234,7 @@ A near-monochrome warm-paper palette with a single hot red that means "this valu
 **Label Font:** Silkscreen 400 (with Pixelify Sans Variable, ui-monospace, monospace)
 **Paper Font:** Source Serif 4 Variable (with Georgia, serif)
 
-**Character:** A chunky, readable bitmap face for everything Veil says, a tiny all-caps bitmap for labels and numbers, and a book serif for the human text Veil is protecting.
+**Character:** A chunky, readable bitmap face for everything MuGuard says, a tiny all-caps bitmap for labels and numbers, and a book serif for the human text MuGuard is protecting.
 
 ### Hierarchy
 - **Display** (Pixelify 700, clamp 44px to 120px, line-height 1): the victory title only.
@@ -247,11 +247,11 @@ A near-monochrome warm-paper palette with a single hot red that means "this valu
 - **Tag** (Silkscreen 400, 10px, line-height 1): the placeholder written inside a redaction bar.
 - **Numeral** (Silkscreen 400, tabular figures): statistics on the landing (40px to 58px), the training counter (20px), review totals (12px), line numbers (10px).
 - **Document** (Source Serif 4, 15px, 22px line): document lines. Short all-caps lines in a document are its own headings: serif 600, 13px, tracked 0.06em.
-- **Field** (Source Serif 4, 16px, line-height 1.55): text typed or pasted into a field. Placeholders stay in Pixelify, because a placeholder is Veil talking.
+- **Field** (Source Serif 4, 16px, line-height 1.55): text typed or pasted into a field. Placeholders stay in Pixelify, because a placeholder is MuGuard talking.
 - **Answer** (Source Serif 4, 14px to 15px, relaxed): AI answers, the text sent to the AI, popover values, sample titles (13px), the victory subline (18px, max 56ch).
 
 ### Named Rules
-**The Pixel and Paper Rule.** Everything Veil says is pixel: Pixelify Sans for headings, interface text, buttons and messages, Silkscreen for labels and numbers. Everything that is the user's document, pasted text or the AI's answer is paper: Source Serif 4. Never set a control in the serif, and never set the person's content in a pixel face.
+**The Pixel and Paper Rule.** Everything MuGuard says is pixel: Pixelify Sans for headings, interface text, buttons and messages, Silkscreen for labels and numbers. Everything that is the user's document, pasted text or the AI's answer is paper: Source Serif 4. Never set a control in the serif, and never set the person's content in a pixel face.
 
 **The Tabular Count Rule.** Every live count (change counter, review totals, line numbers, statistics, training examples) is Silkscreen with tabular figures.
 
@@ -323,7 +323,7 @@ Silkscreen 11px uppercase segments, each with a 2px notched frame and 4px apart.
 - **Disabled / Error:** errors sit in a paper panel with a red frame and Deep Signal text.
 
 ### Navigation
-- **App rail:** the Veil wordmark in Pixelify 700 at 38px, the primary New document button at full width, a "Sessions" label, session cards, and a thin-framed paper box at the foot showing whether the redaction model is on (a 10px red or stone square).
+- **App rail:** the MuGuard wordmark in Pixelify 700 at 38px, the primary New document button at full width, a "Sessions" label, session cards, and a thin-framed paper box at the foot showing whether the redaction model is on (a 10px red or stone square).
 - **Landing top bar:** sticky, 64px, bone at 92% until scrolled, then solid with a 4px ink rule. Links in Silkscreen grow a 3px red underline from the left on hover and focus; a small primary button leads into the app.
 
 ### Spinner
@@ -347,7 +347,7 @@ A pinned stage that tells four steps as the visitor scrolls, driven by a spring 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** set everything Veil says in Pixelify Sans or Silkscreen, and everything that is the user's document, pasted text or the AI's answer in Source Serif 4.
+- **Do** set everything MuGuard says in Pixelify Sans or Silkscreen, and everything that is the user's document, pasted text or the AI's answer in Source Serif 4.
 - **Do** frame containers and controls with the notched pixel frame (4px, 2px for chips, tabs and thin panels) and keep every corner at 0px.
 - **Do** give every button the 4px pixel drop that rises on hover and collapses on press; reserve the hard shadow for things you can press.
 - **Do** move things with eased or spring motion (soft ease-out cubic-bezier(0.22, 0.8, 0.2, 1) for state changes, expo ease-out for arrivals, springs for scroll-linked scenes), animating only transform, opacity and clip-path.

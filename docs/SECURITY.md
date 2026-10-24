@@ -1,8 +1,8 @@
-# Data protection: what Veil does today
+# Data protection: what MuGuard does today
 
 [Documentation index](README.md) · [Architecture](ARCHITECTURE.md) · [Saved data](DATABASE-CONTENTS.md)
 
-Veil reduces the sensitive text sent to the **answering model** by replacing
+MuGuard reduces the sensitive text sent to the **answering model** by replacing
 detected values with placeholders. It also encrypts saved document content and
 checks account ownership. It does **not** currently guarantee that original
 personal data never reaches an external AI service: T1 detection sends original
@@ -16,21 +16,21 @@ certification or a claim of complete anonymisation.
 | Location | Data visible there |
 | --- | --- |
 | Signed-in browser | Original document, redactions, restored answers and its own account |
-| Veil backend memory | Original content, decrypted vault, questions, answers and server keys |
+| MuGuard backend memory | Original content, decrypted vault, questions, answers and server keys |
 | PostgreSQL | Encrypted content; plaintext account emails, IDs, status and timestamps; password and session-token hashes |
 | Mubit T1 path | Original chunks, instructions and detector replies; default recording applies |
 | Serving T1 model | Text needed for detection; provider fallback/routing must be checked in Mubit |
-| Mubit/T2 model | Redacted document, pseudonymised question and answer; Veil requests recording off |
+| Mubit/T2 model | Redacted document, pseudonymised question and answer; MuGuard requests recording off |
 | Download recipient | Redacted output; anything not detected or deliberately unhidden remains visible |
 
 ```mermaid
 flowchart TD
     A["Original content in backend memory"] --> E["Encrypt with server-held Fernet key"]
     E --> D[("PostgreSQL ciphertext")]
-    A --> T["T1 through Mubit: original chunks leave Veil"]
+    A --> T["T1 through Mubit: original chunks leave MuGuard"]
     T --> R["Detection, rules and human correction"]
     R --> P["Redacted document"]
-    R --> V["Placeholder vault retained by Veil"]
+    R --> V["Placeholder vault retained by MuGuard"]
     Q["User question"] --> F["Known-value and regex replacement"]
     V --> F
     F --> M["T2 via Mubit, recording off requested"]
@@ -89,7 +89,7 @@ New names/addresses typed only in a question are not fully covered by the
 known-value question filter. A user choosing to unhide a value exposes it in
 subsequent output by design.
 
-The vault makes the text reversible for Veil. Other context can also identify a
+The vault makes the text reversible for MuGuard. Other context can also identify a
 person even without their name. Describe the output as **pseudonymised**, not
 anonymous, and inspect the actual output before sharing it.
 

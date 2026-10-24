@@ -24,7 +24,7 @@ function TopBar() {
   return (
     <header className={`topbar sticky top-0 z-40 ${solid ? "is-solid" : ""}`}>
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-8">
-        <a href="/" className="font-pixel text-[30px] leading-none font-bold">Veil</a>
+        <a href="/" className="font-pixel text-[30px] leading-none font-bold">MuGuard</a>
         <nav className="ml-auto hidden items-center gap-6 sm:flex" aria-label="Page sections">
           <a href="#journey" className="topbar-link">How it works</a>
           <a href="#learns" className="topbar-link">Learning</a>
@@ -71,7 +71,7 @@ function Hero() {
           Your documents stay inside the walls.
         </h1>
         <p className="mx-auto mt-5 max-w-[56ch] text-[clamp(16px,1.4vw,19px)] text-quiet">
-          Veil hides names, account numbers and IDs before a document goes to an AI, then puts the real values back in the answer.
+          MuGuard hides names, account numbers and IDs before a document goes to an AI, then puts the real values back in the answer.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           <LinkButton href="/app" variant="primary" size="lg" iconRight="right" className={played ? "cta-glow" : ""}>
@@ -96,7 +96,7 @@ function Learn() {
       <div className="mx-auto max-w-6xl">
         <h2 className="max-w-[22ch] font-pixel text-[clamp(28px,3vw,40px)] leading-tight font-bold">It learns your firm's own codes</h2>
         <p className="mt-4 max-w-[60ch] text-[17px] text-quiet">
-          Rules cannot learn, and a frontier model reads your data before it hides it. Veil's guard is trained through Mubit, and
+          Rules cannot learn, and a frontier model reads your data before it hides it. The MuGuard knight is trained through Mubit, and
           every miss you fix becomes a training example for its next version. In our test on 1,459 synthetic documents, pattern rules
           alone hid 38.5% of personal values.
         </p>
@@ -220,7 +220,7 @@ function FinalCta() {
         <div className="min-w-0 pb-16">
           <h2 className="max-w-[18ch] font-pixel text-[clamp(32px,4vw,56px)] leading-[1.05] font-bold">Protect your first document</h2>
           <p className="mt-4 max-w-[50ch] text-[17px] text-bone/80">
-            Open Veil, drop a contract, a payslip or a client email, and approve every hidden value before any AI sees it.
+            Open MuGuard, drop a contract, a payslip or a client email, and approve every hidden value before any AI sees it.
           </p>
           <div className="mt-8 flex flex-wrap gap-4">
             <LinkButton href="/app" variant="primary" size="lg" iconRight="right" className="sm:px-btn-xl">
@@ -250,9 +250,9 @@ export function Landing() {
       </main>
       <footer className="border-t-4 border-signal bg-ink px-4 py-8 text-bone/75 sm:px-8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-2 text-[13px]">
-          <span className="font-pixel text-[20px] font-bold text-bone">Veil</span>
+          <span className="font-pixel text-[20px] font-bold text-bone">MuGuard</span>
           <span>Pseudonymised, not anonymised: placeholders map back to real values only on your side.</span>
-          <span data-cursor="Mubit trains Veil's guard">Demo documents are synthetic. Built at Night Shift, London, on Mubit.</span>
+          <span data-cursor="Mubit trains the MuGuard knight">Demo documents are synthetic. Built at Night Shift, London, on Mubit.</span>
         </div>
       </footer>
     </div>

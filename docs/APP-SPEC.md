@@ -1,4 +1,4 @@
-# Veil web app: what to build
+# MuGuard web app: what to build
 
 > Historical build specification. Some requirements below were proposals and some privacy statements predate the implementation. Use [Architecture](ARCHITECTURE.md), [Mubit](MUBIT.md) and [Security](SECURITY.md) for current behavior.
 

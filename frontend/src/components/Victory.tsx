@@ -64,13 +64,13 @@ export function Victory({ hidden, onDone }: { hidden: number; onDone: () => void
   }, [onDone]);
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Secured by Veil" className="victory fixed inset-0 z-50 overflow-hidden" onClick={onDone}>
+    <div role="dialog" aria-modal="true" aria-label="Secured by MuGuard" className="victory fixed inset-0 z-50 overflow-hidden" onClick={onDone}>
       {confetti.map((c, i) => (
         <i key={i} className="v-confetti" style={{ left: `${c.x}%`, width: c.size, height: c.size, background: c.c, animationDelay: `${c.delay}s`, animationDuration: `${c.dur}s`, ["--spin" as string]: c.spin }} />
       ))}
 
       <div className="relative flex h-full flex-col items-center justify-center gap-5 px-4">
-        <h2 className="v-title font-pixel leading-none font-bold whitespace-nowrap">Secured by Veil</h2>
+        <h2 className="v-title font-pixel leading-none font-bold whitespace-nowrap">Secured by MuGuard</h2>
 
         <div className="v-stage relative" style={{ width: COLS * p, height: ROWS * p, ["--p" as string]: `${p}px`, ["--lift" as string]: LIFT }}>
           <div className="absolute top-full left-1/2 h-[3px] w-[200vw] -translate-x-1/2 bg-ink" />
@@ -87,7 +87,7 @@ export function Victory({ hidden, onDone }: { hidden: number; onDone: () => void
             <Sprite rows={HACKER_DOWN} scale={p} label="The hacker, beaten" />
           </div>
 
-          <div className="v-hero absolute top-0 left-0" style={{ width: COLS * p, height: ROWS * p }} role="img" aria-label="Veil's knight drives his sword into the ground">
+          <div className="v-hero absolute top-0 left-0" style={{ width: COLS * p, height: ROWS * p }} role="img" aria-label="The MuGuard knight drives his sword into the ground">
             {pixels.map((px, i) => (
               <i key={i} className="v-px" style={{ left: px.x * p, top: px.y * p, width: p + 1, height: p + 1, background: px.c, ["--fx" as string]: `${px.fx}px`, ["--fy" as string]: `${px.fy}px`, animationDelay: `${px.d}s` }} />
             ))}
@@ -101,7 +101,7 @@ export function Victory({ hidden, onDone }: { hidden: number; onDone: () => void
         </div>
 
         <p className="v-sub max-w-[56ch] text-center font-serif text-lg">
-          {hidden} values hidden. The AI only sees the placeholders, and Veil puts the real values back for you.
+          {hidden} values hidden. The AI only sees the placeholders, and MuGuard puts the real values back for you.
         </p>
         <span className="v-go">
           <Button ref={button} variant="dark" size="lg" iconRight="right" onClick={onDone}>

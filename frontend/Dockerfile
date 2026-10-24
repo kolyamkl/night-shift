@@ -1,4 +1,4 @@
-# Veil web front end for Railway: static build served by Caddy, /api proxied to the backend.
+# MuGuard web front end for Railway: static build served by Caddy, /api proxied to the backend.
 # Build context is the repo root: docker build -f frontend/Dockerfile .
 FROM node:22-alpine AS build
 WORKDIR /web

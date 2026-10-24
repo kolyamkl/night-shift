@@ -1,8 +1,8 @@
-# How Veil uses Mubit
+# How MuGuard uses Mubit
 
 [Documentation index](README.md) · [Architecture](ARCHITECTURE.md) · [Data protection](SECURITY.md)
 
-Veil uses Mubit as an inference gateway and a place to collect, review and train
+MuGuard uses Mubit as an inference gateway and a place to collect, review and train
 task-specific detection examples. The application uses provider SDK/request
 formats with a Mubit base URL and inference key. It does not train weights in
 the browser or store model weights in PostgreSQL.
@@ -31,7 +31,7 @@ See [Mubit quickstart](https://docs.mubit.ai/quickstart) and
 
 Record-off is a request to Mubit, **not a guarantee of zero retention by every
 service involved**. T2 still goes through the gateway and a serving model.
-Veil itself saves chat history encrypted in its own database.
+MuGuard itself saves chat history encrypted in its own database.
 
 ## The default detection request
 
@@ -88,7 +88,7 @@ the number of requests sent. Its first-adapter guide describes the review and
 training process; workspace thresholds can differ.
 [Create your first adapter](https://docs.mubit.ai/guides/first-adapter)
 
-In Veil, `/corrections` rebuilds and saves the current redaction. It makes **no
+In MuGuard, `/corrections` rebuilds and saves the current redaction. It makes **no
 Mubit feedback call**. To use a mistake for training, find the relevant `mreq_`
 request in the console and review it there. A “Fix a miss” click does not prove
 that model weights changed. A completed training job, a passed evaluation and
@@ -120,7 +120,7 @@ python scripts/dataset/send_batch.py --split train --limit 10
 The final command is a **dry run**. Adding `--send` makes real recorded calls.
 Keep evaluation documents and related source variants out of training, check
 licences before sending external data, and compare outputs against code-built
-labels. Uploading a document to Veil does not upload its gold labels to Mubit.
+labels. Uploading a document to MuGuard does not upload its gold labels to Mubit.
 
 App runtime chunks and offline dataset chunks have different controls: runtime
 uses a character limit; the dataset builder uses `--max-tokens`. Check the

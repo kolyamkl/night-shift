@@ -1,8 +1,8 @@
-# What Veil saves
+# What MuGuard saves
 
 [Documentation index](README.md) · [Database operations](DATABASE.md) · [Data protection](SECURITY.md)
 
-Veil uses PostgreSQL for accounts, sessions, documents, their latest redaction,
+MuGuard uses PostgreSQL for accounts, sessions, documents, their latest redaction,
 review status and chat history. Content is encrypted by the backend before it
 is written. The server-held key is separate from the database.
 

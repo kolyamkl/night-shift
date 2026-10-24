@@ -1,6 +1,6 @@
 // The hero castle is a toy. Its gate glows and rattles until the visitor clicks anywhere on the castle; then the gate
 // bursts open, documents fly out, the visitor slashes the personal data off the tenancy agreement for ten seconds,
-// and Veil's guard hides the rest. Every run ends the same way: all values hidden, every document stamped, and the
+// and the MuGuard knight hides the rest. Every run ends the same way: all values hidden, every document stamped, and the
 // score under the castle. Reduced motion jumps straight to that end.
 
 import { animate, motion, useReducedMotion, type MotionValue } from "motion/react";
@@ -468,7 +468,7 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
 
         {(phase === "game" || phase === "finale") && (
           <div className="ghud">
-            <span className="ghud-title">{phase === "finale" ? (won ? "Clean cut. Every value hidden" : "Veil's guard finished the job") : "Slash the personal data"}</span>
+            <span className="ghud-title">{phase === "finale" ? (won ? "Clean cut. Every value hidden" : "The MuGuard knight finished the job") : "Slash the personal data"}</span>
             <span className="ghud-count">{bigHits} / {DOCS[BIG].rows.length}</span>
             {phase === "game" && (
               <span className="gtimer" aria-label={`${left} seconds left`}>
@@ -492,11 +492,11 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
           <div className="gscore-wrap">
             <div className="gscore" role="status">
               <div className="is-before">
-                <span className="px-label">Without Veil, the AI provider gets</span>
+                <span className="px-label">Without MuGuard, the AI provider gets</span>
                 <b>{total} real values</b>
               </div>
               <div className="is-after">
-                <span className="px-label">With Veil, the AI provider gets</span>
+                <span className="px-label">With MuGuard, the AI provider gets</span>
                 <b>0 real values</b>
               </div>
             </div>
