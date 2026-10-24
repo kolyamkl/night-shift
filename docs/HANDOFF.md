@@ -24,6 +24,8 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 | `backend/app/extract.py` | Dmytro | PDF via PyMuPDF: text plus every word's box and character range (needed for true redaction) | Working |
 | `backend/app/pipeline.py` | Dmytro | regex + T1 per chunk, merge spans, vault placeholders, boxes per line, `rebuild()` for reviewer fixes | Working |
 | `backend/app/refs.py` | Mykola | Regex rule for client, policy, claim and case references after their label (type `CUSTOM`), part of the regex layer | Working; 85% of `data/docs` and 96% of `data/synthetic/pdfs` CUSTOM values |
+| `backend/app/identifiers.py` | Mykola | Regex rule for IP addresses (`IP_ADDRESS`; an IPv4 address needs "IP" before it or two parts of 2+ digits, so clause numbers stay visible) and UUIDs such as e-signature references (`CUSTOM`) | Working |
+| `backend/app/addresses.py` | Mykola | After merging, widens each ADDRESS span to the flat, building and town next to it, and reads back an address T1 missed from its postcode (towns, then a street with a number, then flats and buildings; company names stop it) | On Haiku's fresh answers: addresses fully hidden 54% → 76%, all values 76% → 86% (with the regex rules), 10 more characters hidden outside the answer key |
 | `backend/app/pdfout.py` | Dmytro | True PDF redaction (`add_redact_annot` + `apply_redactions`) | Working |
 | `backend/app/llm.py` | Dmytro | T1 (two prompts, `VEIL_T1_PROMPT`) and T2 calls through Mubit; key from env, `backend/.env` or root `.env` | Working with a valid key |
 | `backend/app/ingest/` | Mykola (PR #9) | Local reading of PDFs and images: pdfium text layer, Apple Vision OCR (macOS), identifier repairs after OCR. See its README | Merged; wired into uploads (section 4) |
@@ -66,7 +68,8 @@ upload / paste / sample
          chunk text (≤4000 chars for evalkit, ≤1400 for rewrite; paragraph cuts)
          → T1 per chunk in parallel (6 workers); each finished chunk is streamed as it lands
          every value T1 returns is located across the WHOLE document (evalkit.spans.locate)
-         + regex layer (evalkit.regex_baseline + app/refs.py) → merge overlaps → Vault placeholders
+         + regex layer (evalkit.regex_baseline + app/refs.py + app/identifiers.py) → merge overlaps
+         → widen addresses (app/addresses.py) → Vault placeholders
          → boxes: words overlapping a span, one rectangle per line (PDF only)
   └─ review in the UI → POST /corrections {hide|unhide} → pipeline.rebuild (no new T1 calls)
   └─ GET /file → true-redacted PDF (pdfout) or redacted .txt

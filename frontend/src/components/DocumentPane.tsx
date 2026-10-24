@@ -10,6 +10,7 @@ const TYPES: [string, string][] = [
   ["CUSTOM", "Client or case reference"], ["PERSON", "Person"], ["ADDRESS", "Address"], ["POSTCODE", "Postcode"],
   ["EMAIL", "Email"], ["PHONE", "Phone"], ["DOB", "Date of birth"], ["BANK_ACCOUNT", "Account number"],
   ["SORT_CODE", "Sort code"], ["IBAN", "IBAN"], ["CARD", "Card number"], ["NI_NUMBER", "NI number"], ["ID_DOC", "ID document"],
+  ["IP_ADDRESS", "IP address"],
 ];
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;

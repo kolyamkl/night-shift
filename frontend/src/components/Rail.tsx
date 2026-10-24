@@ -36,7 +36,7 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn, email, onLo
 }) {
   const [leaving, setLeaving] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const model = modelOn === null ? "Checking" : modelOn ? "Mubit adapter, plus rules" : "Rules only";
+  const model = modelOn === null ? "Checking" : modelOn ? "Mubit model, plus rules" : "Rules only";
   const short = modelOn === null ? "Checking" : modelOn ? "Model on" : "Model off"; // the phone row fits about 9 characters
   return (
     <aside className="flex min-h-0 flex-col gap-3 border-b-4 border-ink bg-bone px-4 py-3 lg:gap-5 lg:border-r-4 lg:border-b-0 lg:pt-5 lg:pb-4">

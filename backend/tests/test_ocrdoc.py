@@ -548,6 +548,11 @@ def client(letter_vision, postgres_store):
     app.state.t1_factory = None
 
 
+# The fake T1 finds Raj Patel; the regex layer finds the account and the postcode, and the address
+# before the postcode ("12 Oak Road, Leeds") is read back from it (app/addresses.py).
+HIDDEN_ON_LETTER = {"Raj", "Patel", "31926819", "LS6", "2AB", "12", "Oak", "Road", "Road,", "Leeds"}
+
+
 def test_photo_upload_gives_boxes_and_a_redacted_pdf(client):
     doc = client.post("/api/documents", files={"file": ("photo.png", png(LETTER.image(), dpi=(150, 150)), "image/png")}).json()
     assert doc["kind"] == "pdf" and doc["text"] == LETTER_TEXT and len(doc["pages"]) == 1
@@ -565,7 +570,7 @@ def test_photo_upload_gives_boxes_and_a_redacted_pdf(client):
     dark = _dark(image)
     for word, ink, _piece in LETTER.words():
         has_ink = dark.crop(tuple(round(v) for v in _box_around(f, ink))).getbbox() is not None
-        assert has_ink == (word not in ("Raj", "Patel", "31926819", "LS6", "2AB")), word
+        assert has_ink == (word not in HIDDEN_ON_LETTER), word
 
 
 def test_a_scan_with_a_page_number_stamp_is_read_with_ocr(client):
@@ -583,7 +588,7 @@ def test_a_scan_with_a_page_number_stamp_is_read_with_ocr(client):
     dark = _dark(image)
     for word, ink, _piece in LETTER.words():
         has_ink = dark.crop(tuple(round(v) for v in _box_around(f, ink))).getbbox() is not None
-        assert has_ink == (word not in ("Raj", "Patel", "31926819", "LS6", "2AB")), word
+        assert has_ink == (word not in HIDDEN_ON_LETTER), word
 
 
 def test_a_text_pdf_is_not_sent_to_ocr(client, monkeypatch):
