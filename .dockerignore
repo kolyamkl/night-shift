@@ -1,0 +1,17 @@
+# Keep secrets, local state and bulky artefacts out of Docker builds (Railway uses this too).
+.git
+.env
+.env.*
+*.env
+.local/
+**/node_modules/
+**/.venv/
+frontend/dist/
+**/__pycache__/
+data/*
+!data/synthetic/
+data/synthetic/*
+!data/synthetic/pdfs/
+evalkit/runs/
+collaboration/
+state/

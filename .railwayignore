@@ -1,0 +1,17 @@
+# What `railway up` uploads: same as .dockerignore (secrets, local state, datasets stay local).
+.git
+.env
+.env.*
+*.env
+.local/
+**/node_modules/
+**/.venv/
+frontend/dist/
+**/__pycache__/
+data/*
+!data/synthetic/
+data/synthetic/*
+!data/synthetic/pdfs/
+evalkit/runs/
+collaboration/
+state/

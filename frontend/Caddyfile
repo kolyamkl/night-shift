@@ -1,0 +1,22 @@
+# Railway: PORT is set by the platform; BACKEND_URL is the backend's private address,
+# e.g. http://backend.railway.internal:8000.
+{
+	admin off
+}
+
+:{$PORT:8080} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy {$BACKEND_URL} {
+			# The backend throttles logins per client; pass the visitor's IP from Railway's edge.
+			header_up X-Forwarded-For {http.request.header.X-Real-IP}
+		}
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
