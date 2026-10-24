@@ -3,7 +3,9 @@
 T1 misses these most often (CUSTOM recall about 33% on the fresh split), and a missed one goes to the
 AI provider in clear. Their formats differ per organisation (CL-78892, M/2023/218, CLM·1173·RS,
 POL GN 147856), so this rule keys on the label in front of the value, not on the value's shape:
-"Client code: CL-78892", "Our ref: M/2023/218", "policy number 239-0728815-83".
+"Client code: CL-78892", "Our ref: M/2023/218", "policy number 239-0728815-83". Meter serials and
+supply point numbers (MPAN, MPRN) count too: they identify the home, and the supplier links them to
+the account holder. Meter readings stay visible.
 
 A value must hold digits, and a bare number needs at least five, so years, clause numbers and
 "case 12" stay visible. Company, VAT, invoice, order and ticket numbers stay visible too, as in the
@@ -14,7 +16,7 @@ import re
 
 from evalkit.spans import Span
 
-_NO = r"(?:no\.?|nos\.?|number|num\.?|id|code|ref(?:erence)?\.?)"
+_NO = r"(?:no\.?|nos\.?|number|num\.?|id|code|serial|ref(?:erence)?\.?)"
 LABEL = re.compile(
     r"(?i)\b(?:"
     r"(?:our|your|my|their)\s+ref(?:erence)?\.?"
@@ -23,6 +25,7 @@ LABEL = re.compile(
     r"|policy(?:holder)?|claims?"
     r"|case|matter|project|deposit|repair|booking|reservation|application|registration|confirmation|works"
     r"|envelope|transaction"
+    r"|meter|serial|mpan|mprn|supply"  # a meter or supply point identifies the home
     r"|frequent\s+flyer"
     r")(?:\s+" + _NO + r"(?:\(s\))?){0,2}"  # "hospital reference number"
     r")"

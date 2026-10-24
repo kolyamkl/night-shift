@@ -23,7 +23,7 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 | `backend/app/main.py` | Dmytro | FastAPI API (section 5) | Working; checked live on 24 Oct (section 11) |
 | `backend/app/extract.py` | Dmytro | PDF via PyMuPDF: text plus every word's box and character range (needed for true redaction) | Working |
 | `backend/app/pipeline.py` | Dmytro | regex + T1 per chunk, merge spans, vault placeholders, boxes per line, `rebuild()` for reviewer fixes | Working |
-| `backend/app/refs.py` | Mykola | Regex rule for client, policy, claim and case references after their label (type `CUSTOM`), part of the regex layer | Working; 85% of `data/docs` and 96% of `data/synthetic/pdfs` CUSTOM values |
+| `backend/app/refs.py` | Mykola | Regex rule for client, policy, claim and case references after their label, and meter serials and supply point numbers (MPAN, MPRN) (type `CUSTOM`), part of the regex layer | Working; 85% of `data/docs` CUSTOM values, 96% of the 30 original samples |
 | `backend/app/identifiers.py` | Mykola | Regex rule for IP addresses (`IP_ADDRESS`; an IPv4 address needs "IP" before it or two parts of 2+ digits, so clause numbers stay visible) and UUIDs such as e-signature references (`CUSTOM`) | Working |
 | `backend/app/addresses.py` | Mykola | After merging, widens each ADDRESS span to the flat, building and town next to it, and reads back an address T1 missed from its postcode (towns, then a street with a number, then flats and buildings; company names stop it) | On Haiku's fresh answers: addresses fully hidden 54% → 76%, all values 76% → 86% (with the regex rules), 10 more characters hidden outside the answer key |
 | `backend/app/pdfout.py` | Dmytro | True PDF redaction (`add_redact_annot` + `apply_redactions`) | Working |
@@ -34,7 +34,7 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 | `evalkit/` | Dmytro | Frozen T1 prompt the app uses (`evalkit/src/evalkit/prompts.py`), scorer, regex baseline, vault/restore, round builder, Mubit sender, `autosend.sh` | Used by backend (path dependency) |
 | `datagen/` | Dmytro | Synthetic UK documents with gold spans (100k run, seed 42) and demo PDFs | Outputs in `data/synthetic/` (gitignored except `pdfs/`) |
 | `dataconv/` | Dmytro | Converters for open PII datasets (TAB, Gretel, Nemotron, OpenPII, bitext, ...) into our format | Outputs in `data/external/` (gitignored, licences vary) |
-| `data/synthetic/pdfs/` | Dmytro | 30 synthetic sample PDFs + `*.gold.json` labels; the app's "Try a sample" cards | Committed (fake data only) |
+| `data/synthetic/pdfs/` | Dmytro | 31 synthetic sample PDFs + `*.gold.json` labels; the app's "Try a sample" cards. `31_assured_periodic_tenancy` (Mykola) is a 20-page e-signed tenancy in the layout of a real agency contract, with an InkProof signature log (IP addresses, UUID signature references), overseas addresses, a guarantor, bank details, meter serials and initials on every page; 59 invented values, built by `scripts/samples/make_tenancy.py` | Committed (fake data only) |
 | `data/docs`, `data/templates`, `data/sources`, `data/fixtures` | Mykola | His T1 dataset: real public templates filled with fake values, answer keys | Committed |
 | `scripts/dataset/` | Mykola | His pipeline: validate, chunk, send (`send_batch.py`), score | Committed |
 | `scripts/ocr/`, `tests/ingest/` | Mykola | OCR evaluation (render docs in 4 fonts x 6 qualities) and ingest tests | Committed |

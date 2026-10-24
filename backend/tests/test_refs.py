@@ -21,6 +21,12 @@ def found(text: str) -> list[str]:
     ("(hospital reference number RX19-00937)", "RX19-00937"),
     ("CONFIRMATION: 050708509XQPDP", "050708509XQPDP"),
     ("Please quote case TEY-5513-F3.", "TEY-5513-F3"),
+    ("Electricity meter serial E17Z045321, reading 018442.", "E17Z045321"),
+    ("Heat meter serial HM-2209-7718, reading 3,120 kWh.", "HM-2209-7718"),
+    ("MPAN: 1200023305967", "1200023305967"),
+    ("Gas MPRN 7140812302", "7140812302"),
+    ("Supply number 1012345678901", "1012345678901"),
+    ("Serial number: SN-4471-B", "SN-4471-B"),
 ])
 def test_a_reference_after_its_label_is_found(text, value):
     assert value in found(text)
@@ -37,6 +43,8 @@ def test_a_reference_after_its_label_is_found(text, value):
     "Our ref: GH/AO",
     "Date ref 12/03/2024",
     "The reference is in the letter.",
+    "Meter reading 018442 on 1 September.",
+    "The meter is in the hall cupboard and has a serial number on its front.",
 ])
 def test_company_numbers_amounts_dates_and_words_stay_visible(text):
     assert found(text) == []
