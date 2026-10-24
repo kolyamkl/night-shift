@@ -7,9 +7,10 @@ Original text, filenames, source PDFs, extracted page layout, detected entities,
 placeholder mappings, chunk results, and hide/unhide corrections are encrypted
 before being written. Restarting the backend does not lose them. Opening the
 same `/app?doc=<id>` URL restores the document and its last saved result without
-another model call. The UI asks for review again; approvals and chat history are
-not persisted by this change. Other open documents in the sidebar are still UI
-state; save their individual URLs to reopen them.
+another model call. Since migration 003 each document's review status
+(`new`, `review`, `approved`, `declined`) and its chat turns (question and answer,
+encrypted) are stored too, and `GET /api/documents` lists a user's documents, so
+documents, review and chat survive a reload or a visit to the landing page.
 
 ## Run locally
 
@@ -71,8 +72,9 @@ key on an existing database: automatic key rotation is not implemented.
 
 | Table | Purpose |
 | --- | --- |
-| `veil_documents` | Opaque document ID, owner ID, encrypted document payload, revision, timestamps |
+| `veil_documents` | Opaque document ID, owner ID, encrypted document payload, revision, timestamps, review `status`, encrypted list summary `meta` |
 | `veil_redactions` | Encrypted pipeline snapshot including vault and corrections; cascades on document deletion |
+| `veil_chat_turns` | Turn ID, document ID, owner ID, creation time, encrypted question and answer; cascades on document (and user) deletion |
 | `veil_storage_settings` | Encrypted key verification probe |
 | `veil_schema_migrations` | Applied SQL filenames, checksums, and timestamps |
 | `veil_users` | User ID, normalized unique email, Argon2id password hash, creation time |
@@ -83,10 +85,36 @@ SQL migrations live in `backend/migrations/`. Applied migrations are immutable;
 add a new numbered SQL file for changes. Migration execution is transactional
 and serialized with a PostgreSQL advisory lock. Document content and PDF bytes
 are versioned JSON inside authenticated Fernet ciphertext (`bytea`), not pickle.
-Document IDs, owner IDs, revision counters, and timestamps are plaintext; account
-email addresses are also plaintext. PostgreSQL cannot
+Document IDs, owner IDs, revision counters, review status, turn IDs, and
+timestamps are plaintext; account email addresses are also plaintext. PostgreSQL cannot
 search the encrypted document contents; this is intentional for this initial
 storage layer. Large PDFs are stored with the document, so backups include them.
+
+Migration 003 (`003_status_and_chat.sql`) only adds:
+
+- `veil_documents.status text NOT NULL DEFAULT 'new'`, checked to `new`, `review`,
+  `approved` or `declined`. Rows that already had a result were set to `review`
+  by the migration; others stay `new`. A saved scan turns `new` into `review`;
+  `PATCH /api/documents/{id}` sets the other values.
+- `veil_documents.meta bytea`: Fernet-encrypted `{filename, kind, pages, changes}`,
+  so `GET /api/documents` decrypts this small summary instead of every document
+  with its PDF bytes. New documents get it at upload, and every saved result
+  updates `changes`. Rows saved before the migration have `NULL`; the first
+  listing reads their full payloads once, writes the summary and returns it. The
+  write is skipped if a newer result was saved in between, so the next listing
+  reads that one instead of storing a stale count. The same step turns `new`
+  into `review` when the row has a result: on Railway the previous release keeps
+  serving for a few seconds after the new one migrates, and a scan it saves in
+  that window neither writes `meta` nor changes the status.
+- `veil_chat_turns` with an index on `(doc_id, turn_id)`, and an index on
+  `veil_documents (owner_id, updated_at DESC)` for the list.
+
+Every encrypted payload is bound to its document ID and a kind (`document`,
+`result`, `meta`, `turn`), so ciphertext moved to another document or column
+fails to load. A chat turn stores the question, the restored answer, the answer
+with placeholders, unknown placeholders and the Mubit request ID; it does not
+store the redacted text sent to the model. Questions, answers and filenames are
+never logged.
 
 Each successful scan/correction updates the result and increments its revision
 in one transaction. A concurrently completed operation based on an older saved
@@ -98,8 +126,17 @@ New endpoints:
 
 - `GET /api/documents/{id}` returns `{document, result, revision}`; `result` is
   null until a scan succeeds.
-- `DELETE /api/documents/{id}` deletes the document and associated result (204).
-  Later reads/downloads return 404. A late scan cannot recreate a deleted record.
+- `DELETE /api/documents/{id}` deletes the document, its result and its chat turns
+  (204). Later reads/downloads return 404. A late scan cannot recreate a deleted record.
+- `GET /api/documents` lists the caller's documents, last updated first, at most 200,
+  with `{doc_id, filename, kind, pages, status, created_at, updated_at, has_result,
+  changes, turns}` and no document text.
+- `PATCH /api/documents/{id}` with `{status}` sets `review`, `approved` or `declined`.
+- `GET /api/documents/{id}` also returns `status` and `turns`, oldest first.
+- `POST /api/documents/{id}/ask` stores the turn before answering and adds `turn_id`
+  and `created_at`; a failed ask stores nothing.
+
+See `docs/HANDOFF.md` section 5 for the exact contract.
 
 Existing upload, scan, correction, PDF rendering/download, and ask endpoints use
 the database transparently and require an authenticated owner. Corrections restore the exact stored vault/layout;
@@ -117,7 +154,12 @@ Tests use `TEST_DATABASE_URL` and clean up only their own documents. Never point
 it at the application database. Without it, PostgreSQL/API integration tests are
 explicitly skipped. Tests cover reconnect/restart persistence, PDFs/layout/vault
 restoration, reviewer edits, encrypted payloads, wrong-key rejection, concurrent
-writes, cascade deletion, migration idempotency, and API behavior. They mock
+writes, cascade deletion, migration idempotency, and API behavior. They also
+cover the document list (only the caller's, order, counts, the 200 limit), review
+status through scans and `PATCH`, chat turns (stored in order, nothing stored on
+a failed ask, deleted with the document), listing rows saved before migration 003,
+migration 003 on tables that already hold rows, and that no filename, question or
+answer is readable in the raw rows. They mock
 model calls and do not send training/inference traffic.
 
 ## Scope
