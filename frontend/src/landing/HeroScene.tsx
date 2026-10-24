@@ -6,10 +6,11 @@
 import { animate, motion, useReducedMotion, type MotionValue } from "motion/react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Sprite } from "../sprites";
+import { COLORS, Sprite, spriteSvg } from "../sprites";
 import { Button, LinkButton } from "../ui/kit";
 import { CASTLE, CASTLE_H, CASTLE_TOP, CASTLE_W, CLOUD, DOOR, HILLS_FAR, HILLS_NEAR, PENNANT, TORCH } from "./art";
 import { Hills } from "./Hills";
+import { COLLAPSE_AT, knockOut, ROOF_BOTTOM, TOWERS, remove, restoreRows, roofCells, towerNear, type Cell, type Side } from "./towers";
 
 type Phase = "idle" | "opening" | "game" | "finale" | "done";
 
@@ -94,7 +95,8 @@ function Play({ p, again, still, slot, onPlayed, onAgain }: {
   onAgain: () => void;
 }) {
   const scene = useRef<HTMLDivElement>(null);
-  const castle = useRef<HTMLButtonElement>(null);
+  const castle = useRef<HTMLDivElement>(null);
+  const door = useRef<HTMLButtonElement>(null);
   const leaves = useRef<HTMLSpanElement>(null);
   const fx = useRef<HTMLDivElement>(null);
   const docEls = useRef<(HTMLDivElement | null)[]>([]);
@@ -112,7 +114,7 @@ function Play({ p, again, still, slot, onPlayed, onAgain }: {
 
   useEffect(() => {
     alive.current = true;
-    if (again) castle.current?.focus({ preventScroll: true }); // "Play again" hands focus back to the castle
+    if (again) door.current?.focus({ preventScroll: true }); // "Play again" hands focus back to the gate
     return () => {
       alive.current = false;
     };
@@ -280,7 +282,7 @@ function Play({ p, again, still, slot, onPlayed, onAgain }: {
         el.style.visibility = "visible";
         animate(el, { x: [ox - x, (ox - x) * 0.45, 0], y: [oy - y, peak - y, 0], scale: [0.15, 0.7, 1], rotate: [0, rot * 4, rot], opacity: [0, 1, 1] },
           { duration: 0.6, ease: [0.3, 0.7, 0.3, 1], times: [0, 0.5, 1] });
-        castle.current?.animate([{ translate: "0 0" }, { translate: "0 3px" }, { translate: "0 0" }], { duration: 120 }); // recoil on the button, not on the centred wrapper
+        castle.current?.animate([{ translate: "0 0" }, { translate: "0 3px" }, { translate: "0 0" }], { duration: 120 }); // recoil on the castle, not on its centred wrapper
         await wait(k === 0 ? 60 : 120);
       }
       await wait(700);
@@ -386,6 +388,112 @@ function Play({ p, again, still, slot, onPlayed, onAgain }: {
     slot?.parentElement?.scrollIntoView({ block: "nearest", behavior: "smooth" }); // the score, if it is below the fold
   };
 
+  // ---- The towers: presses knock stones off, a dozen bring the roof down, then the tower is rebuilt. ----
+  const [grid, setGrid] = useState<readonly string[]>(CASTLE);
+  const gridRef = useRef(grid);
+  const [damage, setDamage] = useState<Record<Side, number>>({ left: 0, right: 0 });
+  const [fallen, setFallen] = useState<Record<Side, boolean>>({ left: false, right: false });
+  const hits = useRef<Record<Side, number>>({ left: 0, right: 0 });
+  const busy = useRef<Record<Side, boolean>>({ left: false, right: false });
+  const setCastle = (next: readonly string[]) => {
+    gridRef.current = next;
+    setGrid(next);
+  };
+
+  // Stones drop off the tower's outer face, bounce once on the ground and fade.
+  const tumble = (cells: readonly Cell[], side: Side) => {
+    const layer = fx.current;
+    const el = castle.current;
+    if (!layer || !el || still) return;
+    const lb = layer.getBoundingClientRect();
+    const cb = el.getBoundingClientRect();
+    const ground = lb.height - 3 * p - p;
+    const out = side === "left" ? -1 : 1;
+    for (const c of cells) {
+      const x = cb.left - lb.left + c.x * p;
+      const y = cb.top - lb.top + c.y * p;
+      const b = document.createElement("i");
+      b.className = "gchip";
+      b.style.cssText = `left:${x}px;top:${y}px;width:${p}px;height:${p}px;background:${COLORS[c.ch] ?? COLORS.g}`;
+      layer.appendChild(b);
+      const dx = out * (8 + Math.random() * 46);
+      const fall = Math.max(8, ground - y + Math.random() * p);
+      b.animate([
+        { transform: "translate(0, 0)" },
+        { transform: `translate(${dx * 0.35}px, ${-10 - Math.random() * 22}px)`, offset: 0.25 },
+        { transform: `translate(${dx}px, ${fall}px)`, offset: 0.8 },
+        { transform: `translate(${dx * 1.08}px, ${fall - p}px)`, offset: 0.9 },
+        { transform: `translate(${dx * 1.12}px, ${fall}px)`, opacity: 1 },
+      ], { duration: 650 + Math.random() * 250, easing: "cubic-bezier(.35,0,.65,1)", fill: "forwards" });
+      b.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: 1800, fill: "forwards" }).onfinish = () => b.remove();
+    }
+  };
+
+  const rebuild = async (side: Side) => {
+    for (let row = CASTLE.length - 1; row >= -1; row -= 7) {
+      if (!alive.current) return;
+      setCastle(restoreRows(gridRef.current, CASTLE, side, Math.max(0, row)));
+      await wait(70);
+    }
+    setCastle(restoreRows(gridRef.current, CASTLE, side, 0));
+    hits.current[side] = 0;
+    busy.current[side] = false;
+    setDamage((d) => ({ ...d, [side]: 0 }));
+    setFallen((f) => ({ ...f, [side]: false }));
+  };
+
+  // The roof leans out, falls, breaks on the ground; a moment later the tower is rebuilt bottom up.
+  const collapse = async (side: Side) => {
+    busy.current[side] = true;
+    const layer = fx.current;
+    const el = castle.current;
+    const { x0, x1 } = TOWERS[side];
+    const roof = roofCells(gridRef.current, side);
+    const piece = gridRef.current.slice(0, ROOF_BOTTOM + 1).map((r) => r.slice(x0, x1 + 1));
+    setCastle(remove(gridRef.current, roof));
+    setFallen((f) => ({ ...f, [side]: true }));
+    if (layer && el && !still) {
+      const lb = layer.getBoundingClientRect();
+      const cb = el.getBoundingClientRect();
+      const chunk = document.createElement("div");
+      chunk.className = "gcollapse";
+      chunk.innerHTML = spriteSvg(piece, p);
+      chunk.style.cssText = `left:${cb.left - lb.left + x0 * p}px;top:${cb.top - lb.top}px;transform-origin:${side === "left" ? "0%" : "100%"} 100%`;
+      layer.appendChild(chunk);
+      const drop = lb.height - 3 * p - (cb.top - lb.top) - (ROOF_BOTTOM + 1) * p;
+      const lean = side === "left" ? -1 : 1;
+      await chunk.animate([
+        { transform: "translate(0, 0) rotate(0deg)" },
+        { transform: `translate(${lean * 6}px, 0) rotate(${lean * 14}deg)`, offset: 0.35 },
+        { transform: `translate(${lean * 40}px, ${drop}px) rotate(${lean * 62}deg)` },
+      ], { duration: 820, easing: "cubic-bezier(.45,0,.9,.55)", fill: "forwards" }).finished.catch(() => undefined);
+      chunk.remove();
+      tumble(roof.filter((_, i) => i % 3 === 0).map((c) => ({ ...c, y: ROOF_BOTTOM + 30 + (c.y % 6) })), side);
+      shake(6);
+    }
+    await wait(900);
+    await rebuild(side);
+  };
+
+  const chip = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (phaseRef.current !== "idle" && phaseRef.current !== "done")) return;
+    const el = castle.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / p);
+    const y = Math.floor((e.clientY - r.top) / p);
+    const side = towerNear(x, y, gridRef.current);
+    if (!side || busy.current[side]) return;
+    const cells = knockOut(gridRef.current, side, x, y, 4 + Math.floor(Math.random() * 3));
+    if (!cells.length) return;
+    setCastle(remove(gridRef.current, cells));
+    setDamage((d) => ({ ...d, [side]: d[side] + cells.length }));
+    tumble(cells, side);
+    el.animate([{ translate: "0 0" }, { translate: `${side === "left" ? 2 : -2}px 0` }, { translate: "0 0" }], { duration: 90 });
+    hits.current[side] += 1;
+    if (hits.current[side] >= COLLAPSE_AT) void collapse(side);
+  };
+
   const idle = phase === "idle";
   const narrow = shown.length === 3;
   const skip = (
@@ -396,25 +504,33 @@ function Play({ p, again, still, slot, onPlayed, onAgain }: {
   return (
     <>
       <div style={{ bottom: 3 * p }} className="absolute left-1/2 -translate-x-1/2">
-        <button
+        <div
           ref={castle}
-          type="button"
-          className={`castle-btn relative block ${idle ? "" : "is-open"} ${phase === "game" ? "is-dim" : ""}`}
-          aria-label={idle ? "Open the castle gate" : "The castle gate is open"}
-          tabIndex={idle ? 0 : -1}
-          onPointerDown={(e) => {
-            if (e.button === 0) open();
-          }}
-          onClick={(e) => {
-            if (e.detail === 0) open(); // keyboard
-          }}
+          className={`hero-castle relative ${phase === "game" ? "is-dim" : ""}`}
+          data-damage-left={damage.left}
+          data-damage-right={damage.right}
+          onPointerDown={chip}
         >
-          <Sprite rows={CASTLE} scale={p} />
-          <span className="absolute" style={{ left: 8 * p, top: 0 }}><Flicker frames={PENNANT} scale={p} /></span>
-          <span className="absolute" style={{ left: (CASTLE_W - 9) * p, top: 0 }}><Flicker frames={PENNANT} scale={p} late /></span>
+          <Sprite rows={grid} scale={p} />
+          {!fallen.left && <span className="absolute" style={{ left: 8 * p, top: 0 }}><Flicker frames={PENNANT} scale={p} /></span>}
+          {!fallen.right && <span className="absolute" style={{ left: (CASTLE_W - 9) * p, top: 0 }}><Flicker frames={PENNANT} scale={p} late /></span>}
           <span className="absolute" style={{ left: 25 * p, top: (CASTLE_TOP + 35) * p }}><Flicker frames={TORCH} scale={p} /></span>
           <span className="absolute" style={{ left: 48 * p, top: (CASTLE_TOP + 35) * p }}><Flicker frames={TORCH} scale={p} late /></span>
-          <span className={`gate absolute ${idle ? "is-idle" : "is-open"}`} style={{ left: DOOR_X * p, top: DOOR_Y * p, width: DOOR_W * p, height: DOOR_H * p }}>
+          <button
+            ref={door}
+            type="button"
+            className={`gate gate-btn absolute ${idle ? "is-idle" : "is-open"}`}
+            style={{ left: DOOR_X * p, top: DOOR_Y * p, width: DOOR_W * p, height: DOOR_H * p }}
+            aria-label={idle ? "Open the castle gate" : "The castle gate is open"}
+            tabIndex={idle ? 0 : -1}
+            onPointerDown={(e) => {
+              e.stopPropagation(); // the gate opens; the press does not chip the castle
+              if (e.button === 0) open();
+            }}
+            onClick={(e) => {
+              if (e.detail === 0) open(); // keyboard
+            }}
+          >
             {idle && <span className="gate-spill" />}
             <span ref={leaves} className="gate-leaves" style={{ clipPath: ARCH }}>
               <span className="gate-leaf"><Sprite rows={DOOR} scale={p} /></span>
@@ -428,9 +544,9 @@ function Play({ p, again, still, slot, onPlayed, onAgain }: {
                 ))}
               </>
             )}
-          </span>
+          </button>
           {idle && <span className="gate-hint" style={{ left: (DOOR_X + DOOR_W / 2) * p, top: (DOOR_Y - 8) * p }}>Open the gate</span>}
-        </button>
+        </div>
       </div>
       <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#dcdad1" cell={p} className="pointer-events-none absolute inset-x-0 bottom-0" />
 

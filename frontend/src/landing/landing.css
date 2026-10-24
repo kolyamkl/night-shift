@@ -116,7 +116,6 @@
 .learn-val {
   position: relative;
   display: inline-block;
-  min-width: 96px;
   transition:
     background-color 0.15s,
     color 0.15s;
@@ -200,27 +199,37 @@
 }
 
   /* The hero castle game (HeroScene.tsx) */
-  .castle-btn {
+  .hero-castle {
+    transition: filter 0.3s var(--ease-out-soft);
+  }
+  .hero-castle.is-dim {
+    filter: saturate(0.45) opacity(0.6);
+  }
+  .gate-btn {
     padding: 0;
     border: 0;
     background: none;
     cursor: pointer;
-    transition: filter 0.3s var(--ease-out-soft);
   }
-  .castle-btn.is-open {
+  .gate-btn.is-open {
     cursor: default;
   }
-  .castle-btn.is-dim {
-    filter: saturate(0.45) opacity(0.6);
+  .gate-btn:focus-visible {
+    outline: 4px solid var(--color-signal);
+    outline-offset: 4px;
+  }
+  .gchip {
+    position: absolute;
+    pointer-events: none;
+  }
+  .gcollapse {
+    position: absolute;
+    pointer-events: none;
   }
   .gate.is-open .gate-leaf {
     transform: scaleX(0.12);
   }
-  .castle-btn:focus-visible {
-    outline: 4px solid var(--color-signal);
-    outline-offset: 6px;
-  }
-  :root.has-sword-cursor :where(.castle-btn.is-open, .gval:not(.is-live)) {
+  :root.has-sword-cursor :where(.gate-btn.is-open, .gval:not(.is-live)) {
     cursor: var(--cursor-sword);
   }
   .gate-leaves {
@@ -232,7 +241,7 @@
   .gate.is-idle .gate-leaves {
     animation: knock 2.6s var(--ease-out-soft) infinite;
   }
-  .castle-btn:hover .gate.is-idle .gate-leaves {
+  .gate-btn:hover.is-idle .gate-leaves {
     animation-duration: 0.9s;
   }
   @keyframes knock {

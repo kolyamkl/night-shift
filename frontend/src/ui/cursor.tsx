@@ -53,7 +53,7 @@ const SPARK = ["#ff6b61", "#e2231a", "#f8f7f3", "#0d0d0d"];
 type Bit = { x: number; y: number; vx: number; vy: number; age: number; life: number; size: number; color?: string; gravity: number };
 
 const HOT_SELECTOR = "a[href], button, [role='button'], [role='tab'], summary, label[for], select, .sample-card, .val.is-live";
-const COLD = ":disabled, .castle-btn.is-open, .gval:not(.is-live)"; // buttons the CSS shows with the plain sword
+const COLD = ":disabled, .gate-btn.is-open, .gval:not(.is-live)"; // buttons the CSS shows with the plain sword
 
 /** Mounted once for the whole site. `calm` (the app) needs a faster swing before embers show, and sheds fewer. */
 export function SwordCursor({ calm = false }: { calm?: boolean }) {
