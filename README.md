@@ -13,7 +13,7 @@ A privacy layer for using AI with real client documents. Built for the Mubit Nig
 ## Where Mubit is used
 
 - **Detector (T1):** `backend/app/llm.py` calls `claude-haiku-4-5` with the anthropic SDK and base URL `https://api.mubit.ai/anthropic`, using the Mubit key from `MUBIT_API_KEY`. The key lives in `.env` and is never committed. Each part of a document is one call with recording on, so the calls train the Mubit task "Redact personal data". The UI lists every part with its Mubit request id (`mreq_...`).
-- **Answer (T2):** the same gateway, sent with `x-middleware-record: off`, so Mubit stores no user questions.
+- **Answer (T2):** the same gateway, sent with `x-middleware-record: off`, so Mubit stores no user questions. The question is pseudonymised like the document: names, addresses and references from the document, parts of known names, and emails or phone numbers typed in the question become placeholders before it leaves (`backend/app/question.py`). Answers are shown as plain text.
 - **Training:** ratings on those calls in the Mubit console decide which examples Mubit keeps. Adapter v1 (Qwen3 4B) passed its held-out test at 91.7%, against 66.7% for the base model. It does not serve yet: Mubit wants 20 test cases and v1 has 12.
 
 Document text is sent through Mubit for detection. The AI you ask only sees the placeholders. Reading PDFs and the OCR of photos and scans run locally (OCR uses Apple Vision, so macOS).
@@ -31,7 +31,7 @@ Without a key the app runs on the regex layer only. `VEIL_T1_PROMPT=evalkit` swi
 
 ## Tests
 
-370 tests on 24 Oct, all passing (192 backend, 48 OCR, 63 dataset, 10 evalkit, 57 frontend). The backend API tests need the local database from `scripts/local_db.py`; without `TEST_DATABASE_URL` they are skipped.
+431 tests on 24 Oct, all passing (226 backend, 48 OCR, 63 dataset, 10 evalkit, 84 frontend). The backend API tests need the local database from `scripts/local_db.py`; without `TEST_DATABASE_URL` they are skipped.
 
 ```bash
 cd backend && uv run --env-file ../.env pytest -q                              # API, auth, storage, stream, pipeline, regex rules, addresses, PDF, OCR boxes

@@ -65,6 +65,7 @@ export type AskResult = {
   answer: string;
   answer_with_placeholders: string;
   sent_text: string;
+  sent_question?: string; // the question as the AI received it, with known values replaced
   unknown_placeholders: string[];
   mreq_id: string | null;
   turn_id?: number; // a backend that keeps the chat has stored the turn already
@@ -92,6 +93,7 @@ export type StoredTurn = {
   turn_id: number;
   created_at: string;
   question: string;
+  sent_question?: string; // missing on turns stored before questions were pseudonymised
   answer: string;
   answer_with_placeholders: string;
   unknown_placeholders: string[];

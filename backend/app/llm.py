@@ -55,7 +55,8 @@ REWRITE_ATTEMPTS = 4
 T2_SYSTEM_PROMPT = (
     "Answer the user's question about a redacted document. Values in square brackets such as "
     "[PERSON_1] or [ACCOUNT_2] stand for hidden real values. Keep every placeholder exactly as "
-    "written. Never guess hidden values. Answer briefly and plainly."
+    "written. Never guess hidden values. Answer briefly and plainly, in plain text without Markdown: "
+    "no asterisks, no headings and no bullet symbols."
 )
 
 

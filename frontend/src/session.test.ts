@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DocSummary, RedactResult, StoredDoc, StoredStatus } from "./api";
 import { partsOf, retryScan, scanOf } from "./scan";
-import { fromStored, fromSummary, mergeList, uiStatus, withOpened, type Session } from "./session";
+import { fromStored, fromSummary, fromTurn, mergeList, uiStatus, withOpened, type Session } from "./session";
 
 // Invented data only.
 const TEXT = "Tenant: Ada Fenwick 🙂\nPhone 07700 900461.";
@@ -176,5 +176,16 @@ describe("scanOf", () => {
     // the kept part has the order partsOf gave it on screen, so its pass counts as ended
     expect(scan.parts[0].order).toBe(partsOf(s)[0].order);
     expect(scan.seq).toBe(2);
+  });
+});
+
+describe("fromTurn", () => {
+  it("keeps the question as the AI received it", () => {
+    const turn = fromTurn({ turn_id: 3, created_at: "2026-10-24T18:00:00.000Z", question: "When can Ada Fenwick leave?",
+      sent_question: "When can [PERSON_1] leave?", answer: "Ada Fenwick can leave in May.",
+      answer_with_placeholders: "[PERSON_1] can leave in May.", unknown_placeholders: [], mreq_id: null }, "Tenant: [PERSON_1]");
+    expect(turn.question).toBe("When can Ada Fenwick leave?");
+    expect(turn.answer?.sent_question).toBe("When can [PERSON_1] leave?");
+    expect(turn.answer?.sent_text).toBe("Tenant: [PERSON_1]");
   });
 });
