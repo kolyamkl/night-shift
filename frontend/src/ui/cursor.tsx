@@ -53,6 +53,7 @@ const SPARK = ["#ff6b61", "#e2231a", "#f8f7f3", "#0d0d0d"];
 type Bit = { x: number; y: number; vx: number; vy: number; age: number; life: number; size: number; color?: string; gravity: number };
 
 const HOT_SELECTOR = "a[href], button, [role='button'], [role='tab'], summary, label[for], select, .sample-card, .val.is-live";
+const COLD = ":disabled, .castle-btn.is-open, .gval:not(.is-live)"; // buttons the CSS shows with the plain sword
 
 /** Mounted once for the whole site. `calm` (the app) needs a faster swing before embers show, and sheds fewer. */
 export function SwordCursor({ calm = false }: { calm?: boolean }) {
@@ -156,7 +157,7 @@ export function SwordCursor({ calm = false }: { calm?: boolean }) {
       if (e.pointerType === "touch") return;
       const target = e.target instanceof Element ? e.target : null;
       const next = target?.closest(HOT_SELECTOR) ?? null;
-      if (next && next !== hot && !still.matches && !(next as HTMLButtonElement).disabled) {
+      if (next && next !== hot && !still.matches && !next.matches(COLD)) {
         for (let i = 0; i < 4; i++) // the blade catches the light as it heats
           bits.push({ x: e.clientX + 2, y: e.clientY + 2, vx: (Math.random() - 0.5) * 0.08, vy: -0.03 - Math.random() * 0.05,
             age: 0, life: 220 + Math.random() * 120, size: PX, color: i % 2 ? "#f8f7f3" : "#ff6b61", gravity: 0 });

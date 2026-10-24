@@ -1,14 +1,17 @@
 // A hill strip from art.ts, repeated across any width at a fixed pixel size: a wider screen gets more hills,
 // never bigger ones. The strip's middle sits at the container's middle, so a valley drawn there stays centred.
+// `shift` slides the pattern sideways inside the strip (parallax, a panning camera) without ever showing an edge.
 
+import { motion, useTransform, type MotionValue } from "motion/react";
 import { useMemo, type CSSProperties } from "react";
 import { runPaths } from "../sprites";
 
-export function Hills({ rows, edge, fill, cell, className, style }: {
+export function Hills({ rows, edge, fill, cell, shift, className, style }: {
   rows: readonly string[];
   edge: string;
   fill: string;
   cell: number; // CSS pixels per art pixel
+  shift?: MotionValue<number>;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -19,11 +22,13 @@ export function Hills({ rows, edge, fill, cell, className, style }: {
   }, [rows, edge, fill]);
   const width = Math.round(rows[0].length * cell); // whole pixels, so tiles meet without a hairline seam
   const height = Math.round(rows.length * cell);
+  const x = useTransform(() => `calc(50% + ${Math.round(shift?.get() ?? 0)}px)`);
   return (
-    <div
+    <motion.div
       aria-hidden
+      data-hills
       className={className}
-      style={{ height, backgroundImage: image, backgroundRepeat: "repeat-x", backgroundSize: `${width}px ${height}px`, backgroundPosition: "50% 0", ...style }}
+      style={{ height, backgroundImage: image, backgroundRepeat: "repeat-x", backgroundSize: `${width}px ${height}px`, backgroundPositionX: x, backgroundPositionY: 0, ...style }}
     />
   );
 }

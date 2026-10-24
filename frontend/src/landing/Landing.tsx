@@ -45,23 +45,40 @@ function Hero() {
   const shift = (px: number) => (reduce ? [0, 0] : [0, px]);
   const textY = useTransform(scrollYProgress, [0, 1], shift(-90));
   const textOpacity = useTransform(scrollYProgress, [0, 0.7], [1, reduce ? 1 : 0]);
-  const farY = useTransform(scrollYProgress, [0, 1], shift(50));
-  const castleY = useTransform(scrollYProgress, [0, 1], shift(110));
-  const nearY = useTransform(scrollYProgress, [0, 1], shift(170));
+  const farY = useTransform(scrollYProgress, [0, 1], shift(40)); // only the far hills drift; the castle stands on the ground
   const [p, setP] = useState(6);
   const [played, setPlayed] = useState(false);
   const text = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // One pixel size for the whole scene (castle, hills, clouds). The castle may run a little past the first screen
-    // so it reads big; the space it gets is what is left under the headline and buttons.
+    // so it reads big; it gets the room left under the headline and buttons. Heights come from the layout box (not
+    // the scrolled, transformed one) and from 100svh, so a phone's URL bar showing or hiding does not resize it.
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;top:0;height:100svh;width:0;visibility:hidden;pointer-events:none";
+    document.body.appendChild(probe);
     const fit = () => {
-      const top = (text.current?.getBoundingClientRect().bottom ?? 430) + window.scrollY;
-      const room = window.innerHeight * 1.1 - top - 64;
+      const el = text.current;
+      const section = ref.current;
+      if (!el || !section) return;
+      const top = section.offsetTop + el.offsetTop + el.offsetHeight;
+      const room = probe.offsetHeight * 1.1 - top - 64;
       setP(Math.max(4, Math.min(Math.floor((window.innerWidth * 0.6) / CASTLE_W), Math.floor(room / (CASTLE_H + 4)))));
     };
     fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    void document.fonts?.ready.then(fit); // the headline's height changes once the pixel font arrives
+    let width = window.innerWidth;
+    let height = probe.offsetHeight;
+    const onResize = () => {
+      if (window.innerWidth === width && probe.offsetHeight === height) return;
+      width = window.innerWidth;
+      height = probe.offsetHeight;
+      fit();
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      probe.remove();
+    };
   }, []);
 
   return (
@@ -74,7 +91,7 @@ function Hero() {
           MuGuard hides names, account numbers and IDs before a document goes to an AI, then puts the real values back in the answer.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <LinkButton href="/app" variant="primary" size="lg" iconRight="right" className={played ? "cta-glow" : ""}>
+          <LinkButton href="/app" variant="primary" size="lg" iconRight="right" className={played ? "cta-nudge" : ""}>
             Protect a document
           </LinkButton>
           <LinkButton href={SAMPLE} variant="secondary" size="lg" icon="file">
@@ -83,7 +100,7 @@ function Hero() {
         </div>
       </motion.div>
 
-      <HeroScene p={p} farY={farY} castleY={castleY} nearY={nearY} onPlayed={setPlayed} />
+      <HeroScene p={p} farY={farY} onPlayed={setPlayed} />
     </section>
   );
 }

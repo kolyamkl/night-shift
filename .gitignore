@@ -34,3 +34,8 @@ frontend/dist/
 
 # Brainstorm mockups (local only)
 .superpowers/
+
+# Playwright output and local QA runs
+frontend/test-results/
+frontend/playwright-report/
+/qa-out/

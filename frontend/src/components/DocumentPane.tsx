@@ -215,7 +215,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
         </div>
       )}
 
-      <div ref={body} onMouseUp={onMouseUp} className={`relative min-h-0 flex-1 overflow-y-auto px-3 pt-6 pb-44 sm:px-6 ${fixing ? "cursor-quill" : ""}`}>
+      <div ref={body} onMouseUp={onMouseUp} className={`relative min-h-0 flex-1 overflow-y-auto px-3 pt-6 pb-8 sm:px-6 lg:pb-44 ${fixing ? "cursor-quill" : ""}`}>
         {modelOff && !idle && view === "lines" && (
           <p className="mx-auto mb-4 flex max-w-[860px] items-center gap-2 bg-paper px-3 py-2 text-[14px] px-frame-thin">
             <span className="inline-block h-2.5 w-2.5 shrink-0 bg-stone" aria-hidden />
@@ -377,7 +377,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
       )}
 
       {status === "review" && (
-        <div className={`review-bar absolute right-4 bottom-4 left-4 z-20 flex flex-col gap-3 bg-ink px-4 py-3 text-bone px-frame ${session.revealed ? "is-up" : ""}`}>
+        <div className={`review-bar sticky bottom-3 mx-3 mb-3 lg:absolute lg:right-4 lg:bottom-4 lg:left-4 lg:mx-0 lg:mb-0 z-20 flex flex-col gap-3 bg-ink px-4 py-3 text-bone px-frame ${session.revealed ? "is-up" : ""}`}>
           <p className={`min-w-0 truncate text-[14px] ${fixing ? "font-semibold text-signal-soft" : "text-bone/85"}`} aria-live="polite">
             {fixing ? "Select the missed text on the page, then press Hide." : (session.notice ?? note ?? statusNote)}
           </p>
@@ -394,7 +394,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
         </div>
       )}
       {status === "approved" && (
-        <div className="absolute right-4 bottom-4 left-4 z-20 flex flex-wrap items-center gap-3 bg-paper px-4 py-3 px-frame">
+        <div className="sticky bottom-3 mx-3 mb-3 lg:absolute lg:right-4 lg:bottom-4 lg:left-4 lg:mx-0 lg:mb-0 z-20 flex flex-wrap items-center gap-3 bg-paper px-4 py-3 px-frame">
           {session.notice ? (
             <span role="alert" className="mr-auto text-[15px] text-signal-deep">{session.notice}</span>
           ) : (
@@ -410,7 +410,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
         </div>
       )}
       {status === "declined" && (
-        <div className="absolute right-4 bottom-4 left-4 z-20 flex items-center gap-2 bg-paper px-4 py-3 px-frame">
+        <div className="sticky bottom-3 mx-3 mb-3 lg:absolute lg:right-4 lg:bottom-4 lg:left-4 lg:mx-0 lg:mb-0 z-20 flex items-center gap-2 bg-paper px-4 py-3 px-frame">
           <Icon name="close" />
           Declined. Nothing from this document was sent to the AI provider.
         </div>

@@ -48,12 +48,8 @@ function Backdrop({ scale, far, near }: { scale: number; far: MotionValue<number
   const cell = Math.round(6 * scale * 10) / 10;
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden>
-      <motion.div className="absolute -inset-x-[20%] opacity-70" style={{ top: (GROUND - 240) * scale, x: far }}>
-        <Hills rows={HILLS_FAR} edge="#8b8a85" fill="#c9c7bd" cell={cell} />
-      </motion.div>
-      <motion.div className="absolute -inset-x-[20%]" style={{ top: (GROUND - 120) * scale, x: near }}>
-        <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#dcdad1" cell={cell} />
-      </motion.div>
+      <Hills rows={HILLS_FAR} edge="#8b8a85" fill="#c9c7bd" cell={cell} shift={far} className="absolute inset-x-0 opacity-70" style={{ top: (GROUND - 240) * scale }} />
+      <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#dcdad1" cell={cell} shift={near} className="absolute inset-x-0" style={{ top: (GROUND - 120) * scale }} />
       <div className="absolute inset-x-0 bottom-0 bg-mist" style={{ top: GROUND * scale }} />
       <div className="absolute inset-x-0 bg-ink" style={{ top: GROUND * scale, height: Math.max(2, Math.round(4 * scale)) }} />
     </div>
@@ -230,7 +226,7 @@ export function Journey() {
     // No pinning: the finished scene at full width, sized from the width alone, then the four steps as a list.
     const still = Math.min(1.2, width / W);
     return (
-      <section id="journey" className="py-20">
+      <section id="journey" ref={section} className="py-20">
         <h2 className="mx-auto max-w-6xl px-4 font-pixel text-[clamp(28px,3vw,40px)] font-bold sm:px-8">How MuGuard keeps a document inside the walls</h2>
         <div ref={box} className="relative mt-8" style={{ height: H * still }}>
           <Scene p={p} still scale={still} width={width} pan={false} camX={camX} />

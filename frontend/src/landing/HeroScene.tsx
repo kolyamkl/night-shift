@@ -46,11 +46,9 @@ function Flicker({ frames, scale, late }: { frames: readonly (readonly string[])
   );
 }
 
-export function HeroScene({ p, farY, castleY, nearY, onPlayed }: {
+export function HeroScene({ p, farY, onPlayed }: {
   p: number;
   farY: MotionValue<number>;
-  castleY: MotionValue<number>;
-  nearY: MotionValue<number>;
   onPlayed: (played: boolean) => void;
 }) {
   const still = useReducedMotion();
@@ -67,8 +65,7 @@ export function HeroScene({ p, farY, castleY, nearY, onPlayed }: {
         <Play
           key={run}
           p={p}
-          castleY={castleY}
-          nearY={nearY}
+          again={run > 0}
           still={Boolean(still)}
           slot={slot}
           onPlayed={onPlayed}
@@ -89,17 +86,16 @@ export function HeroScene({ p, farY, castleY, nearY, onPlayed }: {
   );
 }
 
-function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
+function Play({ p, again, still, slot, onPlayed, onAgain }: {
   p: number;
-  castleY: MotionValue<number>;
-  nearY: MotionValue<number>;
+  again: boolean;
   still: boolean;
   slot: HTMLDivElement | null;
   onPlayed: (played: boolean) => void;
   onAgain: () => void;
 }) {
   const scene = useRef<HTMLDivElement>(null);
-  const castle = useRef<HTMLDivElement>(null);
+  const castle = useRef<HTMLButtonElement>(null);
   const leaves = useRef<HTMLSpanElement>(null);
   const fx = useRef<HTMLDivElement>(null);
   const docEls = useRef<(HTMLDivElement | null)[]>([]);
@@ -117,9 +113,11 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
 
   useEffect(() => {
     alive.current = true;
+    if (again) castle.current?.focus({ preventScroll: true }); // "Play again" hands focus back to the castle
     return () => {
       alive.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const total = shown.reduce((n, i) => n + DOCS[i].rows.length, 0);
@@ -192,8 +190,6 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
     setPhase("opening");
     for (const leaf of leaves.current?.children ?? []) animate(leaf as HTMLElement, { scaleX: 0.12 }, { duration: 0.3, ease: [0.2, 0.9, 0.2, 1] });
     shake(3);
-    const bottom = slot?.parentElement?.getBoundingClientRect().bottom;
-    if (bottom && bottom > window.innerHeight) window.scrollBy({ top: bottom - window.innerHeight + 8, behavior: "smooth" });
   };
 
   // The documents stand in a fan in front of the castle. Positions are recomputed whenever the scene resizes.
@@ -208,7 +204,7 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
     const mid = (els.length - 1) / 2;
     els.forEach((el, k) => {
       const x = W / 2 + (k - mid) * gap - dw / 2;
-      const y = H - el.offsetHeight - (shown[k] === BIG ? 40 : 26) + Math.abs(k - mid) * 8; // room for the stamp
+      const y = H - el.offsetHeight - (shown[k] === BIG ? 44 : 34) - Math.abs(k - mid) * 4; // room for the stamp and the tilt
       el.style.left = `${x}px`;
       el.style.top = `${y}px`;
       el.dataset.rot = String((k - mid) * 3);
@@ -231,13 +227,19 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
   };
 
   useEffect(() => {
-    if (!shown.length) return;
-    const onResize = () => {
+    const sc = scene.current;
+    if (!shown.length || !sc) return;
+    let first = true;
+    const ro = new ResizeObserver(() => {
+      if (first) {
+        first = false; // the observer reports once on start; the fly-out places the documents itself
+        return;
+      }
       place();
       if (phaseRef.current === "game") bringForward(0);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    });
+    ro.observe(sc);
+    return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown]);
 
@@ -279,7 +281,7 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
         el.style.visibility = "visible";
         animate(el, { x: [ox - x, (ox - x) * 0.45, 0], y: [oy - y, peak - y, 0], scale: [0.15, 0.7, 1], rotate: [0, rot * 4, rot], opacity: [0, 1, 1] },
           { duration: 0.6, ease: [0.3, 0.7, 0.3, 1], times: [0, 0.5, 1] });
-        castle.current?.animate([{ translate: "0 0" }, { translate: "0 3px" }, { translate: "0 0" }], { duration: 120 });
+        castle.current?.animate([{ translate: "0 0" }, { translate: "0 3px" }, { translate: "0 0" }], { duration: 120 }); // recoil on the button, not on the centred wrapper
         await wait(k === 0 ? 60 : 120);
       }
       await wait(700);
@@ -354,7 +356,7 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
   const finish = async (clean: boolean) => {
     if (phaseRef.current !== "game") return;
     phaseRef.current = "finale";
-    setWon(clean);
+    setWon(clean || DOCS[BIG].rows.every((_, k) => cutRef.current.has(valueId(BIG, k))));
     setPhase("finale");
     for (const [row] of DOCS[BIG].rows.entries()) {
       if (cutValue(BIG, row)) {
@@ -382,15 +384,23 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
     }
     setPhase("done");
     onPlayed(true);
+    slot?.parentElement?.scrollIntoView({ block: "nearest", behavior: "smooth" }); // the score, if it is below the fold
   };
 
   const idle = phase === "idle";
+  const narrow = shown.length === 3;
+  const skip = (
+    <Button size="sm" variant="secondary" className={narrow ? "" : "gskip"} onClick={() => void finish(false)}>
+      Let the guard do it
+    </Button>
+  );
   return (
     <>
-      <motion.div ref={castle} style={{ y: castleY, bottom: 3 * p }} className="absolute left-1/2 -translate-x-1/2">
+      <div style={{ bottom: 3 * p }} className="absolute left-1/2 -translate-x-1/2">
         <button
+          ref={castle}
           type="button"
-          className={`castle-btn relative block ${idle ? "" : "is-open"}`}
+          className={`castle-btn relative block ${idle ? "" : "is-open"} ${phase === "game" ? "is-dim" : ""}`}
           aria-label={idle ? "Open the castle gate" : "The castle gate is open"}
           tabIndex={idle ? 0 : -1}
           onPointerDown={(e) => {
@@ -405,7 +415,7 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
           <span className="absolute" style={{ left: (CASTLE_W - 9) * p, top: 0 }}><Flicker frames={PENNANT} scale={p} late /></span>
           <span className="absolute" style={{ left: 25 * p, top: (CASTLE_TOP + 35) * p }}><Flicker frames={TORCH} scale={p} /></span>
           <span className="absolute" style={{ left: 48 * p, top: (CASTLE_TOP + 35) * p }}><Flicker frames={TORCH} scale={p} late /></span>
-          <span className={`gate absolute ${idle ? "is-idle" : ""}`} style={{ left: DOOR_X * p, top: DOOR_Y * p, width: DOOR_W * p, height: DOOR_H * p }}>
+          <span className={`gate absolute ${idle ? "is-idle" : "is-open"}`} style={{ left: DOOR_X * p, top: DOOR_Y * p, width: DOOR_W * p, height: DOOR_H * p }}>
             {idle && <span className="gate-spill" />}
             <span ref={leaves} className="gate-leaves" style={{ clipPath: ARCH }}>
               <span className="gate-leaf"><Sprite rows={DOOR} scale={p} /></span>
@@ -422,10 +432,8 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
           </span>
           {idle && <span className="gate-hint" style={{ left: (DOOR_X + DOOR_W / 2) * p, top: (DOOR_Y - 8) * p }}>Open the gate</span>}
         </button>
-      </motion.div>
-      <motion.div style={{ y: nearY }} className="pointer-events-none absolute inset-x-0 bottom-0">
-        <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#dcdad1" cell={p} />
-      </motion.div>
+      </div>
+      <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#dcdad1" cell={p} className="pointer-events-none absolute inset-x-0 bottom-0" />
 
       <div ref={scene} className={`play absolute inset-0 ${phase === "game" ? "is-playing" : ""}`} aria-live="polite">
         {shown.map((i) => (
@@ -448,6 +456,7 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
                     type="button"
                     data-value={id}
                     className={`gval ${cut.has(id) ? "is-cut" : ""} ${live ? "is-live" : ""}`}
+                    style={{ "--tag": tag.length } as CSSProperties}
                     tabIndex={live ? 0 : -1}
                     aria-label={cut.has(id) ? `${label} hidden as ${tag}` : `Hide ${value}`}
                     onPointerDown={() => live && hit(r)}
@@ -479,14 +488,11 @@ function Play({ p, castleY, nearY, still, slot, onPlayed, onAgain }: {
             )}
           </div>
         )}
-        {phase === "game" && (
-          <Button size="sm" variant="secondary" className="gskip" onClick={() => void finish(false)}>
-            Let the guard do it
-          </Button>
-        )}
+        {phase === "game" && !narrow && skip}
         <div ref={fx} className="gfx" aria-hidden />
       </div>
 
+      {phase === "game" && narrow && slot && createPortal(skip, slot)}
       {phase === "done" && slot &&
         createPortal(
           <div className="gscore-wrap">
