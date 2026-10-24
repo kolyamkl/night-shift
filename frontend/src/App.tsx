@@ -186,6 +186,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
             update(active.id, () => ({ status: "approved" }));
             setVictory(distinct(active));
           }}
+          onReopen={() => update(active.id, () => ({ status: "review" }))}
           onDecline={() => update(active.id, () => ({ status: "declined" }))}
           onRetry={(only) => void redact(active.id, only)}
           onCorrect={async (action, text, type) => {
