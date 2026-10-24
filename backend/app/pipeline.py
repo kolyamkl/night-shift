@@ -1,6 +1,7 @@
 """Find personal data in a Document and turn it into placeholders and page rectangles.
 
-1. Regex layer over the whole text (cards, accounts, sort codes, IBAN, NI, postcodes, phones, emails).
+1. Regex layer over the whole text (cards, accounts, sort codes, IBAN, NI, postcodes, phones, emails,
+   and client, policy, claim and case references after their label: refs.py).
 2. T1 (the Mubit-trained model) per chunk; every value it returns is then located across the WHOLE
    document, so a name found in chunk 2 is hidden in chunk 5 too.
 3. Overlapping spans are merged into one, so a regex hit is never uncovered by a shorter model span.
@@ -23,6 +24,7 @@ from evalkit import regex_baseline
 from evalkit.redact import Vault, apply
 from evalkit.spans import Span, locate
 
+from . import refs
 from .extract import Document
 
 MAX_CHARS = 4000  # about 1,000 tokens per T1 call
@@ -144,6 +146,11 @@ def _reusable(prev: PipelineResult | None, plan: str, ranges: list[tuple[int, in
     return {c.index: (c, prev.chunk_values[c.index]) for c in prev.chunks if c.status in REUSABLE}
 
 
+def _regex(text: str) -> list[Span]:
+    """The regex layer. The evalkit baseline comes first, so on a tie its type wins over CUSTOM."""
+    return regex_baseline.detect(text) + refs.detect(text)
+
+
 def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars: int = MAX_CHARS,
                  workers: int = 6, emit: Emit | None = None, plan: str = "",
                  reuse: PipelineResult | None = None, stop: Callable[[], bool] | None = None) -> PipelineResult:
@@ -156,7 +163,7 @@ def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars:
     if emit:
         emit("start", {"chunks": [{"index": i, "chunk_id": ids[i], "start": s, "end": e}
                                   for i, (s, e) in enumerate(ranges)]})
-        emit("regex", {"entities": [_entity(sp, "regex") for sp in regex_baseline.detect(text)]})
+        emit("regex", {"entities": [_entity(sp, "regex") for sp in _regex(text)]})
 
     def run_chunk(i: int) -> tuple[ChunkInfo, list[dict]]:
         s, e = ranges[i]
@@ -219,7 +226,7 @@ def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidde
     text = doc.text
     wanted = {**values, **hidden}
     model_spans = locate(text, [{"text": v, "type": t} for v, t in wanted.items()])
-    spans = _merge(regex_baseline.detect(text) + model_spans, text)
+    spans = _merge(_regex(text) + model_spans, text)
     if unhidden:
         spans = [s for s in spans if s.text not in unhidden]
 
