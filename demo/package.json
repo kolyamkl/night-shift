@@ -1,0 +1,32 @@
+{
+  "name": "veil-demo-video",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "voice": "uv run voice.py",
+    "sfx": "uv run sfx.py",
+    "record": "node record.mjs",
+    "edit": "node edit.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Demo out/muguard-demo.mp4 --codec=h264 --crf=18",
+    "render:draft": "remotion render src/index.ts Demo out/muguard-demo-draft.mp4 --codec=h264 --scale=0.5",
+    "all": "npm run voice && npm run sfx && npm run record && npm run edit && npm run render"
+  },
+  "dependencies": {
+    "@fontsource-variable/pixelify-sans": "^5.3.0",
+    "@fontsource-variable/source-serif-4": "^5.3.1",
+    "@fontsource/silkscreen": "^5.3.0",
+    "@remotion/cli": "4.0.538",
+    "@remotion/media": "4.0.538",
+    "@remotion/transitions": "4.0.538",
+    "playwright": "1.64.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.538"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}
