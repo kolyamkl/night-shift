@@ -1,11 +1,13 @@
 import { Audio } from "@remotion/media";
 import { useEffect, useState } from "react";
-import { AbsoluteFill, Sequence, Series, continueRender, delayRender, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Sequence, Series, continueRender, delayRender, staticFile } from "remotion";
+import { Dialog, PixelWipe, WIPE_CUT, WIPE_FRAMES } from "./pixel";
 import { ChartScene } from "./scenes/ChartScene";
 import { ClipScene } from "./scenes/ClipScene";
+import { StatsScene } from "./scenes/StatsScene";
 import { TitleScene } from "./scenes/TitleScene";
 import { C, F, FONT_LOADS } from "./theme";
-import type { Edit, Scene, Word } from "./types";
+import type { Edit, Scene } from "./types";
 
 export const Demo = ({ edit }: { edit: Edit | null }) => {
   const [fonts] = useState(() => delayRender("Loading fonts"));
@@ -14,28 +16,39 @@ export const Demo = ({ edit }: { edit: Edit | null }) => {
   }, [fonts]);
   if (!edit) return null;
 
+  const frames = edit.scenes.map((s) => Math.round(s.seconds * edit.fps));
+  const starts = frames.map((_, i) => frames.slice(0, i).reduce((a, b) => a + b, 0));
+  // A pixel wipe opens the video and hides every cut that is not inside the one continuous take.
+  const wipes = [0, ...edit.scenes.slice(1).flatMap((s, i) => (s.kind === "clip" && edit.scenes[i].kind === "clip" ? [] : [starts[i + 1]]))];
+
   return (
     <AbsoluteFill style={{ background: C.bone, fontFamily: F.pixel }}>
       <Grid />
       <Series>
         {edit.scenes.map((scene, i) => (
-          <Series.Sequence key={scene.id} durationInFrames={Math.round(scene.seconds * edit.fps)} name={scene.id}>
+          <Series.Sequence key={scene.id} durationInFrames={frames[i]} name={scene.id}>
             <SceneView scene={scene} edit={edit} prev={edit.scenes[i - 1]} next={edit.scenes[i + 1]} />
             <Sequence from={Math.round(edit.lead * edit.fps)} name={`vo ${scene.id}`}>
               <Audio src={staticFile(scene.vo)} />
-              <Captions words={scene.words} />
+              <Dialog words={scene.words} />
             </Sequence>
           </Series.Sequence>
         ))}
       </Series>
+      {wipes.map((at) => (
+        <Sequence key={at} from={at - WIPE_CUT} durationInFrames={WIPE_FRAMES} name="pixel wipe">
+          <PixelWipe />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };
 
 function SceneView({ scene, edit, prev, next }: { scene: Scene; edit: Edit; prev?: Scene; next?: Scene }) {
   if (scene.kind === "clip") return <ClipScene scene={scene} take={edit.take} enter={prev?.kind !== "clip"} exit={next?.kind !== "clip"} />;
-  if (scene.kind === "chart") return <ChartScene scene={scene} />;
-  return <TitleScene scene={scene} outro={!next} />;
+  if (scene.kind === "stats") return <StatsScene scene={scene} lead={edit.lead} />;
+  if (scene.kind === "chart") return <ChartScene scene={scene} lead={edit.lead} />;
+  return <TitleScene scene={scene} />;
 }
 
 // A faint pixel grid behind everything.
@@ -48,54 +61,3 @@ const Grid = () => (
     }}
   />
 );
-
-// Spoken words in chunks of a few words, shown while they are said. Times come from the TTS, so they match the script.
-// Each sentence is split into even chunks of at most 8 words, so no chunk is a lone word.
-const MAX_WORDS = 8;
-const join = (ws: Word[]) => ws.reduce((s, w) => (/^[.,!?;:'’]/.test(w.w) || !s ? s + w.w : `${s} ${w.w}`), "");
-function chunks(words: Word[]) {
-  // A word plus the punctuation tokens that follow it.
-  const units: Word[][] = [];
-  for (const w of words) {
-    if (/^[.,!?;:'’]+$/.test(w.w) && units.length) units[units.length - 1].push(w);
-    else units.push([w]);
-  }
-  const sentences: Word[][][] = [[]];
-  for (const u of units) {
-    sentences[sentences.length - 1].push(u);
-    if (/[.!?]$/.test(u[u.length - 1].w)) sentences.push([]);
-  }
-  const out: { text: string; start: number; end: number }[] = [];
-  for (const s of sentences.filter((s) => s.length)) {
-    const size = Math.ceil(s.length / Math.ceil(s.length / MAX_WORDS));
-    for (let i = 0; i < s.length; i += size) {
-      const part = s.slice(i, i + size).flat();
-      out.push({ text: join(part), start: part[0].start, end: part[part.length - 1].end });
-    }
-  }
-  return out;
-}
-
-function Captions({ words }: { words: Word[] }) {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const t = frame / fps;
-  const current = chunks(words).find((c) => t >= c.start - 0.05 && t <= c.end + 0.25);
-  if (!current) return null;
-  return (
-    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 46 }}>
-      <div
-        style={{
-          background: C.ink,
-          color: C.paper,
-          font: `500 36px/1.25 ${F.pixel}`,
-          padding: "12px 24px",
-          maxWidth: 1400,
-          textAlign: "center",
-        }}
-      >
-        {current.text}
-      </div>
-    </AbsoluteFill>
-  );
-}

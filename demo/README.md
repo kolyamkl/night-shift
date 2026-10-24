@@ -1,15 +1,16 @@
 # Demo video pipeline
 
-Makes the submission video from code: a narrated, edited MP4 of Veil with a visible sword cursor, zooms on each action, captions, title cards and a results slide. The approach and the tools we compared are in [docs/research/2026-10-24-demo-video/report.md](../docs/research/2026-10-24-demo-video/report.md).
+Makes the submission video from code: a narrated, edited MP4 of MuGuard. It opens on the research numbers, then shows the app with a visible sword cursor and zooms on each action, then the results slide and a closing card. The approach and the tools we compared are in [docs/research/2026-10-24-demo-video/report.md](../docs/research/2026-10-24-demo-video/report.md).
 
 Voice comes first, then the recording, then the edit. Each scene in the take lasts at least as long as its narration, so the voice never runs behind the picture.
 
 ```
 scenes.json      the script: one narration line per scene, plus the titles and the numbers for the results slide
 voice.py         Kokoro TTS, local and free  -> public/media/vo/<scene>.wav + word timings + durations.json
+sfx.py           8-bit sound effects          -> public/media/sfx/*.wav (synthesised, nothing to license)
 record.mjs       Playwright 1.64 screencast  -> rec/take.webm, public/media/take.mp4, public/media/timeline.json
 edit.mjs         joins the three             -> public/media/edit.json
-src/             Remotion composition        -> out/veil-demo.mp4
+src/             Remotion composition        -> out/muguard-demo.mp4
 ```
 
 ## Run
@@ -23,10 +24,11 @@ src/             Remotion composition        -> out/veil-demo.mp4
 ```bash
 npm install                 # once; also run: npx remotion browser ensure && npx playwright install chromium
 uv run voice.py             # re-voices only the scenes whose text changed
+uv run sfx.py               # once
 node record.mjs             # about 80 s; HEADED=1 shows the browser
 node edit.mjs
 npm run studio              # preview and scrub in Remotion Studio
-npm run render              # out/veil-demo.mp4, 1080p H.264, about 5 minutes
+npm run render              # out/muguard-demo.mp4, 1080p H.264, about 2 minutes
 ```
 
 ## How the pieces work
@@ -36,6 +38,26 @@ npm run render              # out/veil-demo.mp4, 1080p H.264, about 5 minutes
 - **Zooms.** `focus(box, scale, hold)` in `record.mjs` logs a zoom. The edit eases into it and holds it. Zooms past about 1.5x start to look soft.
 - **Cursor.** Native CSS cursors never reach a screencast, so `record.mjs` injects a DOM copy of the app's sword. It switches sprites the way the app does: red blade on buttons, quill in text, shield on disabled controls. It adds a red pixel ripple on each click.
 - **Login.** Each take registers a fresh local test account, so the session list starts empty.
+
+## The pixel-art edit
+
+All of it lives in `src/pixel.tsx`, `src/sprites.tsx` and `src/scenes/`, and uses the app's own palette and sprites.
+
+| Element | What it does |
+|---|---|
+| Opening | The research as pixels: 71 of 100 blocks fill red, two of three pages turn red, then the pages fly to the model provider. |
+| Block wipes | Open the video and hide every cut between chapters. |
+| Captions | The knight's RPG dialog box; each word types in while it is spoken. |
+| HUD | A quest counter in the corner. |
+| Zooms | A red reticle locks onto each zoom. |
+| Results | Shown as block meters. |
+| Closing card | The victory knight drops in pixel by pixel. |
+| Sound effects | Placed from the click events in the take: a blip per click, a coin on Hide, a fanfare after Approve, sweeps on the wipes. |
+
+**Voice:**
+- `scenes.json` sets the Kokoro voice (`bm_george`, a British male, at 1.12 speed).
+- It also gives the phonemes for MuGuard and Mubit, which Kokoro would otherwise guess.
+- For a richer old-British narrator, use an ElevenLabs voice. It needs an account (see below).
 
 ## Before the final take
 

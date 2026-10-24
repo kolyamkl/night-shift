@@ -29,6 +29,15 @@ RATE = 24000
 spec = json.loads((ROOT / "scenes.json").read_text())
 voice = spec.get("voice", {}).get("kokoro", "af_heart")
 speed = spec.get("voice", {}).get("speed", 1.0)
+# Names Kokoro would guess wrong, as phonemes: {"MuGuard": "mjˈuːɡɑːd"}. Captions still show the written word.
+pronounce = spec.get("voice", {}).get("pronounce", {})
+
+
+def spoken(text: str) -> str:
+    import re
+    for word, phonemes in pronounce.items():
+        text = re.sub(rf"\b{re.escape(word)}\b", f"[{word}](/{phonemes}/)", text)
+    return text
 out = ROOT / "public" / "media" / "vo"
 out.mkdir(parents=True, exist_ok=True)
 force = "--force" in sys.argv
@@ -38,7 +47,7 @@ durations = json.loads(durations_file.read_text()) if durations_file.exists() el
 
 pipeline = None
 for scene in spec["scenes"]:
-    sid, text = scene["id"], scene["vo"]
+    sid, text = scene["id"], spoken(scene["vo"])
     key = hashlib.sha1(f"{voice}|{speed}|{text}".encode()).hexdigest()[:12]
     wav, words_file = out / f"{sid}.wav", out / f"{sid}.json"
     if not force and wav.exists() and durations.get(sid, {}).get("key") == key:

@@ -80,8 +80,18 @@ const reg = await context.request.post("/api/auth/register", { data: account, he
 if (!reg.ok()) throw new Error(`Register failed: ${reg.status()} ${await reg.text()}`);
 
 const page = await context.newPage();
-await page.goto("/");
-await page.evaluate(() => document.fonts.ready);
+// Vite may reload the page once while it optimises new dependencies; wait that out before recording.
+for (let attempt = 0; ; attempt++) {
+  try {
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => document.fonts.ready);
+    break;
+  } catch (e) {
+    if (attempt === 2) throw e;
+    await sleep(1500);
+  }
+}
 await page.mouse.move(1180, 760);
 await sleep(1200);
 
@@ -123,10 +133,11 @@ async function moveTo(locator, ms) {
   return box;
 }
 
-async function click(locator, ms = 650) {
+// `sfx` names the 8-bit sound the edit plays on this click (sfx.py): blip, coin or fanfare.
+async function click(locator, ms = 650, sfx = "blip") {
   const box = await moveTo(locator, ms);
   await sleep(140);
-  events.push({ t: now(), type: "click", x: mouse.x, y: mouse.y, box });
+  events.push({ t: now(), type: "click", x: mouse.x, y: mouse.y, box, sfx });
   await page.mouse.down();
   await sleep(70);
   await page.mouse.up();
@@ -234,15 +245,15 @@ const ACTIONS = {
     await glide(r.x + r.width - 1, r.y + r.height / 2, 900);
     await page.mouse.up();
     await at(5.6);
-    await click(page.getByRole("dialog", { name: "Hide selected text" }).getByRole("button", { name: "Hide" }), 600);
+    await click(page.getByRole("dialog", { name: "Hide selected text" }).getByRole("button", { name: "Hide" }), 600, "coin");
     await sleep(600);
     await glide(r.x + r.width + 140, r.y + 60, 700);
   },
 
   async approve(at) {
     await at(0.3);
-    await click(byName("button", "Approve all"));
-    const done = page.getByRole("dialog", { name: "Secured by Veil" }).getByRole("button", { name: "Continue" });
+    await click(byName("button", "Approve all"), 650, "fanfare");
+    const done = page.getByRole("dialog", { name: /^Secured by/ }).getByRole("button", { name: "Continue" });
     await done.waitFor({ timeout: 15_000 });
     await sleep(3200);
     await click(done, 700);
@@ -257,7 +268,7 @@ const ACTIONS = {
     await typeText(QUESTION);
     await sleep(250);
     await page.keyboard.press("Enter");
-    const answer = page.locator('aside[aria-label="Ask an AI about this document"]').getByText("real values put back by Veil", { exact: false }).first();
+    const answer = page.locator('aside[aria-label="Ask an AI about this document"]').getByText(/real values put back by/).first();
     await answer.waitFor({ timeout: 60_000 }).catch(() => {});
     const panel = await page.locator('aside[aria-label="Ask an AI about this document"]').boundingBox();
     focus({ x: panel.x, y: panel.y + 20, width: panel.width, height: 260 }, 1.45, 4.5);

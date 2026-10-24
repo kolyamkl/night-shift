@@ -1,65 +1,89 @@
 {
-  "voice": { "kokoro": "af_heart", "speed": 1.0 },
+  "voice": {
+    "kokoro": "bm_george",
+    "speed": 1.12,
+    "pronounce": { "MuGuard": "mjˈuːɡɑːd", "Mubit": "mjˈuːbɪt" }
+  },
   "scenes": [
     {
-      "id": "intro",
-      "kind": "title",
-      "lines": ["People paste client documents into AI.", "Every name goes with them."],
-      "vo": "Every day, people paste client contracts, bank letters and payslips into ChatGPT. Every name, address and account number in them goes straight to the model provider."
+      "id": "hook",
+      "kind": "stats",
+      "vo": "Seventy one percent of British workers use AI their employer never approved. Two in three requests ask it to rework text people paste in: contracts, payslips, client letters. And every name in them rides out of the castle, to the model provider.",
+      "stats": [
+        {
+          "value": 71,
+          "label": "of UK workers have used AI tools their employer never approved",
+          "source": "Microsoft UK and Censuswide, Oct 2025, 2,003 employees"
+        },
+        {
+          "of": [2, 3],
+          "cue": "Two",
+          "label": "ChatGPT writing requests rework text the user pastes in",
+          "source": "OpenAI and NBER, \"How People Use ChatGPT\", Sept 2025"
+        }
+      ],
+      "leaveCue": "rides"
     },
     {
       "id": "landing",
       "kind": "clip",
-      "label": "Veil",
-      "vo": "Veil fixes that. It hides the personal data in a document before any AI sees it, and puts the real values back in the answer."
+      "label": "MuGuard",
+      "vo": "MuGuard keeps them inside the walls. It hides the personal data before any AI sees it, then puts the real values back in the answer."
     },
     {
       "id": "scan",
       "kind": "clip",
-      "label": "1. Drop a document",
-      "vo": "Here is a four page tenancy agreement, full of names, addresses and phone numbers. A detector model, trained and served through Mubit, reads it part by part, next to a rules layer for UK numbers."
+      "label": "Quest 1: Drop a document",
+      "quest": 1,
+      "vo": "Take a tenancy agreement. Our knight, a detector model trained and served through Mubit, reads it part by part, with rules for UK numbers."
     },
     {
       "id": "pages",
       "kind": "clip",
-      "label": "2. Review what is hidden",
-      "vo": "In a few seconds, every name, address and number is blacked out. In the PDF you download, the text under each box is removed from the file, not just covered."
+      "label": "Quest 2: Review",
+      "quest": 2,
+      "vo": "In seconds, every name, address and number is struck out. In the PDF you download, the text beneath each box is truly gone."
     },
     {
       "id": "parts",
       "kind": "clip",
       "label": "Every part is a Mubit call",
-      "vo": "Each part of the document was its own call to Mubit, and every request id is right here."
+      "quest": 2,
+      "vo": "Each part is its own Mubit call, with its request id."
     },
     {
       "id": "fix",
       "kind": "clip",
-      "label": "3. Fix a miss",
-      "vo": "Missed something? The landlord is our client, so I select the company name and hide it. That correction is exactly what Mubit trains the next version of the model on."
+      "label": "Quest 3: Fix a miss",
+      "quest": 3,
+      "vo": "Missed one? The landlord is our client, so I mark the name and hide it. Mubit trains the next version of the model on exactly that correction."
     },
     {
       "id": "approve",
       "kind": "clip",
-      "label": "4. Approve",
-      "vo": "Only when I approve can the document go to an AI."
+      "label": "Quest 4: Approve",
+      "quest": 4,
+      "vo": "Only once I approve may the document pass the gate."
     },
     {
       "id": "ask",
       "kind": "clip",
-      "label": "5. Ask the AI",
-      "vo": "I ask when the landlord can raise the rent. Claude only sees placeholders, like person one, and Veil puts the real names back on my laptop."
+      "label": "Quest 5: Ask the AI",
+      "quest": 5,
+      "vo": "Now I ask when the landlord may raise the rent. Claude sees only placeholders, and MuGuard restores the true names on my own machine."
     },
     {
       "id": "sees",
       "kind": "clip",
       "label": "What the AI received",
-      "vo": "And this is exactly what the AI received. No names, no addresses, no account numbers."
+      "quest": 5,
+      "vo": "This is all the AI ever received. No names. No addresses. No account numbers."
     },
     {
       "id": "numbers",
       "kind": "chart",
       "label": "Results",
-      "vo": "On our synthetic test set, rules alone hide thirty eight percent of personal values, and not a single name or address. The adapter we trained in Mubit passed ninety two percent of its held out test, against sixty seven for the base model.",
+      "vo": "Rules alone hide thirty eight percent of personal values, and not a single name. Our Mubit adapter passed ninety two percent of its held out test, against sixty seven for the base model.",
       "rules": {
         "title": "Rules alone",
         "note": "1,459 synthetic UK documents, regex layer only",
@@ -76,7 +100,7 @@
         "source": "docs/HANDOFF.md, open decision 1",
         "bars": [
           { "label": "Base model", "value": 66.7 },
-          { "label": "Veil adapter v1", "value": 91.7, "highlight": true }
+          { "label": "MuGuard adapter v1", "value": 91.7, "highlight": true }
         ]
       }
     },
@@ -84,7 +108,7 @@
       "id": "outro",
       "kind": "title",
       "lines": ["Your documents stay inside the walls."],
-      "vo": "Every correction makes your own privacy model better, and your clients' data never reaches the model provider. Veil."
+      "vo": "Every correction makes your own guard stronger, and your clients' data never leaves the castle. MuGuard."
     }
   ]
 }

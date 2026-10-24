@@ -1,4 +1,4 @@
-// The app's palette and fonts (frontend/src/index.css), so the video looks like Veil.
+// The app's palette and fonts (frontend/src/index.css), so the video looks like MuGuard.
 import "@fontsource-variable/pixelify-sans";
 import "@fontsource/silkscreen/400.css";
 import "@fontsource-variable/source-serif-4";
