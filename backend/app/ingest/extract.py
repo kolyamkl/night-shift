@@ -151,11 +151,15 @@ def _is_scan(pdf_page: pdfium.PdfPage, lines: list[Line]) -> bool:
     return chars == 0 or _image_cover(pdf_page) >= SCAN_COVER
 
 
-def _from_pdf(data: bytes, recognize: Recognizer, fix: bool) -> ExtractedDocument:
+def _open_pdf(data: bytes) -> pdfium.PdfDocument:
     try:
-        pdf = pdfium.PdfDocument(data)
+        return pdfium.PdfDocument(data)
     except pdfium.PdfiumError as exc:
         raise UnsupportedDocument(f"cannot open the PDF (damaged or password protected): {exc}") from exc
+
+
+def _from_pdf(data: bytes, recognize: Recognizer, fix: bool) -> ExtractedDocument:
+    pdf = _open_pdf(data)
     doc = ExtractedDocument(kind="pdf", pages=[])
     try:
         count = len(pdf)
@@ -183,7 +187,7 @@ def _from_image(data: bytes, recognize: Recognizer, fix: bool) -> ExtractedDocum
     except (UnidentifiedImageError, OSError) as exc:
         raise UnsupportedDocument("not a PDF or an image format we can read") from exc
     doc = ExtractedDocument(kind="image", pages=[])
-    for index, frame in enumerate(ImageSequence.Iterator(img)):  # multi-page TIFFs have several frames
+    for index, frame in enumerate(page_frames(img)):
         if index >= MAX_PAGES:
             doc.warnings.append(f"only the first {MAX_PAGES} frames were read")
             break
@@ -191,6 +195,25 @@ def _from_image(data: bytes, recognize: Recognizer, fix: bool) -> ExtractedDocum
         doc.pages.append(page)
         doc.fixes.extend(fixes)
     return doc
+
+
+def page_frames(img: Image.Image) -> list[Image.Image] | ImageSequence.Iterator:
+    """The pages of an image: a multi-page TIFF has several frames. An iPhone JPEG (MPO) has one page;
+    its later frames are a depth map or a preview."""
+    return [img] if img.format == "MPO" else ImageSequence.Iterator(img)
+
+
+def scanned_pages(source: bytes | str | Path) -> list[int]:
+    """Numbers (1-based) of the PDF pages extract() reads with OCR: no text layer, or little text over
+    an image covering much of the page (a scan with a page-number stamp). Empty for an image."""
+    data = Path(source).read_bytes() if isinstance(source, (str, Path)) else source
+    if data[:5] != b"%PDF-":
+        return []
+    pdf = _open_pdf(data)
+    try:
+        return [i + 1 for i in range(min(len(pdf), MAX_PAGES)) if _is_scan(pdf[i], _text_layer_lines(pdf[i]))]
+    finally:
+        pdf.close()
 
 
 def extract(source: bytes | str | Path, *, fix: bool = True, recognize: Recognizer | None = None) -> ExtractedDocument:

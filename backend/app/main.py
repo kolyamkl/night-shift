@@ -133,20 +133,32 @@ def _store(doc: Document) -> dict:
     return _doc_payload(doc)
 
 
-def _ocr(data: bytes, name: str) -> dict:
-    """Scans and photos go through app/ingest (Apple Vision OCR on this Mac). Text only for now:
-    no page boxes, so the download is the redacted text, not a redacted image."""
+def _ocr(data: bytes, name: str, text_layer: Document | None = None) -> dict:
+    """Scans and photos go through app/ingest (Apple Vision OCR on this Mac), then app/ocrdoc turns
+    them into a PDF with a box for every word, so they get black boxes and a redacted PDF download.
+    A PDF with a text layer (text_layer, read by extract.py) is kept as it is unless ingest finds a
+    scanned page in it, such as a scan with a page-number stamp: its image would never be read."""
     try:
-        from .ingest import OcrError, UnsupportedDocument, extract
+        from .ingest import OcrError, UnsupportedDocument, scanned_pages
+        from .ocrdoc import document_from_ocr
     except ImportError:
+        if text_layer is not None:
+            return _store(text_layer)
         raise HTTPException(415, "Reading scans and photos needs the OCR packages. Run uv sync in backend.") from None
+    if text_layer is not None:
+        try:
+            scans = scanned_pages(data)
+        except UnsupportedDocument:  # pdfium cannot open what PyMuPDF did: keep PyMuPDF's reading
+            scans = []
+        if not scans:
+            return _store(text_layer)
     try:
-        doc = extract(data)
+        doc = document_from_ocr(data, name)
     except (OcrError, UnsupportedDocument) as exc:
         raise HTTPException(415, str(exc)) from None
     if not doc.text.strip():
         raise HTTPException(400, "No text was found in this file.")
-    return _store(extract_text(doc.text, name))
+    return _store(doc)
 
 
 @app.get("/api/health")
@@ -173,7 +185,7 @@ async def create_document(text: str | None = Form(None), file: UploadFile | None
             doc = extract_pdf(data, name)
         except Exception:
             raise HTTPException(400, "This PDF could not be read.") from None
-        return _store(doc) if doc.text.strip() else _ocr(data, name)  # no text layer: a scanned PDF
+        return _ocr(data, name, text_layer=doc if doc.text.strip() else None)  # OCR when any page is a scan
     if lower.endswith(".eml"):
         return _store_text(_email_to_text(data), name)
     if lower.endswith(TEXT_TYPES):
