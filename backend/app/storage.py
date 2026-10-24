@@ -106,6 +106,23 @@ class PostgresStore:
             row = conn.execute("""SELECT d.payload, r.payload, d.revision FROM veil_documents d
                 LEFT JOIN veil_redactions r USING (doc_id) WHERE d.doc_id = %s AND d.owner_id = %s""",
                                (doc_id, owner_id)).fetchone()
+        return self._snapshot(doc_id, row)
+
+    def begin_scan(self, doc_id: str, *, owner_id: str) -> Snapshot:
+        """Reserve the newest scan atomically, including across backend workers."""
+        with self.connect() as conn:
+            row = conn.execute("""UPDATE veil_documents d SET revision = revision + 1, updated_at = now()
+                WHERE doc_id = %s AND owner_id = %s
+                RETURNING d.payload, (SELECT payload FROM veil_redactions WHERE doc_id = d.doc_id), d.revision""",
+                               (doc_id, owner_id)).fetchone()
+        return self._snapshot(doc_id, row)
+
+    def is_current(self, doc_id: str, revision: int, *, owner_id: str) -> bool:
+        with self.connect() as conn:
+            return conn.execute("SELECT 1 FROM veil_documents WHERE doc_id = %s AND revision = %s AND owner_id = %s",
+                                (doc_id, revision, owner_id)).fetchone() is not None
+
+    def _snapshot(self, doc_id: str, row) -> Snapshot:
         if row is None:
             raise MissingDocument(doc_id)
         data = self._decrypt(doc_id, "document", row[0])
@@ -120,10 +137,18 @@ class PostgresStore:
             result = PipelineResult(
                 spans=[Span(**s) for s in raw["spans"]], redacted_text=raw["redacted_text"],
                 vault=Vault(**raw["vault"]), boxes=[Box(**b) for b in raw["boxes"]],
-                chunks=[ChunkInfo(**c) for c in raw["chunks"]], stats=raw["stats"],
+                chunks=[self._chunk(c, i) for i, c in enumerate(raw["chunks"])], stats=raw["stats"],
                 model_values=raw["model_values"], hidden=raw["hidden"], unhidden=set(raw["unhidden"]),
+                chunk_values=raw.get("chunk_values", []), plan=raw.get("plan", ""),
             )
         return Snapshot(doc, result, row[2])
+
+    @staticmethod
+    def _chunk(data: dict, index: int) -> ChunkInfo:
+        # Snapshots saved before live scanning lack index/status/latency.
+        legacy_status = ("off" if data.get("error") == "model off" else "error" if data.get("error")
+                         else "ok" if data.get("mreq_id") or data.get("found") else "empty")
+        return ChunkInfo(**{"index": index, "status": legacy_status, **data})
 
     def save_result(self, doc_id: str, result: PipelineResult, expected_revision: int, *, owner_id: str) -> int:
         data = asdict(result)

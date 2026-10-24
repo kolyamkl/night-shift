@@ -6,13 +6,18 @@ Documents and redactions persist encrypted in PostgreSQL; document text is never
 
 import email
 import json
+import logging
 import os
+import queue
 import re
+import threading
 from collections import Counter
+from collections.abc import Callable, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from email import policy
 from pathlib import Path
+from typing import Literal
 
 import pymupdf
 import psycopg
@@ -20,18 +25,24 @@ from cryptography.fernet import InvalidToken
 from evalkit.redact import restore
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
-from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from .auth import User, router as auth_router
-from .extract import Document, extract_pdf, extract_text
-from .llm import T1_MODEL, T2_MODEL, make_t1_factory, make_t2
-from .pdfout import redact_pdf
-from .pipeline import PipelineResult, rebuild, run_pipeline
 from .storage import MissingDocument, PostgresStore, Snapshot, StaleRevision
+from .extract import Document, extract_pdf, extract_text
+from .llm import T1_CHUNK_CHARS, describe, find_key, load_settings, make_t1_factory, make_t2
+from .pdfout import redact_pdf
+from .pipeline import Emit, PipelineResult, rebuild, run_pipeline
 
+log = logging.getLogger("veil")
+if not log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s %(message)s"))
+    log.addHandler(_handler)
+    log.setLevel(logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -67,10 +78,25 @@ async def protect_browser_requests(request: Request, call_next):
     return await call_next(request)
 
 
-app.state.t1_factory = make_t1_factory()
-app.state.t2 = make_t2()
+SETTINGS = load_settings()
+_key, app.state.key_source = find_key()
+app.state.t1_prompt, app.state.t1_model, app.state.t2_model = SETTINGS.t1_prompt, SETTINGS.t1_model, SETTINGS.t2_model
+app.state.t1_factory = make_t1_factory(_key, SETTINGS.t1_prompt, SETTINGS.evalkit_model)
+app.state.t2 = make_t2(_key, SETTINGS.t2_model)
+del _key
+log.info(describe(SETTINGS, app.state.key_source))
 
-TEXT_TYPES = (".txt", ".md", ".csv", ".json", ".eml")
+TEXT_TYPES = (
+    ".txt", ".text", ".md", ".markdown", ".rst", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".eml",
+    ".log", ".vcf", ".ics", ".srt", ".vtt", ".tex",
+    # code
+    ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".java", ".kt", ".kts", ".scala",
+    ".go", ".rb", ".rs", ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".php", ".swift", ".m", ".dart", ".lua",
+    ".pl", ".r", ".sql", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".graphql", ".proto",
+    # config and markup
+    ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties", ".xml", ".html", ".htm", ".css",
+    ".scss", ".tf",
+)
 IMAGE_TYPES = (".jpg", ".jpeg", ".png", ".heic", ".heif", ".tif", ".tiff", ".webp")
 MAX_UPLOAD = 20 * 1024 * 1024
 
@@ -142,33 +168,62 @@ def _email_to_text(raw: bytes) -> str:
     return f"{head}\n\n{text}".strip()
 
 
+def _text_or_none(data: bytes) -> str | None:
+    """Text from an upload with an unknown extension: valid UTF-8 with no NUL byte in the first 8 KB."""
+    if b"\x00" in data[:8192]:
+        return None
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return None
+
+
+def _store_text(text: str, name: str, owner_id: str) -> dict:
+    if not text.strip():
+        raise HTTPException(400, "No text was found in this file.")
+    return _store(extract_text(text, name), owner_id)
+
+
 def _store(doc: Document, owner_id: str) -> dict:
     app.state.store.create(doc, owner_id=owner_id)
     return _doc_payload(doc)
 
 
-def _ocr(data: bytes, name: str, owner_id: str) -> dict:
-    """Scans and photos go through app/ingest (Apple Vision OCR on this Mac). Text only for now:
-    no page boxes, so the download is the redacted text, not a redacted image."""
+def _ocr(data: bytes, name: str, owner_id: str, text_layer: Document | None = None) -> dict:
+    """Scans and photos go through app/ingest (Apple Vision OCR on this Mac), then app/ocrdoc turns
+    them into a PDF with a box for every word, so they get black boxes and a redacted PDF download.
+    A PDF with a text layer (text_layer, read by extract.py) is kept as it is unless ingest finds a
+    scanned page in it, such as a scan with a page-number stamp: its image would never be read."""
     try:
-        from .ingest import OcrError, UnsupportedDocument, extract
+        from .ingest import OcrError, UnsupportedDocument, scanned_pages
+        from .ocrdoc import document_from_ocr
     except ImportError:
+        if text_layer is not None:
+            return _store(text_layer, owner_id)
         raise HTTPException(415, "Reading scans and photos needs the OCR packages. Run uv sync in backend.") from None
+    if text_layer is not None:
+        try:
+            scans = scanned_pages(data)
+        except UnsupportedDocument:  # pdfium cannot open what PyMuPDF did: keep PyMuPDF's reading
+            scans = []
+        if not scans:
+            return _store(text_layer, owner_id)
     try:
-        doc = extract(data)
+        doc = document_from_ocr(data, name)
     except (OcrError, UnsupportedDocument) as exc:
         raise HTTPException(415, str(exc)) from None
     if not doc.text.strip():
         raise HTTPException(400, "No text was found in this file.")
-    return _store(extract_text(doc.text, name), owner_id)
+    return _store(doc, owner_id)
 
 
 @app.get("/api/health")
 def health() -> dict:
     app.state.store.healthy()
     on = bool(app.state.t1_factory)
-    return {"model": "on" if on else "off", "t1_model": T1_MODEL if on else None,
-            "t2_model": T2_MODEL if app.state.t2 else None, "database": "postgresql"}
+    return {"model": "on" if on else "off", "t1_model": app.state.t1_model if on else None,
+            "t1_prompt": app.state.t1_prompt, "t2_model": app.state.t2_model if app.state.t2 else None,
+            "key_source": app.state.key_source if on else None, "database": "postgresql"}
 
 
 @app.get("/api/documents/{doc_id}")
@@ -200,24 +255,107 @@ async def create_document(user: User, text: str | None = Form(None), file: Uploa
             doc = extract_pdf(data, name)
         except Exception:
             raise HTTPException(400, "This PDF could not be read.") from None
-        return _store(doc, user["id"]) if doc.text.strip() else _ocr(data, name, user["id"])  # no text layer: a scanned PDF
+        return _ocr(data, name, user["id"], text_layer=doc if doc.text.strip() else None)  # OCR when any page is a scan
     if lower.endswith(".eml"):
-        return _store(extract_text(_email_to_text(data), name), user["id"])
+        return _store_text(_email_to_text(data), name, user["id"])
     if lower.endswith(TEXT_TYPES):
-        return _store(extract_text(data.decode("utf-8", errors="replace"), name), user["id"])
+        return _store_text(data.decode("utf-8-sig", errors="replace"), name, user["id"])
     if lower.endswith(IMAGE_TYPES):
         return _ocr(data, name, user["id"])
+    text = _text_or_none(data)  # an unknown extension that is really text, such as a Dockerfile
+    if text is not None:
+        return _store_text(text, name, user["id"])
     raise HTTPException(415, "This file type is not supported yet. Use PDF, an image, TXT or EML, or paste the text.")
 
 
-@app.post("/api/documents/{doc_id}/redact")
-def redact(doc_id: str, user: User) -> dict:
-    saved = app.state.store.get(doc_id, owner_id=user["id"])
+class Superseded(Exception):
+    """A newer scan or correction replaced this scan's reserved revision."""
+
+
+def _start_scan(doc_id: str, owner_id: str) -> tuple[Snapshot, Callable[[], bool]]:
+    saved = app.state.store.begin_scan(doc_id, owner_id=owner_id)
+    return saved, lambda: not app.state.store.is_current(doc_id, saved.revision, owner_id=owner_id)
+
+
+def _scan(saved: Snapshot, superseded: Callable[[], bool], owner_id: str, retry: str | None = None,
+          emit: Emit | None = None) -> dict:
+    """Persist the newest scan only. Failed-part retries reuse the encrypted saved chunk results."""
     doc = saved.document
-    factory = app.state.t1_factory
-    res = run_pipeline(doc, t1=factory(doc_id) if factory else None)
-    app.state.store.save_result(doc_id, res, saved.revision, owner_id=user["id"])
+    factory, prompt = app.state.t1_factory, app.state.t1_prompt
+    res = run_pipeline(doc, t1=factory(doc.doc_id) if factory else None, max_chars=T1_CHUNK_CHARS[prompt],
+                       emit=emit, plan=prompt, reuse=saved.result if retry == "failed" else None,
+                       stop=superseded)
+    if superseded():
+        raise Superseded
+    try:
+        app.state.store.save_result(doc.doc_id, res, saved.revision, owner_id=owner_id)
+    except StaleRevision:
+        raise Superseded from None
     return _result_payload(doc, res)
+
+
+Retry = Literal["failed"] | None
+SUPERSEDED = "A newer scan of this document started, so this one stopped."
+
+
+@app.post("/api/documents/{doc_id}/redact")
+def redact(doc_id: str, user: User, retry: Retry = None) -> dict:
+    saved, superseded = _start_scan(doc_id, user["id"])
+    try:
+        return _scan(saved, superseded, user["id"], retry)
+    except Superseded:
+        raise HTTPException(409, SUPERSEDED) from None
+
+
+PING_SECONDS = 5.0  # a comment line while waiting, so proxies and the browser keep the stream open
+SSE_HEADERS = {"Content-Type": "text/event-stream", "Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
+def _sse(name: str, data: dict) -> str:
+    return f"event: {name}\ndata: {json.dumps(data)}\n\n"
+
+
+def _events(saved: Snapshot, owner_id: str, superseded: Callable[[], bool], retry: str | None) -> Iterator[str]:
+    """Server-sent events for one scan: start, regex, chunk (as each finishes), then done or error.
+    The scan runs in its own thread, so it finishes and stores its result even if the client leaves.
+    A scan replaced by a newer one goes quiet and ends with an error event."""
+    doc = saved.document
+    events: queue.Queue = queue.Queue()
+    on = bool(app.state.t1_factory)
+    head = {"doc_id": doc.doc_id, "model": "on" if on else "off",
+            "t1_model": app.state.t1_model if on else None, "t1_prompt": app.state.t1_prompt}
+
+    def emit(name: str, data: dict) -> None:
+        if not superseded():
+            events.put((name, {**head, **data} if name == "start" else data))
+
+    def work() -> None:
+        try:
+            events.put(("done", _scan(saved, superseded, owner_id, retry, emit)))
+        except Superseded:
+            events.put(("error", {"message": SUPERSEDED}))
+        except Exception as exc:  # noqa: BLE001 - reported to the client; the type only, never document text
+            log.error("scan failed doc=%s error=%s", doc.doc_id, type(exc).__name__)
+            events.put(("error", {"message": f"The scan stopped unexpectedly ({type(exc).__name__}). Try again."}))
+
+    threading.Thread(target=work, name=f"scan-{doc.doc_id}", daemon=True).start()
+    while True:
+        try:
+            name, data = events.get(timeout=PING_SECONDS)
+        except queue.Empty:
+            yield ": ping\n\n"
+            continue
+        yield _sse(name, data)
+        if name in ("done", "error"):
+            return
+
+
+@app.post("/api/documents/{doc_id}/redact/stream")
+def redact_stream(doc_id: str, user: User, retry: Retry = None) -> StreamingResponse:
+    """?retry=failed: call T1 only for the chunks that failed (or were off) in the stored run, if it
+    has the same chunk plan; other chunks are sent at once from that run. Otherwise a full run."""
+    saved, superseded = _start_scan(doc_id, user["id"])
+    return StreamingResponse(_events(saved, user["id"], superseded, retry), headers=SSE_HEADERS)
 
 
 @app.get("/api/documents/{doc_id}/pages/{page}.png")

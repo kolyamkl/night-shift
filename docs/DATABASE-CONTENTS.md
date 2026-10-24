@@ -22,9 +22,11 @@ The tables are `veil_users`, `veil_sessions`, `veil_documents`,
 `veil_redactions`, `veil_auth_limits`, `veil_schema_migrations`, and
 `veil_storage_settings`.
 
-PDFs with a text layer retain their original PDF bytes. Scans and photos currently
-become extracted text; their original image/scanned-PDF bytes are not retained by
-that ingestion path.
+PDFs retain source bytes alongside extracted text and word boxes. Photos become
+metadata-stripped PDFs; scanned PDFs retain the processed PDF and OCR word boxes.
+If OCR-to-PDF conversion fails, the existing fallback saves extracted text only.
+Redaction snapshots also retain the prompt/chunk plan and each chunk's detected
+values, so retrying failed parts can reuse successful calls after a restart.
 
 ## Not saved in this database
 

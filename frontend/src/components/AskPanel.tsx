@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { markValues } from "../redaction";
+import { partsOf } from "../scan";
 import type { Session } from "../session";
 import { Button, Spinner, Tabs } from "../ui/kit";
+import { Routing } from "./Routing";
 
 function Placeholders({ text }: { text: string }) {
   return (
@@ -31,6 +33,7 @@ export function AskPanel({ session, t2Model, onAsk }: {
   const turns = session.turns;
   const values = session.result?.entities.map((e) => e.text) ?? [];
   const lastSent = [...turns].reverse().find((t) => t.answer)?.answer;
+  const parts = partsOf(session);
 
   useEffect(() => {
     thread.current?.scrollTo({ top: thread.current.scrollHeight, behavior: "smooth" });
@@ -67,6 +70,16 @@ export function AskPanel({ session, t2Model, onAsk }: {
                 <Placeholders text={lastSent.answer_with_placeholders} />
               </div>
             </>
+          )}
+          {parts.length > 0 && (
+            <div className="mt-5">
+              <Routing
+                text={session.doc.text}
+                parts={parts}
+                model={session.scan?.model ?? session.result?.model ?? null}
+                live={session.scan?.live ?? true}
+              />
+            </div>
           )}
         </div>
       ) : (

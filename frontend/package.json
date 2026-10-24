@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "mock": "node scripts/mock-stream.mjs",
+    "dev:mock": "VEIL_API=http://127.0.0.1:8010 vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "preview": "vite preview"

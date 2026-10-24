@@ -102,3 +102,41 @@ def test_configuration_fails_closed():
         PostgresStore("", "")
     with pytest.raises(RuntimeError, match="Fernet key"):
         PostgresStore("postgresql://example", "bad")
+
+
+def test_scan_reservations_supersede_across_store_instances(postgres_store):
+    doc = extract_text("Raj Patel")
+    postgres_store.create(doc)
+    owner = postgres_store.test_owner
+    second = PostgresStore(postgres_store._url, os.environ.get("VEIL_STORAGE_KEY")
+                           or "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+    old = postgres_store.begin_scan(doc.doc_id, owner_id=owner)
+    new = second.begin_scan(doc.doc_id, owner_id=owner)
+    assert new.revision > old.revision
+    assert not postgres_store.is_current(doc.doc_id, old.revision, owner_id=owner)
+    assert second.is_current(doc.doc_id, new.revision, owner_id=owner)
+    result = run_pipeline(doc, detector, plan="evalkit")
+    with pytest.raises(StaleRevision):
+        postgres_store.save_result(doc.doc_id, result, old.revision)
+    second.save_result(doc.doc_id, result, new.revision, owner_id=owner)
+    assert postgres_store.get(doc.doc_id).result.plan == "evalkit"
+
+
+def test_legacy_snapshot_loads_without_stream_metadata(postgres_store):
+    doc = extract_text("Raj Patel")
+    postgres_store.create(doc)
+    original = run_pipeline(doc, detector)
+    legacy = asdict(original)
+    legacy["unhidden"] = []
+    for key in ("plan", "chunk_values"):
+        legacy.pop(key)
+    for chunk in legacy["chunks"]:
+        for key in ("index", "status", "latency_ms"):
+            chunk.pop(key)
+    with postgres_store.connect() as conn:
+        conn.execute("INSERT INTO veil_redactions (doc_id, payload) VALUES (%s, %s)",
+                     (doc.doc_id, postgres_store._encrypt(doc.doc_id, "result", legacy)))
+    saved = postgres_store.get(doc.doc_id).result
+    assert saved.redacted_text == original.redacted_text
+    assert saved.chunks[0].index == 0 and saved.chunks[0].status == "ok"
+    assert saved.plan == "" and saved.chunk_values == []

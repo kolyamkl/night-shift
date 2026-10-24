@@ -36,6 +36,8 @@ def test_pasted_text_is_redacted(client):
     assert res["redacted_text"] == "Hi, I am [PERSON_1], sort code [SORT_CODE_1]."
     assert res["stats"] == {"PERSON": 1, "SORT_CODE": 1}
     assert res["chunks"][0]["mreq_id"] == "mreq_test"
+    assert res["chunks"][0]["status"] == "ok"
+    assert isinstance(res["chunks"][0]["latency_ms"], int)
 
 
 def test_pdf_upload_gives_boxes_a_page_image_and_a_redacted_file(client, tenancy_pdf):
@@ -97,7 +99,7 @@ def test_document_and_corrections_survive_app_restart(client):
     with TestClient(app, headers={"X-Veil-Request": "1"}, cookies=client.cookies) as restarted:
         saved = restarted.get(path).json()
         assert saved["document"] == doc
-        assert saved["revision"] == 2
+        assert saved["revision"] == 3
         assert saved["result"]["redacted_text"] == "[PERSON_1], client [CUSTOM_1]."
         assert restarted.post(path + "/ask", json={"question": "Who?"}).json()["answer"] == "The tenant is Jo Smith."
         assert restarted.delete(path).status_code == 204
@@ -160,3 +162,32 @@ def test_sample_labels_keep_acronyms_upper_case():
     assert _label("27_cv.pdf") == "CV"
     assert _label("29_hr_form.pdf") == "HR form"
     assert _label("23_gov_letter.pdf") == "Government letter"
+
+
+def test_health_names_the_prompt_and_where_the_key_came_from(client, monkeypatch):
+    monkeypatch.setattr(app.state, "key_source", ".env")
+    monkeypatch.setattr(app.state, "t1_prompt", "rewrite")
+    monkeypatch.setattr(app.state, "t1_model", "claude-haiku-4-5")
+    monkeypatch.setattr(app.state, "t2_model", "claude-haiku-4-5")
+    health = client.get("/api/health").json()
+    assert health == {"model": "on", "t1_model": "claude-haiku-4-5", "t1_prompt": "rewrite",
+                      "t2_model": "claude-haiku-4-5", "key_source": ".env", "database": "postgresql"}
+    assert "mbt_" not in json.dumps(health)
+
+
+@pytest.mark.parametrize("name", ["settings.py", "app.tsx", "deploy.yaml", "query.sql", "Dockerfile", "notes.weird"])
+def test_code_config_and_other_text_files_are_read_as_text(client, name):
+    doc = client.post("/api/documents", files={"file": (name, b"owner = 'Jo Smith'\n", "text/plain")}).json()
+    assert doc["kind"] == "text" and doc["filename"] == name and doc["text"] == "owner = 'Jo Smith'\n"
+
+
+@pytest.mark.parametrize("data", [b"PK\x03\x04\x00\x00binary", b"\xff\xfe\xfa not utf-8"])
+def test_real_binaries_are_still_refused(client, data):
+    res = client.post("/api/documents", files={"file": ("archive.bin", data, "application/octet-stream")})
+    assert res.status_code == 415
+    assert res.json()["detail"] == "This file type is not supported yet. Use PDF, an image, TXT or EML, or paste the text."
+
+
+def test_an_empty_text_file_is_refused(client):
+    res = client.post("/api/documents", files={"file": ("empty.txt", b"  \n", "text/plain")})
+    assert res.status_code == 400

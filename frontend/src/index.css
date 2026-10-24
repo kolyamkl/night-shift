@@ -267,11 +267,12 @@ body {
     background-color 0.15s,
     color 0.15s;
 }
-.px-tab[aria-selected="true"] {
+.px-tab[aria-selected="true"],
+.px-tab[aria-expanded="true"] {
   background-color: var(--color-ink);
   color: var(--color-bone);
 }
-.px-tab:hover:not([aria-selected="true"]) {
+.px-tab:hover:not([aria-selected="true"], [aria-expanded="true"]) {
   background-color: var(--color-mist);
 }
 
@@ -307,6 +308,17 @@ body {
   50% {
     background: color-mix(in srgb, var(--color-ink) 5%, transparent);
   }
+}
+/* A part the AI could not check: a stone dashed rule in the gutter, under any red change mark. */
+.doc-line.is-unchecked,
+.unchecked-mark {
+  background-image: repeating-linear-gradient(180deg, var(--color-stone) 0 4px, transparent 4px 6px);
+  background-size: 4px 100%;
+  background-position: 48px 0;
+  background-repeat: no-repeat;
+}
+.unchecked-mark {
+  background-position: 0 0;
 }
 .gutter-mark {
   transform: scaleY(0);
@@ -695,6 +707,10 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Lines still being read keep a still wash instead of the pulse. */
+  .doc-line.is-reading {
+    background-color: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  }
   *,
   *::before,
   *::after {

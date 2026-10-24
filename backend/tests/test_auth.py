@@ -81,6 +81,7 @@ def test_expiry_and_secure_cookie(browser, postgres_store, monkeypatch):
     ("get", "/api/documents/unknown", None),
     ("delete", "/api/documents/unknown", None),
     ("post", "/api/documents/unknown/redact", None),
+    ("post", "/api/documents/unknown/redact/stream", None),
     ("get", "/api/documents/unknown/pages/0.png", None),
     ("get", "/api/documents/unknown/file", None),
     ("post", "/api/documents/unknown/corrections", {"action": "hide", "text": "test"}),
@@ -101,6 +102,7 @@ def test_every_document_operation_is_owner_scoped(browser, postgres_store, tenan
     browser.post("/api/auth/register", json=credentials(postgres_store, "bob"))
     for method, suffix, body in [
         ("get", "", None), ("delete", "", None), ("post", "/redact", None),
+        ("post", "/redact/stream", None),
         ("get", "/pages/0.png", None), ("get", "/file", None),
         ("post", "/corrections", {"action": "hide", "text": "Raj Patel"}),
         ("post", "/ask", {"question": "Who?"}),

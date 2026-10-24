@@ -6,12 +6,18 @@
 3. Overlapping spans are merged into one, so a regex hit is never uncovered by a shorter model span.
 4. A per-document vault gives each distinct value one placeholder; PDF words that overlap a span
    become one rectangle per line.
+
+run_pipeline can report progress through `emit(name, data)`: "start" (the chunk plan), "regex" (the
+regex hits), then one "chunk" per chunk in the order they finish. The API streams these as events.
+Given an earlier result with the same plan (`reuse`), it calls T1 only for the chunks that failed.
 """
 
+import logging
+import time
 from collections import Counter
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass, field
 
 from evalkit import regex_baseline
 from evalkit.redact import Vault, apply
@@ -20,6 +26,9 @@ from evalkit.spans import Span, locate
 from .extract import Document
 
 MAX_CHARS = 4000  # about 1,000 tokens per T1 call
+
+log = logging.getLogger("veil.pipeline")
+Emit = Callable[[str, dict], None]
 
 
 @dataclass
@@ -31,12 +40,15 @@ class T1Result:
 
 @dataclass
 class ChunkInfo:
+    index: int
     chunk_id: str
     start: int
     end: int
-    mreq_id: str | None
-    error: str | None
-    found: int = 0
+    status: str  # "ok", "error", "empty" (whitespace only, no call) or "off" (no model, no call)
+    error: str | None = None
+    mreq_id: str | None = None
+    latency_ms: int | None = None
+    found: int = 0  # how many values T1 returned for this chunk
 
 
 @dataclass
@@ -62,6 +74,8 @@ class PipelineResult:
     model_values: dict[str, str] = field(default_factory=dict)  # what T1 returned: value -> type
     hidden: dict[str, str] = field(default_factory=dict)  # reviewer: value -> type to hide
     unhidden: set[str] = field(default_factory=set)  # reviewer: values to show
+    chunk_values: list[list[dict]] = field(default_factory=list)  # what T1 returned per chunk, by index
+    plan: str = ""  # what set the chunk plan (the T1 prompt); a retry reuses chunks only under the same plan
 
 
 def chunk_ranges(text: str, max_chars: int = MAX_CHARS) -> list[tuple[int, int]]:
@@ -114,33 +128,80 @@ def _boxes(doc: Document, spans: list[Span], vault: Vault) -> list[Box]:
     return boxes
 
 
+def _entity(sp: Span, source: str, offset: int = 0) -> dict:
+    return {"start": sp.start + offset, "end": sp.end + offset, "text": sp.text, "type": sp.type, "source": source}
+
+
+REUSABLE = ("ok", "empty")
+
+
+def _reusable(prev: PipelineResult | None, plan: str, ranges: list[tuple[int, int]]
+              ) -> dict[int, tuple[ChunkInfo, list[dict]]]:
+    """Chunks of an earlier run that need no new T1 call: same plan and ranges, status ok or empty."""
+    if (prev is None or prev.plan != plan or len(prev.chunk_values) != len(prev.chunks)
+            or [(c.start, c.end) for c in prev.chunks] != ranges):
+        return {}
+    return {c.index: (c, prev.chunk_values[c.index]) for c in prev.chunks if c.status in REUSABLE}
+
+
 def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars: int = MAX_CHARS,
-                 workers: int = 6) -> PipelineResult:
+                 workers: int = 6, emit: Emit | None = None, plan: str = "",
+                 reuse: PipelineResult | None = None, stop: Callable[[], bool] | None = None) -> PipelineResult:
+    """`reuse`: an earlier result of this document; its ok and empty chunks are kept (no T1 call) when
+    its plan and chunk ranges match. `stop`: once it returns True, chunks not yet started make no call."""
     text = doc.text
     ranges = chunk_ranges(text, max_chars)
+    ids = [f"{doc.doc_id}-c{i:02d}" for i in range(len(ranges))]
+    kept = _reusable(reuse, plan, ranges)
+    if emit:
+        emit("start", {"chunks": [{"index": i, "chunk_id": ids[i], "start": s, "end": e}
+                                  for i, (s, e) in enumerate(ranges)]})
+        emit("regex", {"entities": [_entity(sp, "regex") for sp in regex_baseline.detect(text)]})
 
     def run_chunk(i: int) -> tuple[ChunkInfo, list[dict]]:
         s, e = ranges[i]
-        cid = f"{doc.doc_id}-c{i:02d}"
         if t1 is None:
-            return ChunkInfo(cid, s, e, None, "model off"), []
+            return ChunkInfo(i, ids[i], s, e, "off", "model off"), []
         if not text[s:e].strip():
-            return ChunkInfo(cid, s, e, None, None), []
+            return ChunkInfo(i, ids[i], s, e, "empty"), []
+        if stop is not None and stop():
+            return ChunkInfo(i, ids[i], s, e, "error", "stopped: a newer scan of this document started"), []
+        t0 = time.monotonic()
         try:
             r = t1(text[s:e])
         except Exception as exc:  # noqa: BLE001 - one bad chunk must not stop the document
-            return ChunkInfo(cid, s, e, None, f"{type(exc).__name__}: {exc}"), []
-        return ChunkInfo(cid, s, e, r.mreq_id, r.error, found=len(r.entities)), r.entities
+            ms = round((time.monotonic() - t0) * 1000)
+            return ChunkInfo(i, ids[i], s, e, "error", f"{type(exc).__name__}: {exc}", latency_ms=ms), []
+        ms = round((time.monotonic() - t0) * 1000)
+        if r.error:
+            return ChunkInfo(i, ids[i], s, e, "error", r.error, r.mreq_id, ms), []
+        return ChunkInfo(i, ids[i], s, e, "ok", None, r.mreq_id, ms, found=len(r.entities)), r.entities
 
+    finished: dict[int, tuple[ChunkInfo, list[dict]]] = {}
+
+    def report(info: ChunkInfo, ents: list[dict], reused: bool) -> None:
+        finished[info.index] = (info, ents)
+        # Metadata only: never the chunk text or the values.
+        log.info("t1 chunk doc=%s index=%d status=%s latency_ms=%s mreq=%s found=%d reused=%s",
+                 doc.doc_id, info.index, info.status, info.latency_ms, info.mreq_id, info.found, reused)
+        if emit:
+            hits = locate(text[info.start:info.end], ents)
+            emit("chunk", {**asdict(info), "entities": [_entity(sp, "model", info.start) for sp in hits]})
+
+    for i in sorted(kept):
+        report(*kept[i], reused=True)
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        results = list(pool.map(run_chunk, range(len(ranges))))
-    chunks = [c for c, _ in results]
+        todo = [pool.submit(run_chunk, i) for i in range(len(ranges)) if i not in kept]
+        for fut in as_completed(todo):
+            report(*fut.result(), reused=False)
+    chunks = [finished[i][0] for i in range(len(ranges))]
+    chunk_values = [finished[i][1] for i in range(len(ranges))]
 
     values: dict[str, str] = {}
-    for _, ents in results:
+    for ents in chunk_values:
         for e in ents:
             values.setdefault(e["text"], e["type"])
-    return _build(doc, values, chunks, {}, set())
+    return _build(doc, values, chunks, {}, set(), chunk_values, plan)
 
 
 def rebuild(doc: Document, prev: PipelineResult, hide: dict[str, str] | None = None,
@@ -150,11 +211,11 @@ def rebuild(doc: Document, prev: PipelineResult, hide: dict[str, str] | None = N
     unhidden = (prev.unhidden | set(unhide or ())) - set(hide or {})
     for v in unhide or ():
         hidden.pop(v, None)
-    return _build(doc, prev.model_values, prev.chunks, hidden, unhidden)
+    return _build(doc, prev.model_values, prev.chunks, hidden, unhidden, prev.chunk_values, prev.plan)
 
 
 def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidden: dict[str, str],
-           unhidden: set[str]) -> PipelineResult:
+           unhidden: set[str], chunk_values: list[list[dict]], plan: str) -> PipelineResult:
     text = doc.text
     wanted = {**values, **hidden}
     model_spans = locate(text, [{"text": v, "type": t} for v, t in wanted.items()])
@@ -167,5 +228,5 @@ def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidde
     return PipelineResult(
         spans=spans, redacted_text=redacted, vault=vault, boxes=_boxes(doc, spans, vault),
         chunks=chunks, stats=dict(Counter(s.type for s in spans)),
-        model_values=values, hidden=hidden, unhidden=unhidden,
+        model_values=values, hidden=hidden, unhidden=unhidden, chunk_values=chunk_values, plan=plan,
     )

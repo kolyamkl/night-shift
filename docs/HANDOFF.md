@@ -24,9 +24,9 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 | `backend/app/extract.py` | Dmytro | PDF via PyMuPDF: text plus every word's box and character range (needed for true redaction) | Working |
 | `backend/app/pipeline.py` | Dmytro | regex + T1 per chunk, merge spans, vault placeholders, boxes per line, `rebuild()` for reviewer fixes | Working |
 | `backend/app/pdfout.py` | Dmytro | True PDF redaction (`add_redact_annot` + `apply_redactions`) | Working |
-| `backend/app/llm.py` | Dmytro | T1 and T2 calls through Mubit; key from env or `backend/.env` | Working with a valid key |
+| `backend/app/llm.py` | Dmytro | T1 (two prompts, `VEIL_T1_PROMPT`) and T2 calls through Mubit; key from env, `backend/.env` or root `.env` | Working with a valid key |
 | `backend/app/ingest/` | Mykola (PR #9) | Local reading of PDFs and images: pdfium text layer, Apple Vision OCR (macOS), identifier repairs after OCR. See its README | Merged; wired into uploads (section 4) |
-| `backend/app/prompts.py` | Mykola | **A second T1 prompt** (rewrite design, `claude-haiku-4-5`). NOT used by the app. See section 8 | Conflict, decide |
+| `backend/app/prompts.py` | Mykola | **A second T1 prompt** (rewrite design, `claude-haiku-4-5`). Used by the app only with `VEIL_T1_PROMPT=rewrite`. See section 8 | Conflict, decide |
 | `backend/tests/` | Dmytro | API, extract, llm, pdfout, pipeline tests | Not re-run after merge |
 | `evalkit/` | Dmytro | Frozen T1 prompt the app uses (`evalkit/src/evalkit/prompts.py`), scorer, regex baseline, vault/restore, round builder, Mubit sender, `autosend.sh` | Used by backend (path dependency) |
 | `datagen/` | Dmytro | Synthetic UK documents with gold spans (100k run, seed 42) and demo PDFs | Outputs in `data/synthetic/` (gitignored except `pdfs/`) |
@@ -53,14 +53,17 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 ```
 upload / paste / sample
   └─ POST /api/documents
-       ├─ PDF with a text layer  → extract.extract_pdf (PyMuPDF words: text + box + char range)
-       ├─ PDF without text (scan) → ingest.extract (Apple Vision OCR) → text only
-       ├─ image (jpg png heic tiff webp) → ingest.extract → text only
+       ├─ PDF with a text layer, no scanned page → extract.extract_pdf (PyMuPDF words: text + box + char range)
+       ├─ PDF with a scanned page (ingest.scanned_pages) → ocrdoc.document_from_ocr (ingest OCR) → PDF + word boxes
+       ├─ image (jpg png heic tiff webp) → ocrdoc.document_from_ocr → image turned into a PDF + word boxes
        ├─ .eml → headers + body text
-       └─ .txt .md .csv .json → text
-  └─ POST /api/documents/{id}/redact
+       ├─ .txt .md .csv .json, code and config files (.py .ts .yaml .sql .html ...) → text
+       └─ any other file that is UTF-8 with no NUL byte in its first 8 KB → text (else 415)
+  └─ POST /api/documents/{id}/redact/stream   (server-sent events, what the UI should use)
+     or POST /api/documents/{id}/redact        (same result in one JSON answer)
        pipeline.run_pipeline:
-         chunk text (≤4000 chars, paragraph cuts) → T1 per chunk in parallel (6 workers)
+         chunk text (≤4000 chars for evalkit, ≤1400 for rewrite; paragraph cuts)
+         → T1 per chunk in parallel (6 workers); each finished chunk is streamed as it lands
          every value T1 returns is located across the WHOLE document (evalkit.spans.locate)
          + regex layer (evalkit.regex_baseline) → merge overlaps → Vault placeholders
          → boxes: words overlapping a span, one rectangle per line (PDF only)
@@ -70,9 +73,12 @@ upload / paste / sample
 ```
 
 Model calls (both through Mubit, `backend/app/llm.py`):
-- **T1**: `evalkit` frozen system prompt, model `VEIL_T1_MODEL` (default `gpt-6-luna`), recording ON (calls keep training the Mubit task), session `doc-<doc_id>`, answer = JSON list of `{text, type}` parsed by `evalkit.send_batch.parse_entities`.
+- **T1**, recording ON (calls keep training a Mubit task), session `doc-<doc_id>`. `VEIL_T1_PROMPT` picks the prompt, and each prompt is its own Mubit task:
+  - `evalkit` (default): frozen prompt `evalkit/src/evalkit/prompts.py`, model `VEIL_T1_MODEL` (default `gpt-6-luna`), chunks ≤4000 chars, answer = JSON list of `{text, type}` parsed by `evalkit.send_batch.parse_entities`. Mubit task "Find personal data".
+  - `rewrite`: Mykola's `backend/app/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (Mubit's reviewer reads only about the first 1,530 chars of a call), each sent stripped of surrounding whitespace as `scripts/dataset/build_chunks.py` made the training chunks. Values with fewer than two letters or digits, and PERSON values that are only a title, are dropped, since every value is hidden everywhere in the document. Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
 - **T2**: model `VEIL_T2_MODEL` (default `claude-haiku-4-5`), header `x-middleware-record: off` (no second task, Mubit stores no user questions).
-- No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now").
+- Key and settings: the first value starting with `mbt_` in `MUBIT_API_KEY`, then `backend/.env`, then the repo-root `.env` (where `scripts/dataset/send_batch.py` reads it too). `VEIL_T1_PROMPT`, `VEIL_T1_MODEL` and `VEIL_T2_MODEL` are looked up the same way (section 5). `/api/health` reports where the key came from (`key_source`), never the key.
+- No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now"). The startup log says which prompt, model and key source are in use.
 
 Storage (updated 24 Oct): documents, source PDFs, layout, pipeline results, vaults,
 and review corrections persist encrypted in PostgreSQL. `backend/app/storage.py`
@@ -82,22 +88,37 @@ is never logged. `/app?doc=<id>` reopens saved work and requires UI review again
 Registration/login need no email verification. Every document route is scoped
 to its signed-in owner. Legacy ownerless records remain private and require
 explicit administrative assignment; registration does not claim them.
+Per-chunk logs contain only IDs, status, timing, and counts.
 
-## 4. OCR integration (done in this merge, minimal)
+## 4. OCR integration (photos and scans get boxes)
 
-`backend/app/main.py::_ocr()` calls `app.ingest.extract(data)` for images and for PDFs whose PyMuPDF text is empty, then stores the result as a **text** document (`kind="text"`). Consequences:
-- Photos and scans now work end to end (redact, review, ask), on macOS only (Apple Vision).
-- They have **no page boxes**: the review shows text lines, and the download is redacted `.txt`, not a redacted image.
-- Text-layer PDFs still go through our PyMuPDF extractor, because the pipeline needs per-word boxes with character offsets for true redaction. `ingest` returns line boxes only.
-- Deps added to `backend/pyproject.toml`: `pypdfium2`, `pillow`, `pillow-heif`, `pyobjc-framework-Vision` (darwin). `uv.lock` updated. Frontend accepts the image types and shows a "Photo" chip.
+`backend/app/main.py::_ocr()` handles images, and every PDF in which ingest finds a scanned page (`app.ingest.scanned_pages`: no text, or little text over an image covering 40% of the page, such as a scan with a page-number stamp). Other PDFs keep `extract.extract_pdf`. `_ocr()` calls `backend/app/ocrdoc.py::document_from_ocr(data, filename)`, which runs `app.ingest.extract(data)` (Apple Vision OCR, macOS only) and returns a **PDF** document (`kind="pdf"`) with word boxes. Photos and scans then get black boxes in the "Pages" view and a truly redacted PDF download, like text-layer PDFs. Checked by Nick on his Mac with real Vision: three synthetic samples photographed upright, turned 90 degrees and skewed 3 degrees gave exact offsets and full coverage, and re-OCR of the redacted PDFs read no hidden value.
 
-Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each line into words, estimate each word's box by character position inside the line box, convert fractions to points), turn images into a one-page PDF (`pymupdf.open(stream=..., filetype="png").convert_to_pdf()`), then reuse `pdfout.redact_pdf`; `apply_redactions` blanks image pixels under the box. Watch `Page.rotation`: ingest may rotate or deskew the image before the final OCR pass, so boxes are in the turned frame and must be mapped back.
+- **Images** (jpg, png, heic, tiff, webp) become a PDF with PyMuPDF: one page per image or TIFF frame that ingest read. An iPhone MPO JPEG is one page: its later frames are a depth map or a preview (`ingest.extract.page_frames`). EXIF orientation is applied and transparency goes on white, as ingest does before OCR, so pixels and boxes agree.
+  - Every image is encoded again (JPEG q92 for photos, PNG otherwise) with no metadata, so EXIF (GPS, device, owner), XMP and PNG text never reach the PDF.
+  - The stored image is at most 3000 px on its long side (OCR already read the full-size one).
+  - Page size: a scan keeps its paper size (pixels at its dpi). A photo (no dpi, or a page longer than 1200 pt at its dpi; phones say 72 dpi) gets a page whose long side is 842 pt (A4). A 3024 x 4032 phone photo: page 632 x 842 pt, page PNG at `scale=2` 0.6 s and 1.2 MB, redacted PDF 1.6 s and 3.9 MB (it was 7.6 s and 16 MB, 2.7 s and 6.4 MB at 72 dpi).
+- **Scanned PDFs** keep their bytes. If ingest stopped at its 100-page limit, the unread pages are dropped, since nothing on them would be hidden. Text-layer pages of a mixed PDF are read from pdfium's text by ingest, and their boxes come from inverting ingest's own formula (`_from_text_layer`), right on turned and cropped pages too.
+- **Text** = exactly `ingest`'s text, so offsets agree with T1 and the regex layer. Each OCR line is found, in reading order (`ingest.layout.group_rows`), in the text ingest assembled before its identifier repairs, then carried over to the repaired text by aligning the two (`difflib`). So lines whose postcode or account number was repaired still get boxes. A line that cannot be placed is skipped and counted in a log warning (counts only, never document text).
+- **Word boxes**: each line is split into words. A word's box is its share of the line box, estimated twice (from character counts and from Helvetica widths) and covering both, plus 1.5 average characters each side, clipped to the line box. On test renders in Arial, Times, Calibri, Cambria and Courier metrics this covered every word. Character counts alone missed by up to 3 characters. Lines that Vision reads on their side or upside down are split along their reading direction (`Line.angle`).
+- **Frames**: ingest's OCR line boxes are fractions of the last image it read for that page: the page as shown (EXIF applied; for PDFs as pdfium renders it, with /Rotate and CropBox), turned counterclockwise by `Page.rotation` (a deskew, or 90/180/270) with the canvas grown to fit. `ocrdoc` undoes that turn about the page centre, scales to points, then removes the PDF's own /Rotate (`page.derotation_matrix`). So `Word.bbox` is in PyMuPDF's unrotated page frame, the same frame as `extract.py` words and `add_redact_annot`.
+- **Download** (`pdfout.redact_pdf`, every PDF, text or scan):
+  - `apply_redactions(images=PDF_REDACT_IMAGE_PIXELS)` (PyMuPDF's default, now explicit) blanks the image pixels under each box in the file, then draws the black box.
+  - Then, on every page, boxed or not, it takes out what lies outside the page content and can name people: document info (author, title...), XMP, embedded files and file attachments, the outline (bookmarks), page thumbnails, XMP and app data (`/PieceInfo`) on pages and images, and EXIF, XMP, IPTC and comments inside JPEG images. The JPEG image data stays byte for byte; JFIF, ICC and Adobe colour segments are kept because decoding needs them.
+- **Fallback**: if building the PDF or the boxes fails unexpectedly, the document is kept as text only (`kind="text"`, the old behaviour) with a log warning.
+- **Tests**: `backend/tests/test_ocrdoc.py` and `test_pdfout.py` (`cd backend && uv run pytest -q`). On Linux a fake Vision reader stands in. It finds three colour marks on each test page to work out how ingest turned the image. Everything else is the real ingest (EXIF, deskew, 90/180/270 retries, layout, repairs). Ingest's own tests: `cd backend && uv run --with reportlab python -m pytest -q ../tests/ingest` (plain `pytest` there runs from the project venv without reportlab and fails 3 tests).
+
+Known limits:
+- Word boxes are estimates inside Vision's line box (Vision gives no per-word boxes here). They cover a character or two more than the word. On text-layer pages of a mixed PDF this also removes a neighbouring character or two of real text.
+- A mixed PDF now needs Apple Vision: on a machine without it, its upload gets the OCR error (415) instead of a text PDF whose scanned pages would stay unread.
+- Pages with /Rotate 90 or 270 (scans, and text-layer PDFs before this change): the boxes are right in the downloaded PDF, but the review overlay draws them over the page as shown, so they look misplaced there.
+- A redacted photo still grows (1.5 MB in, 3.9 MB out) because MuPDF stores a changed image losslessly.
 
 ## 5. API (FastAPI, `backend/app/main.py`)
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/api/health` | `{model: on/off, t1_model, t2_model}` |
+| GET | `/api/health` | `{model: on/off, t1_model, t1_prompt: evalkit/rewrite, t2_model, key_source, database: postgresql}` |
 | POST | `/api/auth/register` | `{email, password}` creates an account and session without email verification |
 | POST | `/api/auth/login` | `{email, password}` signs in |
 | GET | `/api/auth/me` | current `{id, email}` or 401 |
@@ -105,7 +126,8 @@ Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each li
 | POST | `/api/documents` | form `text` or `file` (≤20 MB) → `{doc_id, kind, filename, text, pages}` |
 | GET | `/api/documents/{id}` | saved `{document, result, revision}` |
 | DELETE | `/api/documents/{id}` | deletes the document and result; returns 204 |
-| POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}` |
+| POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}`; each chunk is `{index, chunk_id, start, end, status, error, mreq_id, latency_ms, found}`. Optional `?retry=failed` (below) |
+| POST | `/api/documents/{id}/redact/stream` | the same run as server-sent events (contract below). Optional `?retry=failed` |
 | GET | `/api/documents/{id}/pages/{n}.png` | page image (PDF only) |
 | GET | `/api/documents/{id}/file` | redacted PDF or text download |
 | POST | `/api/documents/{id}/ask` | `{question}` → `{answer, answer_with_placeholders, sent_text, unknown_placeholders, mreq_id}` |
@@ -116,6 +138,22 @@ Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each li
 
 Env: `DATABASE_URL`, `VEIL_STORAGE_KEY` (required), `MUBIT_API_KEY` (or `backend/.env`), `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`. Load root configuration with `uv run --env-file ../.env` from `backend/`.
 
+Stream contract (`/redact/stream`, fixed: the frontend builds against it):
+- Unknown doc: 404 JSON `{"detail": "Document not found."}` for a missing document or another owner; unauthenticated requests get 401 before any stream. Otherwise 200 with `Content-Type: text/event-stream`, `Cache-Control: no-store`, `X-Accel-Buffering: no`.
+- Each event is `event: <name>\ndata: <one-line JSON>\n\n`; a comment `: ping\n\n` goes out every 5 s while waiting.
+- Events in order: `start` once `{doc_id, model, t1_model, t1_prompt, chunks: [{index, chunk_id, start, end}]}`; `regex` once `{entities: [{start, end, text, type, source: "regex"}]}`; `chunk` once per chunk in the order chunks finish `{index, chunk_id, start, end, status: ok/error/empty/off, error, mreq_id, latency_ms, found, entities: [{..., source: "model"}]}`; `done` once, exactly the `/redact` JSON from the same builder (the encrypted result is stored in PostgreSQL first, so `/file`, `/ask` and `/corrections` work right away). `error` `{message}` only for an unexpected failure that stops the run; a failed chunk is a `chunk` with `status: "error"`.
+- `entities` of a chunk are the occurrences, inside its `[start, end)`, of the values T1 returned for it; `found` is the number of values T1 returned. `off` = no key, no call; `empty` = whitespace-only chunk, no call. All offsets are character offsets into the `text` from `POST /api/documents`.
+
+Retry only what failed: `POST /api/documents/{id}/redact/stream?retry=failed` (and `POST /redact?retry=failed`):
+- Same events, in the same order, as a normal run.
+- If PostgreSQL holds an earlier run of this document with the same chunk plan (same T1 prompt and the same ranges), its chunks with status `ok` or `empty` make no new T1 call: their `chunk` events go out at once with the stored `mreq_id`, `latency_ms`, `found` and `entities`. Only chunks that were `error` (or `off`, when the model is now on) call T1. `done` is then what a full run would give; like any scan, it starts without reviewer corrections.
+- With no earlier result or a different plan, every chunk runs, as without the parameter. Any other value of `retry` is a 422.
+- `PipelineResult.chunk_values` keeps what T1 returned per chunk and `PipelineResult.plan` the prompt, for this.
+
+One scan per document at a time: each scan (`/redact` or `/redact/stream`, with or without `retry`) reserves a PostgreSQL revision. Only the newest may save its result and send `done`. A newer scan or reviewer correction invalidates the reserved revision across backend workers. An older one stops making new T1 calls, goes quiet and ends with `error` `{"message": "A newer scan of this document started, so this one stopped."}`; an older `/redact` gets 409 with the same text.
+
+Settings and key lookup: `MUBIT_API_KEY`, `VEIL_T1_PROMPT` (`evalkit` default, or `rewrite`), `VEIL_T1_MODEL` (evalkit prompt only) and `VEIL_T2_MODEL` are each read from a real environment variable first, then from `backend/.env`, then from the repo-root `.env` (so the root `.env` that holds the key can also say `VEIL_T1_PROMPT=rewrite`). Only these names are read from the files; nothing is loaded into `os.environ`. For the key, only a value starting with `mbt_` counts. The startup log names the prompt and where it came from, for example `T1 on: prompt rewrite (VEIL_T1_PROMPT from .env), model claude-haiku-4-5, 1400-character chunks, Mubit key from .env`; a bad `VEIL_T1_PROMPT` stops startup. `VEIL_CORS` and `VEIL_SAMPLES_DIR` are read from the environment only.
+
 ## 6. How to run
 
 ```bash
@@ -123,6 +161,8 @@ Env: `DATABASE_URL`, `VEIL_STORAGE_KEY` (required), `MUBIT_API_KEY` (or `backend
 python3 scripts/local_db.py start
 cd backend && uv sync --frozen && uv run --env-file ../.env uvicorn app.main:app --reload --port 8000
 # key: set MUBIT_API_KEY in root .env (gitignored; or export it)
+# Set VEIL_T1_PROMPT=rewrite in .env to use the rewrite task.
+# All document/stream requests need a login cookie and X-Veil-Request: 1.
 
 # frontend (Vite proxies /api to 127.0.0.1:8000)
 npm --prefix frontend install && npm --prefix frontend run dev   # http://localhost:5173
@@ -140,8 +180,14 @@ Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly;
 ## 7. Frontend
 
 - `src/main.tsx`: lazy routes, `/app*` → `App`, else `Landing`. Fonts via Fontsource: Pixelify Sans (UI), Silkscreen (labels), Source Serif 4 (document text).
-- `src/App.tsx`: sessions, health check, sample deep link, layout (2 columns, 3 after Approve when the Ask panel opens).
-- `src/components/`: `Rail` (sessions + model status; compact row on mobile), `Intake` (drop zone, paste, sample cards with thumbnails), `DocumentPane` (line-by-line redaction animation, review bar, popovers, approved bar + download), `AskPanel` (shown only after Approve; tabs "Ask the AI" / "What it sees"), `Victory` (full-screen knight scene after Approve).
+- `src/App.tsx`: sessions, health check, sample deep link, layout (2 columns, 3 after Approve when the Ask panel opens). Runs one live scan per document. A scan keeps running in the background while the person opens the intake or another document (the backend finishes and stores it anyway); only closing the app aborts it. Coming back shows the progress so far or the finished result, without replaying passes that already ended.
+- `src/components/`: `Rail` (sessions + model status; compact row on mobile), `Intake` (drop zone, paste, sample cards with thumbnails), `DocumentPane` (the live redaction pass, review bar, popovers, approved bar + download), `Routing` (each part's status, time and Mubit request id, copyable; a "N parts" toggle in the document header and in "What it sees"), `AskPanel` (shown only after Approve; tabs "Ask the AI" / "What it sees"), `Victory` (full-screen knight scene after Approve).
+- Live scan: `api.redactStream` POSTs `/api/documents/{id}/redact/stream` and reads the Server-Sent Events with its own parser (`src/sse.ts`; EventSource cannot POST). If the route does not exist (405, or 404 with detail `"Not Found"`) it calls the one-shot `/redact` and rebuilds the same events from the result (`synthesise`), so the UI has one code path. `src/scan.ts` is the pure reducer from events to `Session.scan` (parts with status, live values deduplicated by start and end, done), plus the pass helpers; tests in `src/*.test.ts`.
+- The pass is driven by real events: lines of a part still being read pulse calmly; when a part's `chunk` event arrives its lines are swept (values flash, then bars), so parts finish out of order on screen too. Progress = finished parts / parts; the change counter counts values in finished parts. On `done` the page switches to the final result (placeholders, page boxes) and the review bar rises after the last pass. A part with `status: "error"` gets a dashed gutter, a "Not checked by the AI" note (reason on hover) and Retry; model off shows "Numbers only for now". Reduced motion: no passes, states change in place.
+- Retry: `POST .../redact/stream?retry=failed`. The backend sends parts it already read ("ok", "empty") again at once from its stored run, without calling T1, and reads only the parts that failed (or were "off" if the model is now on). In the UI those parts keep their bars and their ended pass; only the parts read again sweep (a pass belongs to one reading of a part, its `order`). An older backend ignores the parameter and reads everything again; repeated parts update their details but still get no second pass. "Try again" after a failed run also sends `retry=failed`, so the backend can skip what it already has.
+- Pages view: a page image is requested at a scale capped to about 1600 px wide and 8 MP (`pageScale`), because photos and scans arrive as PDF pages of one point per pixel (a phone photo is about 4032 points wide). Each image has its width and height set before it loads (no layout jump) and is fetched only when it comes within one screen of view.
+- Offsets: the backend counts Python code points, the browser UTF-16 units. `scan.ts` maps every offset (stream events, results, corrections) when the text has emoji or other astral characters.
+- Mock stream for frontend work without the real stream: start the backend on 8000 (no key needed), then `npm --prefix frontend run mock` (port 8010, passes every other call to 8000) and `npm --prefix frontend run dev:mock` (Vite with `VEIL_API=http://127.0.0.1:8010`). 5 parts, 0.6 to 3 s each, part 3 fails, fake `mreq_mock...` ids; part 3 succeeds on a retry, which reuses the other parts; flags `MOCK_MODEL=off`, `MOCK_ERROR=none` or `always`, `MOCK_FAIL=1`, `MOCK_NO_STREAM=1`, `MOCK_RETRY=ignore`, `MOCK_SLOW=2` (see the top of `scripts/mock-stream.mjs`). It never calls Mubit. `VEIL_API` also points `npm run dev` at any other backend.
 - `src/ui/kit.tsx` + `src/ui/icons.ts`: the only component set (Button, LinkButton, TextArea, Chip, Tabs, Icon, Spinner; 12x12 icons, 16x16 pictograms). Reuse it; do not add ad hoc buttons.
 - `src/landing/`: `Landing.tsx` (top bar, hero, learn demo, numbers notice, final CTA, footer), `Journey.tsx` (pinned scroll story, 4 steps, reduced-motion still version), `art.ts` (generated, do not hand-edit), `landing.css`.
 - `scripts/art.py` regenerates `src/landing/art.ts` (castle, gatehouse, tower, hills, pigeon...).
@@ -150,7 +196,7 @@ Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly;
 
 ## 8. Open conflicts to resolve (team decision, do not pick silently)
 
-1. **Two T1 designs.**
+1. **Two T1 designs.** The app can now run either (`VEIL_T1_PROMPT`, default `evalkit`); which one is canonical is still open.
    - App + all Mubit training so far: `evalkit/src/evalkit/prompts.py` (`PROMPT_VERSION = 1`), output = JSON list of entities, teacher `gpt-6-luna`. Mubit console task "Find personal data", Training v1.
    - Mykola: `backend/app/prompts.py`, output = the chunk rewritten with placeholders, model `claude-haiku-4-5`, used by `scripts/dataset/send_batch.py`. Marked "DRAFT pending Nick's review".
    - Mubit fingerprints a task by model + system prompt + tools + output format. Any change creates a new task with zero kept examples. Pick one before more training traffic. `evalkit` can already send Mykola's documents (`evalkit/src/evalkit/team_docs.py`, rounds `team_train` / `team_eval`) and recover spans from rewrite answers (`rewrite.py`).
