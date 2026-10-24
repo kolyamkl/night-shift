@@ -1,15 +1,28 @@
-# MuGuard
+<p align="center">
+  <img src="docs/readme/hero.svg" width="100%" alt="MuGuard: your documents stay inside the walls. A pixel castle on a hill; a tenancy agreement leaves the gate and each personal value is blacked out with a red placeholder tag.">
+</p>
+
+<p align="center">
+  <a href="https://web-production-dc019.up.railway.app/app"><img src="docs/readme/button-app.svg" height="52" alt="Protect a document"></a>
+  &nbsp;
+  <a href="https://web-production-dc019.up.railway.app/app?sample=01_tenancy_agreement.pdf"><img src="docs/readme/button-sample.svg" height="52" alt="Try a sample"></a>
+</p>
+
+<p align="center">
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+  <a href="docs/MUBIT.md">Mubit integration</a> ·
+  <a href="docs/SECURITY.md">Data protection</a> ·
+  <a href="DESIGN.md">Design system</a>
+</p>
 
 **Review sensitive information before sharing a document with an answering AI.**
 
 MuGuard finds personal values in documents, lets you correct the redactions, and
 replaces those values with placeholders for document Q&A. It restores names and
 other values in the answer so the result remains useful to you. Built for the
-Mubit Night Shift hackathon in London, 23–25 October 2026.
-
-[Open the app](https://web-production-dc019.up.railway.app/app) ·
-[Documentation](docs/README.md) · [Architecture](docs/ARCHITECTURE.md) ·
-[Mubit integration](docs/MUBIT.md) · [Data protection](docs/SECURITY.md)
+Mubit Night Shift hackathon in London, 23–25 October 2026, with FastAPI,
+PostgreSQL, React and Mubit.
 
 > **Current privacy boundary:** detection sends original document chunks through
 > Mubit, with recording enabled by default. Q&A receives the redacted document
@@ -19,33 +32,9 @@ Mubit Night Shift hackathon in London, 23–25 October 2026.
 
 ## How it works
 
-### The big picture
-
-```mermaid
-flowchart LR
-    D["Your document"] --> H["MuGuard finds and hides personal data"]
-    H --> R["You review and approve"]
-    R --> A["AI answers, seeing only placeholders"]
-    A --> B["MuGuard puts the real values back"]
-    B --> Y["An answer you can use"]
-```
-
-### What runs where
-
-```mermaid
-flowchart LR
-    U["Your browser"] --> W["MuGuard web app"]
-    W --> API["MuGuard backend"]
-    API <--> DB[("Database, encrypted")]
-    API <--> M["Mubit"]
-    M <--> AI["AI models"]
-```
-
-The browser only talks to the web app. The backend holds the database, the
-encryption key and the Mubit key, and is not reachable from the internet.
-Every AI call goes through Mubit.
-
-### Step by step
+<p align="center">
+  <img src="docs/readme/journey.svg" width="100%" alt="Four steps. Inside the walls: a tenancy agreement with real names and account numbers. The guard: the MuGuard knight, trained through Mubit, blacks out each value. Only placeholders ride out: a pigeon carries PERSON_1 and ACCOUNT_1 to the AI provider. The answer comes home: MuGuard puts Raj Patel and the account number back.">
+</p>
 
 1. **Ingest.** The browser sends the document to Caddy, which forwards `/api`
    to the private backend. The backend extracts text and word positions and saves
@@ -68,11 +57,34 @@ Every AI call goes through Mubit.
    removed from the file and hidden metadata is stripped. It is not a black box
    drawn on top.
 
-
 <details>
-<summary>Full pipeline diagram</summary>
+<summary><b>What runs where</b></summary>
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
+flowchart LR
+    U["Your browser"] --> W["MuGuard web app"]
+    W --> API["MuGuard backend"]
+    API <--> DB[("Database, encrypted")]
+    API <--> M["Mubit"]
+    M <--> AI["AI models"]
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    classDef ink fill:#0d0d0d,stroke:#0d0d0d,color:#ecebe5
+    class M mubit
+    class AI ink
+```
+
+The browser only talks to the web app. The backend holds the database, the
+encryption key and the Mubit key, and is not reachable from the internet.
+Every AI call goes through Mubit.
+
+</details>
+
+<details>
+<summary><b>Full pipeline diagram</b></summary>
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart TD
     subgraph BR["Browser: React app"]
         U1["Sign in"] --> U2["Upload PDF or file, paste text, or pick a sample"]
@@ -119,11 +131,17 @@ flowchart TD
     T2 -->|"answer with placeholders"| RS --> DB
     RS --> U8
     U5 --> U9 <-->|"redacted file"| PO
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    class T1,T2 mubit
 ```
 
 </details>
 
-Illustrative transformation:
+## What the AI provider receives
+
+<p align="center">
+  <img src="docs/readme/what-ai-sees.svg" width="100%" alt="Two copies of the same tenancy agreement. Without MuGuard the provider reads nine real names, addresses, dates and account details. With MuGuard it reads placeholders such as PERSON_1, ADDRESS_1 and ACCOUNT_1.">
+</p>
 
 | Stage | Text |
 | --- | --- |
@@ -135,9 +153,25 @@ Illustrative transformation:
 The vault stays on the backend and is encrypted in storage. This is reversible
 pseudonymisation, not a guarantee of anonymity or perfect detection.
 
-## Mubit and data protection
+## The numbers
 
-### How Mubit works in MuGuard
+<p align="center">
+  <img src="docs/readme/numbers.svg" width="100%" alt="Share of 892 personal values fully hidden in 50 synthetic documents: rules only 55.2%, AI model only 78.3%, MuGuard with both 85.7%. Names: rules 2.4%, model 71.5%, both 73.6%. Client codes: rules 96.0%, model 33.3%, both 98.7%.">
+</p>
+
+Rules are near perfect on structured formats and blind to names; the model reads
+names and addresses but misses most unlabelled client codes. MuGuard runs both on
+every chunk, so each covers the other's gaps. Measured with
+[`scripts/readme_numbers.py`](scripts/readme_numbers.py) on 140 chunks of the
+fresh synthetic round: the `claude-haiku-4-5` rewrite answers already sent
+through Mubit were scored offline against the answer key, with no new model calls.
+A value counts only when every character of it is hidden.
+
+## Trained through Mubit
+
+<p align="center">
+  <img src="docs/readme/mubit.svg" width="100%" alt="The guard's training: recorded, rated (140 replies, 94 good, 46 bad), trained (adapter v1 on Qwen3-4B-Instruct-2507), examined (v1 91.7% against 66.7% for the base model). Silent test running; live is next.">
+</p>
 
 Mubit sits between MuGuard and the model providers. MuGuard uses the normal Anthropic
 request format but points it at `https://api.mubit.ai/anthropic` with a Mubit
@@ -145,24 +179,18 @@ key (`mbt_…`). Mubit routes each call to a provider model or to a task adapter
 it has trained, records the call if recording is on, and returns a request ID
 (`x-middleware-request-id`, an `mreq_…` value) that MuGuard stores with each chunk.
 
-```mermaid
-flowchart LR
-    APP["MuGuard backend"] -->|"T1: find personal data"| M["Mubit"]
-    APP -->|"T2: answer, redacted text only"| M
-    M --> AI["AI model or trained adapter"]
-    M -->|"records T1 calls"| T["Review, train, evaluate"]
-    T -->|"better redaction model"| AI
-```
-
 Every T1 call is recorded, so the redaction task builds up real examples. After
 review, Mubit trains an adapter on them and can route later T1 calls to it.
-T2 calls are sent with recording off.
+T2 calls are sent with recording off. On 24 October the task's first adapter,
+v1 on Qwen3-4B-Instruct-2507, scored 91.7% on its held-out test against 66.7%
+for the base model with the same prompt. It is on a silent test and goes live
+when Mubit routes the task to it; until then `claude-haiku-4-5` answers T1.
 
 <details>
-<summary>Detailed Mubit calls and training loop</summary>
-
+<summary><b>Detailed Mubit calls and training loop</b></summary>
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "actorBkg": "#f8f7f3", "actorBorder": "#0d0d0d", "actorTextColor": "#0d0d0d", "actorLineColor": "#8b8a85", "signalColor": "#8b8a85", "signalTextColor": "#8b8a85", "noteBkgColor": "#0d0d0d", "noteTextColor": "#ff6b61", "noteBorderColor": "#0d0d0d", "activationBkgColor": "#e2231a"}}}%%
 sequenceDiagram
     participant API as MuGuard backend
     participant M as Mubit gateway
@@ -188,6 +216,7 @@ instructions and model lands in the same **task**, so the task collects many
 real examples of the one job MuGuard needs done:
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart LR
     A["T1 calls from the app"] --> R["Recorded in the Mubit task"]
     D["Synthetic labelled dataset: scripts/dataset/send_batch.py --send"] --> R
@@ -197,6 +226,8 @@ flowchart LR
     E --> RT["Roll out: route T1 traffic to the adapter"]
     RT -->|"later T1 calls served by the adapter"| A
     H["Hide or unhide in MuGuard"] -.->|"saved locally only; review its mreq_ in the console manually"| V
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    class R,T mubit
 ```
 
 </details>
@@ -212,6 +243,8 @@ Recorded T1 calls can become reviewed training examples. **In-app corrections
 are not automatically sent as Mubit training feedback.** See the
 [Mubit guide](docs/MUBIT.md) for task/session grouping, dataset paths, review,
 training, evaluation and routing.
+
+## Data protection
 
 Accounts isolate documents; Argon2id protects passwords; server-side sessions
 use HttpOnly cookies; Fernet encrypts document content, vaults and chat at rest.
@@ -269,6 +302,9 @@ local setup script. Without it, those tests skip; do not interpret skips as a
 passed database check. Model calls are mocked in backend tests. Dataset checks
 and generation commands are in the [dataset guide](data/README.md).
 
+The pictures in this README are drawn from the landing page's own sprites and
+fonts by [`frontend/scripts/readme_art.py`](frontend/scripts/readme_art.py).
+
 ## Explore the project
 
 - [Architecture](docs/ARCHITECTURE.md): system, document and Q&A diagrams.
@@ -277,3 +313,7 @@ and generation commands are in the [dataset guide](data/README.md).
 - [Saved data](docs/DATABASE-CONTENTS.md) and [database operations](docs/DATABASE.md).
 - [Developer handoff](docs/HANDOFF.md), [deployment](docs/DEPLOY.md), [design system](DESIGN.md).
 - [All documentation](docs/README.md), including datasets and historical research.
+
+<p align="center">
+  <img src="docs/readme/footer.svg" width="100%" alt="MuGuard. Pseudonymised, not anonymised: placeholders map back to real values only on your side. Built at Night Shift, London, on Mubit.">
+</p>
