@@ -171,3 +171,25 @@ clients sharing a proxy may share a limit. Auth and document responses have
 Tests additionally cover login/logout, normalized duplicate email, hash storage,
 expired/revoked sessions, secure cookies, CSRF, throttling, and account isolation
 across all document endpoints. No verification emails or model calls are sent.
+
+## Railway-hosted database
+
+A managed PostgreSQL service also runs on Railway (project `night-shift`, service
+`Postgres`, environment `production`). It is reachable through Railway's public
+TCP proxy and requires the generated password and TLS (`sslmode=require`). Only the
+database is hosted. The backend and frontend still run locally.
+
+Its settings live in the ignored root `.env.railway`, which contains only
+`DATABASE_URL` and that database's own `VEIL_STORAGE_KEY`. Pass it after `.env`
+so it overrides the local database settings while keeping the other keys:
+
+```sh
+cd backend
+uv run --env-file ../.env --env-file ../.env.railway --no-sync uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+The Railway key is separate from the local cluster key and must stay paired with
+the Railway database. Startup refuses a mismatched key. Back up the key outside
+Railway. Keep `TEST_DATABASE_URL` pointed at the local `veil_test` database. Never
+run the test suite against Railway. To recover the URL, run
+`railway variables --service Postgres` in the linked repo.
