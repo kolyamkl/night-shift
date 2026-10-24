@@ -170,7 +170,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
 
   return (
     <section className="relative flex min-h-0 flex-col bg-bone">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b-4 border-ink bg-paper px-5 py-3.5">
+      <header className="flex min-h-[64px] flex-wrap items-center gap-x-3 gap-y-2 border-b-4 border-ink bg-paper px-5 py-3">
         <h2 className="min-w-0 max-w-full truncate font-pixel text-[22px] leading-tight font-bold" title={doc.filename}>
           {doc.filename}
         </h2>

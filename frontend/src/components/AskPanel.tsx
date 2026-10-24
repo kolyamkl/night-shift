@@ -53,7 +53,7 @@ export function AskPanel({ session, t2Model, onAsk }: {
 
   return (
     <aside className="ask-in flex min-h-0 flex-col border-t-4 border-ink bg-bone lg:border-t-0 lg:border-l-4" aria-label="Ask an AI about this document">
-      <div className="flex items-center justify-between gap-3 border-b-4 border-ink bg-paper px-4 py-3">
+      <div className="flex min-h-[64px] items-center justify-between gap-3 border-b-4 border-ink bg-paper px-4 py-3">
         <Tabs label="Ask panel" value={tab} options={[["ask", "Ask the AI"], ["sent", "What it sees"]]} onChange={setTab} />
       </div>
 
