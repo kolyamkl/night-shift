@@ -1,0 +1,86 @@
+{
+ "ALL": {
+  "rules": 55.2,
+  "model": 78.3,
+  "both": 85.7,
+  "n": 892
+ },
+ "PERSON": {
+  "rules": 2.4,
+  "model": 71.5,
+  "both": 73.6,
+  "n": 337
+ },
+ "ADDRESS": {
+  "rules": 73.5,
+  "model": 74.8,
+  "both": 76.1,
+  "n": 155
+ },
+ "POSTCODE": {
+  "rules": 98.2,
+  "model": 96.5,
+  "both": 100.0,
+  "n": 114
+ },
+ "EMAIL": {
+  "rules": 100.0,
+  "model": 98.9,
+  "both": 100.0,
+  "n": 89
+ },
+ "PHONE": {
+  "rules": 96.3,
+  "model": 95.1,
+  "both": 98.8,
+  "n": 81
+ },
+ "CUSTOM": {
+  "rules": 96.0,
+  "model": 33.3,
+  "both": 98.7,
+  "n": 75
+ },
+ "DOB": {
+  "rules": 0.0,
+  "model": 100.0,
+  "both": 100.0,
+  "n": 12
+ },
+ "BANK_ACCOUNT": {
+  "rules": 55.6,
+  "model": 100.0,
+  "both": 100.0,
+  "n": 9
+ },
+ "IBAN": {
+  "rules": 66.7,
+  "model": 100.0,
+  "both": 100.0,
+  "n": 6
+ },
+ "SORT_CODE": {
+  "rules": 100.0,
+  "model": 100.0,
+  "both": 100.0,
+  "n": 5
+ },
+ "NI_NUMBER": {
+  "rules": 100.0,
+  "model": 100.0,
+  "both": 100.0,
+  "n": 3
+ },
+ "ID_DOC": {
+  "rules": 66.7,
+  "model": 100.0,
+  "both": 100.0,
+  "n": 3
+ },
+ "CARD": {
+  "rules": 0.0,
+  "model": 100.0,
+  "both": 100.0,
+  "n": 3
+ }
+}
