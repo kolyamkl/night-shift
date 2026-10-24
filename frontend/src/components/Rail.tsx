@@ -1,10 +1,11 @@
-import type { Session } from "../session";
+import type { Saved, Session } from "../session";
 import { Sprite } from "../sprites";
 import { pictogramFor } from "../ui/icons";
 import { Button, Chip, Spinner } from "../ui/kit";
 
 function Status({ s, on }: { s: Session; on: boolean }) {
-  const changes = s.result?.entities.length ?? 0;
+  // A saved document not opened yet has only the list's count of changes.
+  const changes = s.result?.entities.length ?? s.changes ?? 0;
   const hidden = s.result ? new Set(s.result.entities.map((e) => e.placeholder)).size : 0;
   if (s.status === "scanning" || (s.status === "review" && !s.revealed))
     return (
@@ -13,8 +14,9 @@ function Status({ s, on }: { s: Session; on: boolean }) {
         {s.status === "scanning" ? reading(s) : "Redacting"}
       </span>
     );
+  if (s.status === "new") return <Chip>Not scanned</Chip>;
   if (s.status === "review") return <Chip tone="red">Review · {changes} changes</Chip>;
-  if (s.status === "approved") return <Chip tone="dark">Approved · {hidden} hidden</Chip>;
+  if (s.status === "approved") return <Chip tone="dark">{s.result ? `Approved · ${hidden} hidden` : "Approved"}</Chip>;
   if (s.status === "declined") return <Chip>Declined</Chip>;
   return <Chip tone="red">Failed</Chip>;
 }
@@ -25,10 +27,12 @@ function reading(s: Session) {
   return `Reading ${parts.filter((p) => p.status !== "pending").length}/${parts.length}`;
 }
 
-export function Rail({ sessions, activeId, onSelect, onNew, modelOn, email, onLogout }: {
+export function Rail({ sessions, saved, onReloadList, activeId, onSelect, onNew, modelOn, email, onLogout }: {
   email: string;
   onLogout: () => Promise<void>;
   sessions: Session[];
+  saved: Saved;
+  onReloadList: () => void;
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -60,8 +64,8 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn, email, onLo
               aria-current={s.id === activeId ? "true" : undefined}
               className={`session px-frame flex shrink-0 items-center gap-2 px-2 py-1.5 text-[13px] ${s.id === activeId ? "is-on bg-ink text-bone" : "px-frame-bone"}`}
             >
-              <Sprite rows={pictogramFor(s.doc.filename)} scale={1} />
-              <span className="max-w-[140px] truncate">{s.doc.filename}</span>
+              <Sprite rows={pictogramFor(s.filename)} scale={1} />
+              <span className="max-w-[140px] truncate">{s.filename}</span>
             </button>
           ))}
         </div>
@@ -69,7 +73,11 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn, email, onLo
 
       <nav className="-mx-1 hidden min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-1 pt-1 pb-2 lg:flex" aria-label="Documents in this session">
         <p className="px-label text-quiet">Sessions</p>
-        {sessions.length === 0 && <p className="text-[14px] text-quiet">Documents you open appear here. Save a document's link to reopen it.</p>}
+        {sessions.length === 0 && saved !== "loading" && (
+          <p className="text-[14px] text-quiet">
+            {saved === "off" ? "Documents you open appear here. Save a document's link to reopen it." : "Documents you open are kept here, with their review and chat."}
+          </p>
+        )}
         {sessions.map((s) => {
           const on = s.id === activeId;
           return (
@@ -81,13 +89,24 @@ export function Rail({ sessions, activeId, onSelect, onNew, modelOn, email, onLo
               className={`session px-frame grid grid-cols-[36px_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 p-2.5 text-left ${on ? "is-on bg-ink text-bone" : "px-frame-bone"}`}
             >
               <span className="row-span-2 bg-paper p-[2px]">
-                <Sprite rows={pictogramFor(s.doc.filename)} scale={2} />
+                <Sprite rows={pictogramFor(s.filename)} scale={2} />
               </span>
-              <b className="truncate text-[14px] font-semibold">{s.doc.filename}</b>
+              <b className="truncate text-[14px] font-semibold">{s.filename}</b>
               <Status s={s} on={on} />
             </button>
           );
         })}
+        {saved === "loading" && (
+          <p className="flex items-center gap-2 text-[14px] text-quiet">
+            <Spinner label="Loading your documents" /> Loading your documents
+          </p>
+        )}
+        {saved === "error" && (
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-[14px] text-signal-deep">Your saved documents did not load.</p>
+            <Button size="sm" icon="right" onClick={onReloadList}>Try again</Button>
+          </div>
+        )}
       </nav>
 
       <div className="flex flex-wrap items-center gap-2 border-t-2 border-ink pt-3 lg:mt-auto">

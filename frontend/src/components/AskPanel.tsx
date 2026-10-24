@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { markValues } from "../redaction";
 import { partsOf } from "../scan";
-import type { Session } from "../session";
+import type { Open } from "../session";
 import { Button, Spinner, Tabs } from "../ui/kit";
 import { Routing } from "./Routing";
 
@@ -22,7 +22,7 @@ function Placeholders({ text }: { text: string }) {
 }
 
 export function AskPanel({ session, t2Model, onAsk }: {
-  session: Session;
+  session: Open;
   t2Model: string | null;
   onAsk: (question: string) => Promise<void>;
 }) {
