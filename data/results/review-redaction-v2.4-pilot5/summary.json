@@ -1,0 +1,20 @@
+{
+  "selected": 5,
+  "attempts": 5,
+  "responses_saved": 5,
+  "api_success": 5,
+  "mubit_request_ids": 5,
+  "valid_detection": 4,
+  "exact_gold_redaction": 4,
+  "validation_errors": {
+    "question: quotation must match exactly once; found 0": 1
+  },
+  "usage": {
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 12192,
+    "output_tokens": 1239
+  },
+  "adapter_status": "unverified",
+  "note": "Training sample diagnostics, not held-out evaluation. Invalid responses are failures, not corrected labels."
+}

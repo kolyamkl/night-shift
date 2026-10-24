@@ -1,0 +1,209 @@
+{
+  "note": "11 outputs differ from gold redactions. Exact-span mismatches can reflect segmentation or identity grouping as well as missed/unnecessary redactions; manual review required. Local scoring is separate from Mubit retention.",
+  "review_count": 11,
+  "examples": [
+    {
+      "id": "review-redaction-v2.4-train-identity-000",
+      "request_id": "mreq_01a16da940c77472af7e76ae180e4033",
+      "true_positive": 4,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "question",
+          "start": 35,
+          "end": 50,
+          "text": "Mx Alderwickaht",
+          "type": "PERSON",
+          "entity_id": "person"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-payment-007",
+      "request_id": "mreq_01a16da940c87d518c9c8a99165a460c",
+      "true_positive": 8,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 6,
+          "end": 24,
+          "text": "Grace Alderwickaee",
+          "type": "PERSON",
+          "entity_id": "person"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-secret-015",
+      "request_id": "mreq_01a16da953447d638aa32d6a7713de78",
+      "true_positive": 4,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 12,
+          "end": 30,
+          "text": "Grace Alderwickaxs",
+          "type": "PERSON",
+          "entity_id": "person"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-health-009",
+      "request_id": "mreq_01a16da951857e40bf3922d2ca5ed61b",
+      "true_positive": 3,
+      "false_positive": 2,
+      "false_negative": 2,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 29,
+          "end": 46,
+          "text": "Rose Alderwickatq",
+          "type": "PERSON",
+          "entity_id": "person"
+        },
+        {
+          "source": "document",
+          "start": 48,
+          "end": 71,
+          "text": "has recurrent migraines",
+          "type": "HEALTH",
+          "entity_id": "health"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-identity-017",
+      "request_id": "mreq_01a16da969097eb29f8c738c133a9a47",
+      "true_positive": 4,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "question",
+          "start": 35,
+          "end": 50,
+          "text": "Mx Alderwickaik",
+          "type": "PERSON",
+          "entity_id": "person"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-health-015",
+      "request_id": "mreq_01a16da97b1b7933a4acd4a9c83e5abc",
+      "true_positive": 3,
+      "false_positive": 2,
+      "false_negative": 2,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 29,
+          "end": 47,
+          "text": "Grace Alderwickatw",
+          "type": "PERSON",
+          "entity_id": "person"
+        },
+        {
+          "source": "document",
+          "start": 49,
+          "end": 84,
+          "text": "is receiving treatment for diabetes",
+          "type": "HEALTH",
+          "entity_id": "health"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-secret-018",
+      "request_id": "mreq_01a16da983697333ba8336ab2880f656",
+      "true_positive": 4,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 12,
+          "end": 29,
+          "text": "Mark Alderwickaxv",
+          "type": "PERSON",
+          "entity_id": "person"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-identity-013",
+      "request_id": "mreq_01a16da996ca7ba3bd0d947efb14b7cb",
+      "true_positive": 4,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "question",
+          "start": 35,
+          "end": 50,
+          "text": "Mx Alderwickaig",
+          "type": "PERSON",
+          "entity_id": "person"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-health-020",
+      "request_id": "mreq_01a16da9a73e7962b82e765159a106bc",
+      "true_positive": 4,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 48,
+          "end": 71,
+          "text": "has recurrent migraines",
+          "type": "HEALTH",
+          "entity_id": "health"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-custom-011",
+      "request_id": "mreq_01a16da9b2987c20aaaabbdce62d52ab",
+      "true_positive": 6,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 7,
+          "end": 25,
+          "text": "Grace Alderwickbbk",
+          "type": "PERSON",
+          "entity_id": "person"
+        }
+      ]
+    },
+    {
+      "id": "review-redaction-v2.4-train-health-017",
+      "request_id": "mreq_01a16da9c3b97da293d0bb5772e93102",
+      "true_positive": 4,
+      "false_positive": 1,
+      "false_negative": 1,
+      "missing_entities": [
+        {
+          "source": "document",
+          "start": 48,
+          "end": 83,
+          "text": "is receiving treatment for diabetes",
+          "type": "HEALTH",
+          "entity_id": "health"
+        }
+      ]
+    }
+  ]
+}

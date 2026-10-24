@@ -24,6 +24,9 @@ __pycache__/
 /data/rounds/
 /evalkit/runs/
 
+# Runtime locks for the committed training-call journals
+/data/results/**/.sender.lock
+
 # Frontend build output
 node_modules/
 frontend/dist/

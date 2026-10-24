@@ -1,0 +1,28 @@
+{
+  "task_version": "review-redaction-v2.4",
+  "base_url": "https://api.mubit.ai/anthropic",
+  "selection_hash": "17fe4ff942c1664729366338317873f19e1f801cc72ad49566ed424355010028",
+  "request_hash": "f95987f6881425e7c0d090fc27ddb8fbda6fd012cbed51bba971d712d6166b2f",
+  "ids": [
+    "review-redaction-v2.4-train-account-018",
+    "review-redaction-v2.4-train-health-007",
+    "review-redaction-v2.4-train-secret-021",
+    "review-redaction-v2.4-train-custom-016",
+    "review-redaction-v2.4-train-question_only-017",
+    "review-redaction-v2.4-train-injection-012",
+    "review-redaction-v2.4-train-clean-004",
+    "review-redaction-v2.4-train-complete-002",
+    "review-redaction-v2.4-train-secret-016",
+    "review-redaction-v2.4-train-custom-009"
+  ],
+  "scenarios": {
+    "account": 1,
+    "health": 1,
+    "secret": 2,
+    "custom": 2,
+    "question_only": 1,
+    "injection": 1,
+    "clean": 1,
+    "complete": 1
+  }
+}

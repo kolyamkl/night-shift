@@ -1,0 +1,408 @@
+{
+  "chunks_in_split": 10,
+  "chunks_scored": 10,
+  "chunks_failed": [],
+  "chunks_missing": 0,
+  "unknown_chunk_ids": [],
+  "overall": {
+    "gold": 278,
+    "detected": 245,
+    "detection_recall": 0.8813,
+    "recall": 0.8489,
+    "char_coverage": 0.8526,
+    "pred": 246,
+    "precision": 0.9797,
+    "over_redacted": 2,
+    "over_redaction_rate": 0.0081,
+    "leaked": 33,
+    "leak_rate": 0.1187
+  },
+  "per_type": {
+    "PERSON": {
+      "gold": 107,
+      "recalled": 98,
+      "recall": 0.9159,
+      "pred": 98,
+      "correct_pred": 98,
+      "precision": 1.0,
+      "leaked": 8,
+      "leak_rate": 0.0748
+    },
+    "ADDRESS": {
+      "gold": 38,
+      "recalled": 28,
+      "recall": 0.7368,
+      "pred": 36,
+      "correct_pred": 33,
+      "precision": 0.9167,
+      "leaked": 6,
+      "leak_rate": 0.1579
+    },
+    "POSTCODE": {
+      "gold": 25,
+      "recalled": 21,
+      "recall": 0.84,
+      "pred": 22,
+      "correct_pred": 21,
+      "precision": 0.9545,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "EMAIL": {
+      "gold": 43,
+      "recalled": 40,
+      "recall": 0.9302,
+      "pred": 40,
+      "correct_pred": 40,
+      "precision": 1.0,
+      "leaked": 3,
+      "leak_rate": 0.0698
+    },
+    "PHONE": {
+      "gold": 30,
+      "recalled": 30,
+      "recall": 1.0,
+      "pred": 30,
+      "correct_pred": 30,
+      "precision": 1.0,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "BANK_ACCOUNT": {
+      "gold": 6,
+      "recalled": 4,
+      "recall": 0.6667,
+      "pred": 4,
+      "correct_pred": 4,
+      "precision": 1.0,
+      "leaked": 2,
+      "leak_rate": 0.3333
+    },
+    "SORT_CODE": {
+      "gold": 2,
+      "recalled": 2,
+      "recall": 1.0,
+      "pred": 2,
+      "correct_pred": 2,
+      "precision": 1.0,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "IBAN": {
+      "gold": 2,
+      "recalled": 2,
+      "recall": 1.0,
+      "pred": 2,
+      "correct_pred": 2,
+      "precision": 1.0,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "CARD": {
+      "gold": 2,
+      "recalled": 2,
+      "recall": 1.0,
+      "pred": 3,
+      "correct_pred": 2,
+      "precision": 0.6667,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "NI_NUMBER": {
+      "gold": 1,
+      "recalled": 1,
+      "recall": 1.0,
+      "pred": 1,
+      "correct_pred": 1,
+      "precision": 1.0,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "DOB": {
+      "gold": 2,
+      "recalled": 2,
+      "recall": 1.0,
+      "pred": 2,
+      "correct_pred": 2,
+      "precision": 1.0,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "ID_DOC": {
+      "gold": 1,
+      "recalled": 1,
+      "recall": 1.0,
+      "pred": 1,
+      "correct_pred": 1,
+      "precision": 1.0,
+      "leaked": 0,
+      "leak_rate": 0.0
+    },
+    "CUSTOM": {
+      "gold": 19,
+      "recalled": 5,
+      "recall": 0.2632,
+      "pred": 5,
+      "correct_pred": 5,
+      "precision": 1.0,
+      "leaked": 14,
+      "leak_rate": 0.7368
+    }
+  },
+  "documents": {
+    "scored": 9,
+    "fully_scored": 9,
+    "zero_leaks": 2,
+    "with_leaks": [
+      "contracts-C1-f1",
+      "correspondence-R1-f1",
+      "correspondence-R1-f2",
+      "correspondence-R1-f3",
+      "correspondence-R3-f3",
+      "correspondence-R4-f1",
+      "insurance-INS1-f2"
+    ]
+  },
+  "over_redactions": [
+    {
+      "chunk_id": "financial-gretel-train-19041-c000",
+      "type": "POSTCODE",
+      "text": "[Postal Code]",
+      "looks_personal": false
+    },
+    {
+      "chunk_id": "financial-gretel-train-19041-c000",
+      "type": "CARD",
+      "text": "**** **** **** 1234 (Last 4 digits)",
+      "looks_personal": true
+    }
+  ],
+  "over_redactions_looking_personal": [
+    {
+      "chunk_id": "financial-gretel-train-19041-c000",
+      "type": "CARD",
+      "text": "**** **** **** 1234 (Last 4 digits)",
+      "looks_personal": true
+    }
+  ],
+  "changed_outside_placeholders": [
+    {
+      "chunk_id": "contracts-C1-f2-c028",
+      "changed_chars": 21,
+      "sample": {
+        "original": "’",
+        "output": "'"
+      }
+    },
+    {
+      "chunk_id": "insurance-INS1-f2-c000",
+      "changed_chars": 64,
+      "sample": {
+        "original": "’",
+        "output": "'"
+      }
+    },
+    {
+      "chunk_id": "contracts-C1-f1-c001",
+      "changed_chars": 10,
+      "sample": {
+        "original": "’",
+        "output": "'"
+      }
+    },
+    {
+      "chunk_id": "correspondence-R1-f3-c000",
+      "changed_chars": 1,
+      "sample": {
+        "original": "214 Hope Street",
+        "output": "[...]"
+      }
+    },
+    {
+      "chunk_id": "contracts-C1-f1-c030",
+      "changed_chars": 4,
+      "sample": {
+        "original": "’",
+        "output": "'"
+      }
+    },
+    {
+      "chunk_id": "correspondence-R3-f3-c000",
+      "changed_chars": 2,
+      "sample": {
+        "original": "\n\n",
+        "output": ""
+      }
+    }
+  ],
+  "malformed_placeholders": {},
+  "unknown_placeholder_types": {},
+  "numbering_consistent_chunks": 4,
+  "leaks": [
+    {
+      "chunk_id": "correspondence-R1-f1-c000",
+      "type": "CUSTOM",
+      "value": "M/2018/284"
+    },
+    {
+      "chunk_id": "correspondence-R1-f1-c000",
+      "type": "BANK_ACCOUNT",
+      "value": "6160"
+    },
+    {
+      "chunk_id": "correspondence-R1-f1-c000",
+      "type": "CUSTOM",
+      "value": "M/2018/284"
+    },
+    {
+      "chunk_id": "correspondence-R1-f1-c000",
+      "type": "EMAIL",
+      "value": "messaging.administration@enron.com"
+    },
+    {
+      "chunk_id": "insurance-INS1-f2-c000",
+      "type": "ADDRESS",
+      "value": "Ivy Cottage, Queen's Place\nSwindon\nWiltshire"
+    },
+    {
+      "chunk_id": "insurance-INS1-f2-c000",
+      "type": "ADDRESS",
+      "value": "100B Willow Street, SUNDERLAND, Tyne and Wear"
+    },
+    {
+      "chunk_id": "insurance-INS1-f2-c000",
+      "type": "ADDRESS",
+      "value": "128 Queen's Place, Little Station, Cardiff, South Glamorgan"
+    },
+    {
+      "chunk_id": "insurance-INS1-f2-c000",
+      "type": "ADDRESS",
+      "value": "164 Victoria Lane, NORWICH"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "PERSON",
+      "value": "NICHOLLS"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "PERSON",
+      "value": "Frank"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "PERSON",
+      "value": "AN"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "PERSON",
+      "value": "NICHOLLS"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "PERSON",
+      "value": "AW"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "PERSON",
+      "value": "AW"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "CUSTOM",
+      "value": "H8RN48"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "CUSTOM",
+      "value": "406628252WGDVS"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "CUSTOM",
+      "value": "31559767"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "CUSTOM",
+      "value": "MM7B7R"
+    },
+    {
+      "chunk_id": "correspondence-R4-f1-c000",
+      "type": "CUSTOM",
+      "value": "YBBM9D"
+    },
+    {
+      "chunk_id": "correspondence-R1-f2-c000",
+      "type": "BANK_ACCOUNT",
+      "value": "0507"
+    },
+    {
+      "chunk_id": "correspondence-R1-f3-c000",
+      "type": "CUSTOM",
+      "value": "M/2020/471"
+    },
+    {
+      "chunk_id": "correspondence-R1-f3-c000",
+      "type": "ADDRESS",
+      "value": "Room 3.14"
+    },
+    {
+      "chunk_id": "correspondence-R1-f3-c000",
+      "type": "CUSTOM",
+      "value": "M/2020/471"
+    },
+    {
+      "chunk_id": "correspondence-R1-f3-c000",
+      "type": "EMAIL",
+      "value": "mail.admin@enron.com"
+    },
+    {
+      "chunk_id": "contracts-C1-f1-c030",
+      "type": "PERSON",
+      "value": "Elliott Thompson"
+    },
+    {
+      "chunk_id": "contracts-C1-f1-c030",
+      "type": "PERSON",
+      "value": "Elliott Thompson"
+    },
+    {
+      "chunk_id": "contracts-C1-f1-c030",
+      "type": "ADDRESS",
+      "value": "Flat 32B, 168 Church Avenue, Liverpool"
+    },
+    {
+      "chunk_id": "correspondence-R3-f3-c000",
+      "type": "CUSTOM",
+      "value": "M/2018/129"
+    },
+    {
+      "chunk_id": "correspondence-R3-f3-c000",
+      "type": "CUSTOM",
+      "value": "M/2018/129"
+    },
+    {
+      "chunk_id": "correspondence-R3-f3-c000",
+      "type": "CUSTOM",
+      "value": "M/2018/129"
+    },
+    {
+      "chunk_id": "correspondence-R3-f3-c000",
+      "type": "CUSTOM",
+      "value": "M/2018/129"
+    },
+    {
+      "chunk_id": "correspondence-R3-f3-c000",
+      "type": "CUSTOM",
+      "value": "CL-15593"
+    },
+    {
+      "chunk_id": "correspondence-R3-f3-c000",
+      "type": "EMAIL",
+      "value": "mail.admin@enron.com"
+    }
+  ]
+}

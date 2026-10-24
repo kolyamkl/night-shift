@@ -1,0 +1,11 @@
+{
+  "task_version": "review-redaction-v2.3",
+  "source": "data/review_redaction_v2",
+  "same_inputs_and_splits": true,
+  "counts": {
+    "train": 288,
+    "fresh": 144,
+    "eval": 144
+  },
+  "system_prompt_sha256": "28b66d72aa043030955e80065eb6d69ba61947d1596b8587d0b69c36efe29048"
+}

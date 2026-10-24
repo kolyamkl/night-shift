@@ -1,0 +1,20 @@
+{
+  "task_version": "review-redaction-v2.2",
+  "base_url": "https://api.mubit.ai/anthropic",
+  "selection_hash": "ce38b1d8b3f015ca396171774aa04006a80c41b4fcd423c046d386adb443e571",
+  "request_hash": "8bab2ec1f632521b80ae5560d264e6fc8602712371e2d040ea8e5b0a580cc349",
+  "ids": [
+    "review-redaction-v2.2-train-contact-005",
+    "review-redaction-v2.2-train-payment-020",
+    "review-redaction-v2.2-train-question_only-016",
+    "review-redaction-v2.2-train-injection-010",
+    "review-redaction-v2.2-train-clean-014"
+  ],
+  "scenarios": {
+    "contact": 1,
+    "payment": 1,
+    "question_only": 1,
+    "injection": 1,
+    "clean": 1
+  }
+}

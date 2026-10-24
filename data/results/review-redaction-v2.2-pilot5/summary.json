@@ -1,0 +1,20 @@
+{
+  "selected": 5,
+  "attempts": 1,
+  "responses_saved": 1,
+  "api_success": 1,
+  "mubit_request_ids": 1,
+  "valid_detection": 0,
+  "exact_gold_redaction": 0,
+  "validation_errors": {
+    "One identity cannot have different types": 1
+  },
+  "usage": {
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 2032,
+    "output_tokens": 387
+  },
+  "adapter_status": "unverified",
+  "note": "Training sample diagnostics, not held-out evaluation. Invalid responses are failures, not corrected labels."
+}

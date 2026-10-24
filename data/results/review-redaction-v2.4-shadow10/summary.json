@@ -1,0 +1,13 @@
+{
+  "selected": 10,
+  "attempts": 0,
+  "responses_saved": 0,
+  "api_success": 0,
+  "mubit_request_ids": 0,
+  "valid_detection": 0,
+  "exact_gold_redaction": 0,
+  "validation_errors": {},
+  "usage": {},
+  "adapter_status": "unverified",
+  "note": "Training sample diagnostics, not held-out evaluation. Invalid responses are failures, not corrected labels."
+}

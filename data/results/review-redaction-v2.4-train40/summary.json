@@ -1,0 +1,18 @@
+{
+  "selected": 40,
+  "attempts": 40,
+  "responses_saved": 40,
+  "api_success": 40,
+  "mubit_request_ids": 40,
+  "valid_detection": 40,
+  "exact_gold_redaction": 29,
+  "validation_errors": {},
+  "usage": {
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 97778,
+    "output_tokens": 12828
+  },
+  "adapter_status": "unverified",
+  "note": "Training sample diagnostics, not held-out evaluation. Invalid responses are failures, not corrected labels."
+}

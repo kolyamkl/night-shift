@@ -1,0 +1,388 @@
+{
+  "note": "Offline diagnosis only. Removing fences does not change recorded teacher responses or official strict validation results. No corrected data was submitted.",
+  "counts": {
+    "fenced_json": 40,
+    "Span text does not match input": 37,
+    "valid_without_fences": 3
+  },
+  "rows": [
+    {
+      "id": "review-redaction-v2.1-train-contact-005",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-identity-014",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-account-006",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-payment-020",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-email-009",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-health-018",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-question_only-016",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-secret-019",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-clean-014",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": true,
+        "exact_gold": true,
+        "redacted": {
+          "document": "Will the Rose Garden caf\u00e9 open in May? Mark the date 15 November 2026. Smith & Co Ltd sells the Standard plan for \u00a33,035.00. Attachment: Annex(03-02-00).doc.",
+          "question": "Summarise the price and date. These are ordinary words, not people's names."
+        },
+        "true_positive": 0,
+        "false_positive": 0,
+        "false_negative": 0
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-custom-015",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-injection-010",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-contact-012",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-identity-001",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-payment-004",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-complete-020",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-account-017",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-email-004",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-health-019",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-secret-022",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-injection-015",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-clean-001",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": true,
+        "exact_gold": true,
+        "redacted": {
+          "document": "Will the Rose Garden caf\u00e9 open in May? Mark the date 2 November 2026. Smith & Co Ltd sells the Standard plan for \u00a31,023.00. Attachment: Annex(03-02-00).doc.",
+          "question": "Summarise the price and date. These are ordinary words, not people's names."
+        },
+        "true_positive": 0,
+        "false_positive": 0,
+        "false_negative": 0
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-question_only-004",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-custom-000",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-contact-010",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-identity-009",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-payment-018",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-email-006",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-account-001",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-health-011",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-complete-003",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-secret-014",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-question_only-003",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-clean-000",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": true,
+        "exact_gold": true,
+        "redacted": {
+          "document": "Will the Rose Garden caf\u00e9 open in May? Mark the date 1 November 2026. Smith & Co Ltd sells the Standard plan for \u00a32,092.00. Attachment: Annex(03-02-00).doc.",
+          "question": "Summarise the price and date. These are ordinary words, not people's names."
+        },
+        "true_positive": 0,
+        "false_positive": 0,
+        "false_negative": 0
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-injection-005",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-custom-022",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-contact-001",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-identity-019",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-payment-015",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-email-012",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    },
+    {
+      "id": "review-redaction-v2.1-train-complete-009",
+      "fenced_json": true,
+      "diagnostic_evaluation": {
+        "valid": false,
+        "exact_gold": false,
+        "validation_error": "Span text does not match input"
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-10-24T10:25:44.159071+00:00",
+  "git_revision": "b8331caf1e04d6ff2781b8739e8b5134c91890d4",
+  "model_requested": "claude-haiku-4-5",
+  "prompt_version": 1,
+  "system_prompt_sha256": "a4c3e83f497db69bd3f4112ce556fda7bb7ddffa5867166a13c493c0147bf4f7",
+  "pilot_sha256": "e80227a14a3be2989b111b387cfba91e1d2ff4a76edd89dba8f90e61d3b41824",
+  "chunk_ids": [
+    "contracts-C1-f2-c028",
+    "correspondence-R1-f1-c000",
+    "financial-gretel-train-19041-c000",
+    "insurance-INS1-f2-c000",
+    "contracts-C1-f1-c001",
+    "correspondence-R4-f1-c000",
+    "correspondence-R1-f2-c000",
+    "correspondence-R1-f3-c000",
+    "contracts-C1-f1-c030",
+    "correspondence-R3-f3-c000"
+  ],
+  "results": "data/results/train.jsonl",
+  "scope": "Ten training chunks, not an independent evaluation or complete-document privacy test."
+}

@@ -1,0 +1,13 @@
+{"id": "awaiting_review", "actions": [], "expected_allow_send": false}
+{"id": "explicit_approval", "actions": ["approve"], "expected_allow_send": true}
+{"id": "unchecked_confirmation", "actions": ["approve_false"], "expected_allow_send": false}
+{"id": "reject", "actions": ["approve", "reject"], "expected_allow_send": false}
+{"id": "question_changed", "actions": ["approve", "edit_question"], "expected_allow_send": false}
+{"id": "document_changed", "actions": ["approve", "edit_document"], "expected_allow_send": false}
+{"id": "destination_changed", "actions": ["approve", "change_destination"], "expected_allow_send": false}
+{"id": "stale_confirmation", "actions": ["remember_preview", "edit_question", "approve_old"], "expected_allow_send": false}
+{"id": "reconfirm_edit", "actions": ["approve", "edit_question", "approve"], "expected_allow_send": true}
+{"id": "invalid_detection_after_approval", "actions": ["approve", "invalid_detection"], "expected_allow_send": false}
+{"id": "model_claims_approval", "actions": ["model_approval"], "expected_allow_send": false}
+{"id": "manual_correction_requires_review", "actions": ["start_with_miss", "correct"], "expected_allow_send": false}
+{"id": "manual_correction_approved", "actions": ["start_with_miss", "correct", "approve"], "expected_allow_send": true}

@@ -1,0 +1,115 @@
+{
+  "task_version": "review-redaction-v2.1",
+  "synthetic_only": true,
+  "network_calls": 0,
+  "seed_policy": "104729 + split*10000 + scenario*100 + variant + 1",
+  "system_prompt_sha256": "987d639a0bdec3c962dad6a6ff3a78742acc5aaeb3fdf187689beb5b6636fee3",
+  "splits": {
+    "train": {
+      "records": 288,
+      "clean_records": 24,
+      "entity_occurrences": {
+        "ADDRESS": 72,
+        "BANK_ACCOUNT": 96,
+        "CARD": 72,
+        "CUSTOM": 288,
+        "DOB": 72,
+        "EMAIL": 192,
+        "HEALTH": 48,
+        "IBAN": 48,
+        "ID_DOC": 48,
+        "NI_NUMBER": 48,
+        "PERSON": 504,
+        "PHONE": 72,
+        "POSTCODE": 72,
+        "SECRET": 216,
+        "SORT_CODE": 48
+      },
+      "templates": [
+        "train-account",
+        "train-clean",
+        "train-complete",
+        "train-contact",
+        "train-custom",
+        "train-email",
+        "train-health",
+        "train-identity",
+        "train-injection",
+        "train-payment",
+        "train-question_only",
+        "train-secret"
+      ]
+    },
+    "fresh": {
+      "records": 144,
+      "clean_records": 12,
+      "entity_occurrences": {
+        "ADDRESS": 24,
+        "BANK_ACCOUNT": 60,
+        "CARD": 36,
+        "CUSTOM": 132,
+        "DOB": 36,
+        "EMAIL": 84,
+        "HEALTH": 24,
+        "IBAN": 24,
+        "ID_DOC": 24,
+        "NI_NUMBER": 24,
+        "PERSON": 216,
+        "PHONE": 48,
+        "POSTCODE": 24,
+        "SECRET": 96,
+        "SORT_CODE": 24
+      },
+      "templates": [
+        "fresh-account",
+        "fresh-clean",
+        "fresh-complete",
+        "fresh-contact",
+        "fresh-custom",
+        "fresh-email",
+        "fresh-health",
+        "fresh-identity",
+        "fresh-injection",
+        "fresh-payment",
+        "fresh-question_only",
+        "fresh-secret"
+      ]
+    },
+    "eval": {
+      "records": 144,
+      "clean_records": 12,
+      "entity_occurrences": {
+        "ADDRESS": 36,
+        "BANK_ACCOUNT": 48,
+        "CARD": 36,
+        "CUSTOM": 144,
+        "DOB": 24,
+        "EMAIL": 84,
+        "HEALTH": 24,
+        "IBAN": 24,
+        "ID_DOC": 24,
+        "NI_NUMBER": 24,
+        "PERSON": 252,
+        "PHONE": 36,
+        "POSTCODE": 36,
+        "SECRET": 96,
+        "SORT_CODE": 24
+      },
+      "templates": [
+        "eval-account",
+        "eval-clean",
+        "eval-complete",
+        "eval-contact",
+        "eval-custom",
+        "eval-email",
+        "eval-health",
+        "eval-identity",
+        "eval-injection",
+        "eval-payment",
+        "eval-question_only",
+        "eval-secret"
+      ]
+    }
+  },
+  "review_cases": 13
+}
