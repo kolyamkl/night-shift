@@ -19,29 +19,77 @@ Mubit Night Shift hackathon in London, 23–25 October 2026.
 
 ## How it works
 
+### End-to-end pipeline
+
 ```mermaid
-flowchart LR
-    A["Upload or paste"] --> B["Detect: Mubit T1 + rules"]
-    B --> C["Review and correct"]
-    C --> D["Redacted PDF or text"]
-    C --> E["Approve in UI"]
-    E --> F["Redacted document and question to Mubit T2"]
-    F --> G["Restore values in answer on backend"]
+flowchart TD
+    subgraph BR["Browser: React app"]
+        U1["Sign in"] --> U2["Upload PDF or file, paste text, or pick a sample"]
+        U5["Review: hide misses, unhide false positives"]
+        U6["Approve"]
+        U7["Ask a question"]
+        U8["Read restored answer and What it sees"]
+        U9["Download redacted PDF or text"]
+    end
+
+    subgraph RW["Railway"]
+        C["Caddy web service: SPA and /api proxy"]
+        subgraph BE["FastAPI backend, private network only"]
+            X["Extract text and word boxes (PyMuPDF; Apple Vision OCR on macOS)"]
+            RX["Rules: UK identifiers, references, contacts"]
+            CH["Split into chunks of up to 1,400 chars, 6 in parallel"]
+            AL["Align T1 rewrite back to original values"]
+            MG["Locate values in whole document, merge spans, widen addresses"]
+            VB["Vault: value to placeholder, redacted text, PDF boxes"]
+            CO["Corrections: rebuild without a model call"]
+            QP["Pseudonymise question with vault and rules"]
+            RS["Restore values in answer, plain text"]
+            PO["True redaction: remove text and pixels, strip metadata"]
+        end
+        DB[("PostgreSQL: Fernet-encrypted documents, results, vaults, chat")]
+    end
+
+    subgraph MB["Mubit gateway"]
+        T1["T1 detect: recorded"]
+        T2["T2 answer: record off"]
+    end
+
+    U2 -->|"HTTPS"| C --> X
+    X --> DB
+    X --> RX & CH
+    CH -->|"original chunk"| T1
+    T1 -->|"chunk with placeholders + mreq ID"| AL
+    RX --> MG
+    AL --> MG --> VB --> DB
+    VB -->|"SSE progress per chunk"| U5
+    U5 --> CO --> VB
+    U5 --> U6 --> U7 -->|"question"| QP
+    QP -->|"redacted document + redacted question"| T2
+    T2 -->|"answer with placeholders"| RS --> DB
+    RS --> U8
+    U5 --> U9 <-->|"redacted file"| PO
 ```
 
-1. **Sign in and add a document.** Register with email/password, paste text,
-   upload a text PDF or supported text file, or choose an invented sample.
-2. **Watch detection.** Model results and UK identifier rules identify names,
-   addresses, contact details, accounts and references. Each part shows its
-   status and Mubit request ID; failed parts can be retried.
-3. **Review the result.** Hide a missed value or show a false positive. Corrections
-   are saved and survive rescans, retries and reloads.
-4. **Ask about it.** Approve in the interface to open Q&A. Detected values become
-   placeholders in the document and question; the backend restores them in the
-   answer. “What it sees” shows the redacted content used by the app.
-5. **Download and return later.** Export redacted text or a PDF with covered text
-   and pixels removed. Saved documents, review status and chat history persist
-   in PostgreSQL under your account.
+1. **Ingest.** The browser sends the document to Caddy, which forwards `/api`
+   to the private backend. The backend extracts text and word positions and saves
+   the source encrypted.
+2. **Detect, two ways at once.** Deterministic rules find structured values
+   (emails, phones, postcodes, sort codes, account numbers, IBANs, cards, NI,
+   passport, licence and NHS numbers, IP addresses and labelled references).
+   In parallel the text is split into chunks, and each chunk goes to **T1**
+   through Mubit, which returns it rewritten with placeholders. Veil aligns that
+   rewrite back to the original to recover the exact values.
+3. **Build.** Every value found anywhere is located throughout the document,
+   overlaps are merged, and each distinct value gets a stable placeholder in the
+   vault (`Raj Patel` → `[PERSON_1]`). Progress streams to the browser chunk by chunk.
+4. **Review.** Hiding or unhiding a value rebuilds the result locally, with no
+   model call, and the correction survives rescans.
+5. **Ask.** After approval, the question is pseudonymised with the same vault,
+   then **T2** receives only the redacted document and redacted question. The
+   backend swaps placeholders back to real values before the answer is shown.
+6. **Download.** The PDF is truly redacted: covered text and image pixels are
+   removed from the file and hidden metadata is stripped. It is not a black box
+   drawn on top.
 
 Illustrative transformation:
 
@@ -56,6 +104,51 @@ The vault stays on the backend and is encrypted in storage. This is reversible
 pseudonymisation, not a guarantee of anonymity or perfect detection.
 
 ## Mubit and data protection
+
+### How Mubit works in Veil
+
+Mubit sits between Veil and the model providers. Veil uses the normal Anthropic
+request format but points it at `https://api.mubit.ai/anthropic` with a Mubit
+key (`mbt_…`). Mubit routes each call to a provider model or to a task adapter
+it has trained, records the call if recording is on, and returns a request ID
+(`x-middleware-request-id`, an `mreq_…` value) that Veil stores with each chunk.
+
+```mermaid
+sequenceDiagram
+    participant API as Veil backend
+    participant M as Mubit gateway
+    participant P as Provider model or trained adapter
+    participant C as Mubit console
+
+    Note over API,M: T1: find personal data (one call per chunk)
+    API->>M: Fixed T1 instructions + original chunk, session doc-ID, recording on (default)
+    M->>P: Route to the task's active model or adapter
+    P-->>M: Chunk rewritten with placeholders
+    M->>C: Record request and reply in task "Redact personal data"
+    M-->>API: Reply + mreq_ request ID
+
+    Note over API,M: T2: answer a question
+    API->>M: Redacted document + pseudonymised question, x-middleware-record: off
+    M->>P: claude-haiku-4-5
+    P-->>M: Answer using placeholders
+    M-->>API: Answer + request ID (record off was requested)
+```
+
+Recorded T1 calls feed Mubit's training loop. Each call with the same fixed
+instructions and model lands in the same **task**, so the task collects many
+real examples of the one job Veil needs done:
+
+```mermaid
+flowchart LR
+    A["T1 calls from the app"] --> R["Recorded in the Mubit task"]
+    D["Synthetic labelled dataset: scripts/dataset/send_batch.py --send"] --> R
+    R --> V["Review in console: keep or reject"]
+    V --> T["Train a task adapter on kept examples"]
+    T --> E["Evaluate against held-out sessions"]
+    E --> RT["Roll out: route T1 traffic to the adapter"]
+    RT -->|"later T1 calls served by the adapter"| A
+    H["Hide or unhide in Veil"] -.->|"saved locally only; review its mreq_ in the console manually"| V
+```
 
 **T1 detects; T2 answers.** Both use Mubit. The default T1 request asks
 `claude-haiku-4-5` to rewrite a chunk with placeholders; Veil aligns that answer
