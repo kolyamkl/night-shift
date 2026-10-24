@@ -41,6 +41,10 @@ def _strip(pdf: pymupdf.Document) -> None:
         for xref in [a.xref for a in page.annots(types=[pymupdf.PDF_ANNOT_FILE_ATTACHMENT])]:
             page.delete_annot(page.load_annot(xref))
     for xref in range(1, pdf.xref_length()):
+        try:
+            pdf.xref_get_key(xref, "Type")
+        except pymupdf.mupdf.FzErrorBase:
+            continue  # a broken xref entry in the uploaded file: no object there, so nothing to strip
         for key in HIDDEN_KEYS:
             if pdf.xref_get_key(xref, key)[0] != "null":
                 pdf.xref_set_key(xref, key, "null")

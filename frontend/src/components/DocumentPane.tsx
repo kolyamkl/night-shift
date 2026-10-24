@@ -39,10 +39,11 @@ function PageImage({ src, width, height, alt, scroller }: { src: string; width: 
 type Pop = { entity: number; x: number; y: number };
 type Pick = { text: string; x: number; y: number };
 
-export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetry, onCorrect }: {
+export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecline, onRetry, onCorrect }: {
   session: Session;
   onRevealed: () => void;
   onApprove: () => void;
+  onReopen: () => void;
   onDecline: () => void;
   onRetry: (only: "failed" | "all") => void;
   onCorrect: (action: "hide" | "unhide", text: string, type?: string) => Promise<void>;
@@ -389,6 +390,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onDecline, onRetr
             <Icon name="check" className="text-signal" />
             Approved. Ask about it on the right; the AI only sees the placeholders.
           </span>
+          <Button size="sm" icon="marker" onClick={onReopen}>Edit redactions</Button>
           <LinkButton href={api.fileUrl(doc.doc_id)} download variant="dark" icon="download">
             Download redacted {doc.kind === "pdf" ? "PDF" : "text"}
           </LinkButton>

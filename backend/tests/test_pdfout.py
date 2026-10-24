@@ -102,3 +102,21 @@ def test_jpeg_metadata_is_dropped_without_touching_the_image():
     assert after.getexif() == {} and after.info.get("icc_profile") == before.info.get("icc_profile")  # colour kept
     assert after.tobytes() == before.tobytes()  # same pixels: only header segments went
     assert clean.endswith(jpeg[jpeg.index(b"\xff\xda"):])  # the scan data byte for byte
+
+
+def test_a_broken_xref_entry_in_the_upload_does_not_block_the_download(tenancy_pdf, monkeypatch):
+    # Some real PDFs list an object their xref cannot load ("cannot find object in xref (24 0 R)").
+    # MuPDF repairs most broken files we can build here, so the unloadable object is simulated.
+    real = pymupdf.Document.xref_get_key
+    pdf = pymupdf.open(stream=tenancy_pdf, filetype="pdf")
+    broken = pdf.xref_length() - 1
+
+    def xref_get_key(self, xref, key):
+        if xref == broken:
+            raise pymupdf.mupdf.FzErrorFormat(f"cannot find object in xref ({xref} 0 R)")
+        return real(self, xref, key)
+
+    monkeypatch.setattr(pymupdf.Document, "xref_get_key", xref_get_key)
+    words = pdf[0].get_text("words")
+    out = redact_pdf(tenancy_pdf, [Box(0, *words[0][:4], "NAME", "[NAME_1]", 0)])
+    assert pymupdf.open(stream=out, filetype="pdf").page_count == pdf.page_count
