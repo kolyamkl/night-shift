@@ -1,8 +1,8 @@
 import pytest
 
-from app import refs
-from app.extract import extract_text
-from app.pipeline import run_pipeline
+from app.domain import refs
+from app.domain.extract import extract_text
+from app.domain.pipeline import run_pipeline
 
 
 def found(text: str) -> list[str]:

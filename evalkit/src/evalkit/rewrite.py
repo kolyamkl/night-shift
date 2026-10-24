@@ -1,4 +1,4 @@
-"""Recover redacted spans from a "rewrite" answer (the teammates' T1 design, backend/app/prompts.py),
+"""Recover redacted spans from a "rewrite" answer (the teammates' T1 design, backend/app/llm/prompts.py),
 so both designs are scored with the same metric.
 
 The answer is the chunk with personal values replaced by [TYPE_N]. We diff the original against the

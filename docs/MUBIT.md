@@ -19,7 +19,7 @@ the browser or store model weights in PostgreSQL.
 | Local result | Detected values, chunk status, timing, Mubit request ID | Restored answer, sent question, Mubit request ID |
 | Purpose | Detection and eligible recorded examples for console review | Answering, without adding this call to task training |
 
-These are the requests built by [llm.py](../backend/app/llm.py) and
+These are the requests built by [llm/clients.py](../backend/app/llm/clients.py) and
 [providers.py](../evalkit/src/evalkit/providers.py). A requested model name does
 not establish which adapter, if any, served a particular call.
 
@@ -35,7 +35,7 @@ MuGuard itself saves chat history encrypted in its own database.
 
 ## The default detection request
 
-The app freezes the instruction text in [prompts.py](../backend/app/prompts.py)
+The app freezes the instruction text in [prompts.py](../backend/app/llm/prompts.py)
 and sends one chunk per call. The essential shape is:
 
 ```python

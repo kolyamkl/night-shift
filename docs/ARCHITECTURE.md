@@ -120,15 +120,37 @@ does not attest that a person reviewed every later version of the result.
 
 ## Code map
 
+The backend is layered; each layer imports only the ones below it, and the
+app is built by `create_app()` in [main.py](../backend/app/main.py).
+
+```mermaid
+flowchart TD
+    API["api/: routers, schemas, deps, middleware"] --> SV["services/: ingest, scans, review, chat, samples, auth"]
+    SV --> RP["repositories/: documents, chat, accounts (SQL only)"]
+    SV --> DM["domain/: extract, pipeline, rules, question, PDF export"]
+    SV --> LM["llm/: Mubit T1 and T2 clients, settings, prompts"]
+    RP --> DB["db/: connection pool, migrations, encryption"]
+    LM --> DM
+```
+
 | Responsibility | Implementation |
 | --- | --- |
-| API, ownership and stream orchestration | [main.py](../backend/app/main.py) |
-| Chunking, merging, corrections and PDF boxes | [pipeline.py](../backend/app/pipeline.py) |
-| Mubit requests and rewrite alignment | [llm.py](../backend/app/llm.py), [prompts.py](../backend/app/prompts.py) |
-| Question protection | [question.py](../backend/app/question.py) |
-| PDF export | [pdfout.py](../backend/app/pdfout.py) |
-| Encryption, revisions and saved chat | [storage.py](../backend/app/storage.py) |
-| Account and session checks | [auth.py](../backend/app/auth.py) |
+| App factory, lifespan, dependency wiring | [main.py](../backend/app/main.py), [api/deps.py](../backend/app/api/deps.py) |
+| Routes and JSON shapes | [api/routers/](../backend/app/api/routers), [api/schemas.py](../backend/app/api/schemas.py) |
+| Request protection and error responses | [api/middleware.py](../backend/app/api/middleware.py), [core/errors.py](../backend/app/core/errors.py) |
+| Upload and paste to a document | [services/ingest.py](../backend/app/services/ingest.py) |
+| Scans, streaming and supersession | [services/scans.py](../backend/app/services/scans.py) |
+| Review corrections | [services/review.py](../backend/app/services/review.py) |
+| Questions and restored answers | [services/chat.py](../backend/app/services/chat.py), [domain/question.py](../backend/app/domain/question.py) |
+| Chunking, merging, corrections and PDF boxes | [domain/pipeline.py](../backend/app/domain/pipeline.py) |
+| Mubit requests and rewrite alignment | [llm/clients.py](../backend/app/llm/clients.py), [llm/align.py](../backend/app/llm/align.py), [llm/prompts.py](../backend/app/llm/prompts.py) |
+| PDF export | [domain/pdfout.py](../backend/app/domain/pdfout.py) |
+| Encryption, revisions and saved chat | [repositories/](../backend/app/repositories), [db/](../backend/app/db) |
+| Accounts and sessions | [services/auth.py](../backend/app/services/auth.py), [repositories/accounts.py](../backend/app/repositories/accounts.py) |
 | Browser state and streamed results | [App.tsx](../frontend/src/App.tsx), [scan.ts](../frontend/src/scan.ts) |
+
+Settings: `VEIL_DB_POOL_MAX` (database connections per process, default 10),
+`VEIL_SCAN_WORKERS` (scans running at once, default 8; more queue) and
+`VEIL_CHUNK_WORKERS` (T1 calls at once within a scan, default 6).
 
 See the [developer handoff](HANDOFF.md) for full API and OCR details.

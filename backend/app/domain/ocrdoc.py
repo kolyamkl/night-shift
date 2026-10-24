@@ -31,10 +31,10 @@ import pymupdf
 import pypdfium2 as pdfium
 from PIL import ExifTags, Image, ImageOps
 
-from . import ingest
+from .. import ingest
+from ..ingest.extract import page_frames
+from ..ingest.layout import assemble, group_rows
 from .extract import Document, Word, extract_text
-from .ingest.extract import page_frames
-from .ingest.layout import assemble, group_rows
 
 log = logging.getLogger(__name__)
 

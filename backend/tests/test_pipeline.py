@@ -1,5 +1,5 @@
-from app.extract import extract_pdf, extract_text
-from app.pipeline import T1Result, chunk_ranges, rebuild, run_pipeline
+from app.domain.extract import extract_pdf, extract_text
+from app.domain.pipeline import T1Result, chunk_ranges, rebuild, run_pipeline
 
 
 def model_finds(*values):

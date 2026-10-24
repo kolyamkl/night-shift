@@ -38,7 +38,8 @@ administrative access path, not the browser's route to documents.
   `VEIL_STORAGE_KEY` (the same key as `.env.railway`; it must stay paired with this
   database), `MUBIT_API_KEY`, `VEIL_COOKIE_SECURE=true`, `PORT=8000`,
   `RAILWAY_DOCKERFILE_PATH=backend/Dockerfile`. Optional: `VEIL_T1_PROMPT`,
-  `VEIL_T1_MODEL`, `VEIL_T2_MODEL`.
+  `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, and for capacity `VEIL_DB_POOL_MAX`
+  (default 10), `VEIL_SCAN_WORKERS` (default 8) and `VEIL_CHUNK_WORKERS` (default 6).
 - `web`: `BACKEND_URL=http://backend.railway.internal:8000`,
   `RAILWAY_DOCKERFILE_PATH=frontend/Dockerfile`.
 

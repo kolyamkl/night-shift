@@ -1,12 +1,13 @@
 import json
 import re
+from dataclasses import replace
 
 import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 
+from app.domain.pipeline import T1Result
 from app.main import app
-from app.pipeline import T1Result
 
 
 @pytest.fixture
@@ -21,14 +22,14 @@ def client(postgres_store):
         assert "Raj Patel" not in redacted_text and "Jo Smith" not in redacted_text
         return "The tenant is [PERSON_1].", "mreq_answer"
 
-    app.state.t1_factory = t1_factory
-    app.state.t2 = t2
+    app.state.models.t1_factory = t1_factory
+    app.state.models.t2 = t2
     with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as test_client:
         response = test_client.post("/api/auth/register", json={"email": f"api-{postgres_store.test_suffix}@example.test", "password": "test-password"})
         assert response.status_code == 201
         yield test_client
-    app.state.t1_factory = None
-    app.state.t2 = None
+    app.state.models.t1_factory = None
+    app.state.models.t2 = None
 
 
 def test_pasted_text_is_redacted(client):
@@ -123,7 +124,7 @@ def test_manual_corrections_survive_rescan_and_download(client, route, retry, ki
 
 
 def test_health_reports_whether_the_model_is_on(client):
-    app.state.t1_factory = None
+    app.state.models.t1_factory = None
     assert client.get("/api/health").json()["model"] == "off"
 
 
@@ -156,7 +157,7 @@ def test_database_errors_are_sanitized(client, postgres_store, monkeypatch):
     def fail():
         raise psycopg.OperationalError("secret connection string")
 
-    monkeypatch.setattr(postgres_store, "healthy", fail)
+    monkeypatch.setattr(postgres_store.db, "healthy", fail)
     response = client.get("/api/health")
     assert response.status_code == 503
     assert "secret" not in response.text
@@ -164,7 +165,7 @@ def test_database_errors_are_sanitized(client, postgres_store, monkeypatch):
 
 def test_samples_are_listed_and_open_as_documents(client, tenancy_pdf, tmp_path, monkeypatch):
     (tmp_path / "01_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
-    monkeypatch.setenv("VEIL_SAMPLES_DIR", str(tmp_path))
+    monkeypatch.setattr(app.state, "config", replace(app.state.config, samples_dir=tmp_path))
     names = client.get("/api/samples").json()
     assert names == [{"name": "01_tenancy_agreement.pdf", "label": "Tenancy agreement", "title": "Tenancy agreement",
                       "kind": "tenancy_agreement", "pages": 2, "values": None, "types": {}}]
@@ -178,7 +179,7 @@ def test_sample_cards_use_the_gold_file_for_title_and_value_counts(client, tenan
     gold = {"doc_type": "tenancy_agreement", "text": "Periodic Tenancy Agreement\nTenant: Raj Patel",
             "entities": [{"type": "PERSON"}, {"type": "PERSON"}, {"type": "SORT_CODE"}]}
     (tmp_path / "02_tenancy_agreement.gold.json").write_text(json.dumps(gold))
-    monkeypatch.setenv("VEIL_SAMPLES_DIR", str(tmp_path))
+    monkeypatch.setattr(app.state, "config", replace(app.state.config, samples_dir=tmp_path))
     card = client.get("/api/samples").json()[0]
     assert card["title"] == "Periodic Tenancy Agreement"
     assert card["values"] == 3 and card["types"] == {"PERSON": 2, "SORT_CODE": 1}
@@ -186,7 +187,7 @@ def test_sample_cards_use_the_gold_file_for_title_and_value_counts(client, tenan
 
 def test_sample_thumbnail_is_a_small_png_of_page_one(client, tenancy_pdf, tmp_path, monkeypatch):
     (tmp_path / "01_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
-    monkeypatch.setenv("VEIL_SAMPLES_DIR", str(tmp_path))
+    monkeypatch.setattr(app.state, "config", replace(app.state.config, samples_dir=tmp_path))
     png = client.get("/api/samples/01_tenancy_agreement.pdf/thumb.png")
     assert png.headers["content-type"] == "image/png"
     assert pymupdf.Pixmap(png.content).width == 120
@@ -194,7 +195,7 @@ def test_sample_thumbnail_is_a_small_png_of_page_one(client, tenancy_pdf, tmp_pa
 
 
 def test_sample_labels_keep_acronyms_upper_case():
-    from app.main import _label
+    from app.services.samples import label as _label
 
     assert _label("05_nda.pdf") == "NDA"
     assert _label("27_cv.pdf") == "CV"
@@ -203,10 +204,10 @@ def test_sample_labels_keep_acronyms_upper_case():
 
 
 def test_health_names_the_prompt_and_where_the_key_came_from(client, monkeypatch):
-    monkeypatch.setattr(app.state, "key_source", ".env")
-    monkeypatch.setattr(app.state, "t1_prompt", "rewrite")
-    monkeypatch.setattr(app.state, "t1_model", "claude-haiku-4-5")
-    monkeypatch.setattr(app.state, "t2_model", "claude-haiku-4-5")
+    monkeypatch.setattr(app.state.models, "key_source", ".env")
+    monkeypatch.setattr(app.state.models, "t1_prompt", "rewrite")
+    monkeypatch.setattr(app.state.models, "t1_model", "claude-haiku-4-5")
+    monkeypatch.setattr(app.state.models, "t2_model", "claude-haiku-4-5")
     health = client.get("/api/health").json()
     assert health == {"model": "on", "t1_model": "claude-haiku-4-5", "t1_prompt": "rewrite",
                       "t2_model": "claude-haiku-4-5", "key_source": ".env", "database": "postgresql"}
@@ -326,9 +327,9 @@ def test_chat_turns_are_stored_in_order_and_failed_asks_store_nothing(client):
     def broken(question, redacted_text):
         raise RuntimeError("gateway timeout")
 
-    app.state.t2 = broken
+    app.state.models.t2 = broken
     assert client.post(path + "/ask", json={"question": "Lost question?"}).status_code == 502
-    app.state.t2 = None
+    app.state.models.t2 = None
     assert client.post(path + "/ask", json={"question": "Lost question?"}).status_code == 503
     assert client.get(path).json()["turns"] == turns
     assert [d["turns"] for d in client.get("/api/documents").json() if d["doc_id"] == doc["doc_id"]] == [2]
@@ -346,7 +347,7 @@ def test_status_and_turns_survive_app_restart_and_go_with_the_document(client, p
         assert [t["turn_id"] for t in saved["turns"]] == [turn["turn_id"]]
         assert restarted.get("/api/documents").json()[0]["doc_id"] == doc["doc_id"]
         assert restarted.delete(path).status_code == 204
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         assert conn.execute("SELECT count(*) FROM veil_chat_turns WHERE doc_id = %s",
                             (doc["doc_id"],)).fetchone()[0] == 0
     assert client.get("/api/documents").json() == []
@@ -360,7 +361,7 @@ def test_raw_rows_hold_no_readable_filename_question_or_answer(client, postgres_
     client.patch(path, json={"status": "approved"})
     client.post(path + "/ask", json={"question": "Where does Raj Patel bank?"})
     assert client.get("/api/documents").json()[0]["filename"] == secret_name
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         rows = conn.execute("SELECT * FROM veil_documents WHERE doc_id = %s", (doc["doc_id"],)).fetchall()
         rows += conn.execute("SELECT * FROM veil_chat_turns WHERE doc_id = %s", (doc["doc_id"],)).fetchall()
         rows += conn.execute("SELECT * FROM veil_redactions WHERE doc_id = %s", (doc["doc_id"],)).fetchall()
@@ -369,3 +370,44 @@ def test_raw_rows_hold_no_readable_filename_question_or_answer(client, postgres_
         raw = bytes(value) if isinstance(value, (bytes, memoryview)) else str(value).encode()
         for readable in (b"Raj Patel", b"Raj-Patel", b"synthetic-client", b"Where does", b"The tenant is"):
             assert readable not in raw
+
+
+def test_image_sizes_are_bounded(client, tenancy_pdf, tmp_path, monkeypatch):
+    # A huge thumbnail width or page scale would make the server render an enormous image.
+    (tmp_path / "01_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
+    monkeypatch.setattr(app.state, "config", replace(app.state.config, samples_dir=tmp_path))
+    assert client.get("/api/samples/01_tenancy_agreement.pdf/thumb.png?width=100000").status_code == 422
+    assert client.get("/api/samples/01_tenancy_agreement.pdf/thumb.png?width=0").status_code == 422
+    doc = client.post("/api/documents", files={"file": ("lease.pdf", tenancy_pdf, "application/pdf")}).json()
+    assert client.get(f"/api/documents/{doc['doc_id']}/pages/0.png?scale=50").status_code == 422
+    assert client.get(f"/api/documents/{doc['doc_id']}/pages/0.png?scale=0").status_code == 422
+    assert client.get(f"/api/documents/{doc['doc_id']}/pages/0.png?scale=2").status_code == 200
+
+
+def test_a_non_ascii_file_name_downloads(client):
+    doc = client.post("/api/documents", files={"file": ("договір Zoë.txt", b"Jo Smith", "text/plain")}).json()
+    client.post(f"/api/documents/{doc['doc_id']}/redact")
+    out = client.get(f"/api/documents/{doc['doc_id']}/file")
+    assert out.status_code == 200 and out.text == "[PERSON_1]"
+    disposition = out.headers["content-disposition"]
+    assert 'filename="_______ Zo_-redacted.txt"' in disposition
+    assert "filename*=UTF-8''%D0%B4%D0%BE%D0%B3%D0%BE%D0%B2%D1%96%D1%80%20Zo%C3%AB-redacted.txt" in disposition
+
+
+def test_an_upload_over_the_limit_is_refused(client, monkeypatch):
+    monkeypatch.setattr(app.state, "config", replace(app.state.config, max_upload=1024 * 1024))
+    big = client.post("/api/documents", files={"file": ("big.txt", b"a" * (1024 * 1024 + 1), "text/plain")})
+    assert big.status_code == 413 and big.json() == {"detail": "The file is larger than 1 MB."}
+    assert client.post("/api/documents", files={"file": ("ok.txt", b"a" * 1024, "text/plain")}).status_code == 200
+
+
+def test_a_model_error_is_not_echoed_to_the_client(client):
+    doc = client.post("/api/documents", data={"text": "Jo Smith"}).json()
+    client.post(f"/api/documents/{doc['doc_id']}/redact")
+
+    def broken(question, redacted_text):
+        raise RuntimeError("upstream said: Document: [PERSON_1] secret-internal-detail")
+
+    app.state.models.t2 = broken
+    res = client.post(f"/api/documents/{doc['doc_id']}/ask", json={"question": "Who?"})
+    assert res.status_code == 502 and res.json() == {"detail": "The model did not answer. Try again."}

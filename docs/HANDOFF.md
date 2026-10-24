@@ -20,19 +20,19 @@ Current boundary: T1 receives original text with default recording. Review happe
 | Path | Origin | What | State |
 |---|---|---|---|
 | `frontend/` | Dmytro | React 19 + Vite + TS + Tailwind v4 + Motion. `/` = landing (pixel castle scroll story), `/app` = the app | Built, checked in browser desktop + mobile on 24 Oct |
-| `backend/app/main.py` | Dmytro | FastAPI API (section 5) | Working; checked live on 24 Oct (section 11) |
-| `backend/app/auth.py` | Team | Email/password accounts, cookie sessions, authentication throttling | Owner checks used by private API routes |
-| `backend/app/storage.py`, `backend/migrations/` | Team | Encrypted PostgreSQL snapshots, review status, saved chat, revisions and migrations | Persistent storage |
-| `backend/app/question.py` | Team | Known-value and regex filtering of questions; answer text normalization | Used before T2 |
-| `backend/app/extract.py` | Dmytro | PDF via PyMuPDF: text plus every word's box and character range (needed for true redaction) | Working |
-| `backend/app/pipeline.py` | Dmytro | regex + T1 per chunk, merge spans, vault placeholders, boxes per line, `rebuild()` for reviewer fixes | Working |
-| `backend/app/refs.py` | Mykola | Regex rule for client, policy, claim and case references after their label, and meter serials and supply point numbers (MPAN, MPRN) (type `CUSTOM`), part of the regex layer | Working; 85% of `data/docs` CUSTOM values, 96% of the 30 original samples |
-| `backend/app/identifiers.py` | Mykola | Regex rule for IP addresses (`IP_ADDRESS`; an IPv4 address needs "IP" before it or two parts of 2+ digits, so clause numbers stay visible) and UUIDs such as e-signature references (`CUSTOM`) | Working |
-| `backend/app/addresses.py` | Mykola | After merging, widens each ADDRESS span to the flat, building and town next to it, and reads back an address T1 missed from its postcode (towns, then a street with a number, then flats and buildings; company names stop it) | On Haiku's fresh answers: addresses fully hidden 54% → 76%, all values 76% → 86% (with the regex rules), 10 more characters hidden outside the answer key |
-| `backend/app/pdfout.py` | Dmytro | True PDF redaction (`add_redact_annot` + `apply_redactions`) | Working |
-| `backend/app/llm.py` | Dmytro | T1 (two prompts, `VEIL_T1_PROMPT`) and T2 calls through Mubit; key from env, `backend/.env` or root `.env` | Working with a valid key |
+| `backend/app/main.py`, `backend/app/api/`, `backend/app/services/` | Dmytro | FastAPI app factory, routes and services (section 5) | Working; checked live on 24 Oct (section 11) |
+| `backend/app/services/auth.py`, `backend/app/api/routers/auth.py` | Team | Email/password accounts, cookie sessions, authentication throttling | Owner checks used by private API routes |
+| `backend/app/repositories/`, `backend/migrations/` | Team | Encrypted PostgreSQL snapshots, review status, saved chat, revisions and migrations | Persistent storage |
+| `backend/app/domain/question.py` | Team | Known-value and regex filtering of questions; answer text normalization | Used before T2 |
+| `backend/app/domain/extract.py` | Dmytro | PDF via PyMuPDF: text plus every word's box and character range (needed for true redaction) | Working |
+| `backend/app/domain/pipeline.py` | Dmytro | regex + T1 per chunk, merge spans, vault placeholders, boxes per line, `rebuild()` for reviewer fixes | Working |
+| `backend/app/domain/refs.py` | Mykola | Regex rule for client, policy, claim and case references after their label, and meter serials and supply point numbers (MPAN, MPRN) (type `CUSTOM`), part of the regex layer | Working; 85% of `data/docs` CUSTOM values, 96% of the 30 original samples |
+| `backend/app/domain/identifiers.py` | Mykola | Regex rule for IP addresses (`IP_ADDRESS`; an IPv4 address needs "IP" before it or two parts of 2+ digits, so clause numbers stay visible) and UUIDs such as e-signature references (`CUSTOM`) | Working |
+| `backend/app/domain/addresses.py` | Mykola | After merging, widens each ADDRESS span to the flat, building and town next to it, and reads back an address T1 missed from its postcode (towns, then a street with a number, then flats and buildings; company names stop it) | On Haiku's fresh answers: addresses fully hidden 54% → 76%, all values 76% → 86% (with the regex rules), 10 more characters hidden outside the answer key |
+| `backend/app/domain/pdfout.py` | Dmytro | True PDF redaction (`add_redact_annot` + `apply_redactions`) | Working |
+| `backend/app/llm/` | Dmytro | T1 (two prompts, `VEIL_T1_PROMPT`) and T2 calls through Mubit; key from env, `backend/.env` or root `.env` | Working with a valid key |
 | `backend/app/ingest/` | Mykola (PR #9) | Local reading of PDFs and images: pdfium text layer, Apple Vision OCR (macOS), identifier repairs after OCR. See its README | Merged; wired into uploads (section 4) |
-| `backend/app/prompts.py` | Mykola | The app's default T1 prompt (rewrite design, `claude-haiku-4-5`). See section 8 | Default since 24 Oct |
+| `backend/app/llm/prompts.py` | Mykola | The app's default T1 prompt (rewrite design, `claude-haiku-4-5`). See section 8 | Default since 24 Oct |
 | `backend/tests/` | Dmytro | API, extract, llm, ocrdoc, pdfout, pipeline, refs, stream tests | Pass (24 Oct) |
 | `evalkit/` | Dmytro | Optional JSON-list T1 prompt (`evalkit/src/evalkit/prompts.py`), scorer, regex baseline, vault/restore, round builder, Mubit sender, `autosend.sh` | Used by backend (path dependency) |
 | `datagen/` | Dmytro | Synthetic UK documents with gold spans (100k run, seed 42) and demo PDFs | Outputs in `data/synthetic/` (gitignored except `pdfs/`) |
@@ -71,25 +71,25 @@ upload / paste / sample
          chunk text (≤4000 chars for evalkit, ≤1400 for rewrite; paragraph cuts)
          → T1 per chunk in parallel (6 workers); each finished chunk is streamed as it lands
          every value T1 returns is located across the WHOLE document (evalkit.spans.locate)
-         + regex layer (evalkit.regex_baseline + app/refs.py + app/identifiers.py) → merge overlaps
-         → widen addresses (app/addresses.py) → Vault placeholders
+         + regex layer (evalkit.regex_baseline + app/domain/refs.py + app/domain/identifiers.py) → merge overlaps
+         → widen addresses (app/domain/addresses.py) → Vault placeholders
          → boxes: words overlapping a span, one rectangle per line (PDF only)
   └─ review in the UI → POST /corrections {hide|unhide} → pipeline.rebuild (no new T1 calls)
   └─ GET /file → true-redacted PDF (pdfout) or redacted .txt
-  └─ POST /ask → question pseudonymised with a copy of the vault (app/question.py) → T2 gets only
+  └─ POST /ask → question pseudonymised with a copy of the vault (app/domain/question.py) → T2 gets only
      redacted_text and that question → Markdown taken out → evalkit.redact.restore puts values back
 ```
 
-Model calls (both through Mubit, `backend/app/llm.py`):
+Model calls (both through Mubit, `backend/app/llm/`):
 - **T1**, default recording ON (calls can enter review for a Mubit task), session `doc-<doc_id>`. `VEIL_T1_PROMPT` picks the prompt, and each prompt is its own Mubit task:
   - `evalkit`: frozen prompt `evalkit/src/evalkit/prompts.py`, model `VEIL_T1_MODEL` (default `gpt-6-luna`), chunks ≤4000 chars, answer = JSON list of `{text, type}` parsed by `evalkit.send_batch.parse_entities`. Mubit task "Find personal data".
-  - `rewrite` (default): Mykola's `backend/app/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (chosen after early console review experiments; this is not a guaranteed platform limit), each sent stripped of surrounding whitespace as `scripts/dataset/build_chunks.py` made the training chunks. Values with fewer than two letters or digits, and PERSON values that are only a title, are dropped, since every value is hidden everywhere in the document. Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
+  - `rewrite` (default): Mykola's `backend/app/llm/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (chosen after early console review experiments; this is not a guaranteed platform limit), each sent stripped of surrounding whitespace as `scripts/dataset/build_chunks.py` made the training chunks. Values with fewer than two letters or digits, and PERSON values that are only a title, are dropped, since every value is hidden everywhere in the document. Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
 - **T2**: model `VEIL_T2_MODEL` (default `claude-haiku-4-5`), header `x-middleware-record: off` (recording disabled for this request; not a blanket provider-retention guarantee).
 - Key and settings: the first value starting with `mbt_` in `MUBIT_API_KEY`, then `backend/.env`, then the repo-root `.env` (where `scripts/dataset/send_batch.py` reads it too). `VEIL_T1_PROMPT`, `VEIL_T1_MODEL` and `VEIL_T2_MODEL` are looked up the same way (section 5). `/api/health` reports where the key came from (`key_source`), never the key.
 - No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now"). The startup log says which prompt, model and key source are in use.
 
 Storage (updated 24 Oct): documents, source PDFs, layout, pipeline results, vaults,
-and review corrections persist encrypted in PostgreSQL. `backend/app/storage.py`
+and review corrections persist encrypted in PostgreSQL. `backend/app/repositories/`
 replaces the old `DOCS`/`RESULTS` dictionaries. See [DATABASE.md](DATABASE.md) for
 setup, migrations, deletion, tests, and email/password accounts. Routine chunk logs do not include document text; operational error logging still needs review. `/app?doc=<id>` reopens saved work. Since migration 003 the backend
 also stores each document's review status and chat turns (questions and answers
@@ -101,7 +101,7 @@ Per-chunk logs contain only IDs, status, timing, and counts.
 
 ## 4. OCR integration (photos and scans get boxes)
 
-`backend/app/main.py::_ocr()` handles images, and every PDF in which ingest finds a scanned page (`app.ingest.scanned_pages`: no text, or little text over an image covering 40% of the page, such as a scan with a page-number stamp). Other PDFs keep `extract.extract_pdf`. `_ocr()` calls `backend/app/ocrdoc.py::document_from_ocr(data, filename)`, which runs `app.ingest.extract(data)` (Apple Vision OCR, macOS only) and returns a **PDF** document (`kind="pdf"`) with word boxes. Photos and scans then get black boxes in the "Pages" view and a truly redacted PDF download, like text-layer PDFs. Checked by Nick on his Mac with real Vision: three synthetic samples photographed upright, turned 90 degrees and skewed 3 degrees gave exact offsets and full coverage, and re-OCR of the redacted PDFs read no hidden value.
+`backend/app/services/ingest.py::_ocr()` handles images, and every PDF in which ingest finds a scanned page (`app.ingest.scanned_pages`: no text, or little text over an image covering 40% of the page, such as a scan with a page-number stamp). Other PDFs keep `extract.extract_pdf`. `_ocr()` calls `backend/app/domain/ocrdoc.py::document_from_ocr(data, filename)`, which runs `app.ingest.extract(data)` (Apple Vision OCR, macOS only) and returns a **PDF** document (`kind="pdf"`) with word boxes. Photos and scans then get black boxes in the "Pages" view and a truly redacted PDF download, like text-layer PDFs. Checked by Nick on his Mac with real Vision: three synthetic samples photographed upright, turned 90 degrees and skewed 3 degrees gave exact offsets and full coverage, and re-OCR of the redacted PDFs read no hidden value.
 
 - **Images** (jpg, png, heic, tiff, webp) become a PDF with PyMuPDF: one page per image or TIFF frame that ingest read. An iPhone MPO JPEG is one page: its later frames are a depth map or a preview (`ingest.extract.page_frames`). EXIF orientation is applied and transparency goes on white, as ingest does before OCR, so pixels and boxes agree.
   - Every image is encoded again (JPEG q92 for photos, PNG otherwise) with no metadata, so EXIF (GPS, device, owner), XMP and PNG text never reach the PDF.
@@ -123,7 +123,7 @@ Known limits:
 - Pages with /Rotate 90 or 270 (scans, and text-layer PDFs before this change): the boxes are right in the downloaded PDF, but the review overlay draws them over the page as shown, so they look misplaced there.
 - A redacted photo still grows (1.5 MB in, 3.9 MB out) because MuPDF stores a changed image losslessly.
 
-## 5. API (FastAPI, `backend/app/main.py`)
+## 5. API (FastAPI, `backend/app/api/routers/`)
 
 | Method | Path | Does |
 |---|---|---|
@@ -237,7 +237,7 @@ an old total as a current guarantee.
 
 ## 8. Open conflicts to resolve (team decision, do not pick silently)
 
-1. **Two T1 designs.** The default app request is `rewrite`: `backend/app/prompts.py`,
+1. **Two T1 designs.** The default app request is `rewrite`: `backend/app/llm/prompts.py`,
    `claude-haiku-4-5`, placeholder rewrite output, matching `scripts/dataset/send_batch.py`.
    The optional `evalkit` design uses its frozen JSON entity-list prompt and defaults
    to `gpt-6-luna`. They are separate task designs; do not merge their training counts.

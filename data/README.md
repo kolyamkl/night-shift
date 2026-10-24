@@ -36,7 +36,7 @@ Evaluation data stays separate from training traffic.
 | `data/fixtures/` | Tiny hand-made documents and fake teacher answers for the tests | `data/fixtures/make_fixtures.py` |
 | `data/raw/` | Raw downloads. Git-ignored: never commit files with real people's data | by hand |
 
-The T1 system prompt, model and prompt version live in `backend/app/prompts.py`.
+The T1 system prompt, model and prompt version live in `backend/app/llm/prompts.py`.
 
 ## Documents schema (`data/docs/<group>.jsonl`)
 
@@ -136,7 +136,7 @@ training status.
    unlabelled phone number, IBAN, postcode and so on.
 4. `python scripts/dataset/build_chunks.py`. Check the summary against the
    targets: about 225 documents; train 300 to 500 chunks, fresh about 200, eval about 150.
-5. Nick reviews `backend/app/prompts.py`. After the next step it is frozen: any
+5. Nick reviews `backend/app/llm/prompts.py`. After the next step it is frozen: any
    change to the prompt, model or request shape makes a new Mubit task.
 6. Copy `.env.example` to `.env` (git-ignored) and put the Mubit Inference key in
    `MUBIT_API_KEY`; the sender reads it when the variable is not set in the shell.

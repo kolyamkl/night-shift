@@ -6,9 +6,10 @@ from pathlib import Path
 import httpx2
 import pytest
 
-from app import llm, prompts
-from app.extract import extract_text
-from app.pipeline import run_pipeline
+from app import llm
+from app.domain.extract import extract_text
+from app.domain.pipeline import run_pipeline
+from app.llm import clients, prompts
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -197,7 +198,7 @@ def test_an_answer_that_does_not_line_up_is_unreadable():
 
 def test_busy_answers_are_retried_after_retry_after(monkeypatch):
     waits = []
-    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    monkeypatch.setattr(clients.time, "sleep", waits.append)
     busy = httpx2.Response(429, json={"type": "error", "error": {"type": "rate_limit_error", "message": "busy"}},
                            headers={"retry-after": "3"})
     fake = FakeMubit(busy, ok("Tenant: [PERSON_1]."))

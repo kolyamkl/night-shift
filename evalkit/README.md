@@ -6,7 +6,7 @@ Small toolkit for Veil's redaction task T1: the frozen prompt, placeholder redac
 
 The app imports the vault, matching and regex helpers from this package. Its
 optional `VEIL_T1_PROMPT=evalkit` mode uses the JSON-list prompt here; the default
-app detector uses the rewrite prompt in `backend/app/prompts.py`. These can be
+app detector uses the rewrite prompt in `backend/app/llm/prompts.py`. These can be
 different Mubit tasks. Do not assume a successful historical evalkit training
 run is the adapter serving the current rewrite task.
 

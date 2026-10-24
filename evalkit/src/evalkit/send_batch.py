@@ -5,7 +5,7 @@ Two designs can be sent, so the team can compare them on the same chunks:
   --design list     our T1: "Find personal data in one document chunk." -> JSON list of values
                     (evalkit/src/evalkit/prompts.py)
   --design rewrite  the teammates' T1: "Redact personal data in one document chunk." -> the chunk
-                    rewritten with [TYPE_N] placeholders (backend/app/prompts.py, loaded live)
+                    rewritten with [TYPE_N] placeholders (backend/app/llm/prompts.py, loaded live)
 Provider comes from the model name: gpt-* via OpenAI, claude-* via Anthropic, gemini-* via Gemini's
 native route (the only Gemini route on the starter credit).
 
@@ -41,8 +41,8 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 def rewrite_prompt() -> tuple[str, int]:
-    """The teammates' prompt, read from backend/app/prompts.py so edits there are picked up."""
-    path = REPO / "backend" / "app" / "prompts.py"
+    """The teammates' prompt, read from backend/app/llm/prompts.py so edits there are picked up."""
+    path = REPO / "backend" / "app" / "llm" / "prompts.py"
     spec = importlib.util.spec_from_file_location("team_prompts", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

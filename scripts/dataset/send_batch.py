@@ -42,7 +42,7 @@ from pathlib import Path
 from dataset_common import CHUNKS_DIR, REPO_ROOT, RESULTS_DIR, SPLITS, estimate_tokens, read_jsonl
 
 sys.path.insert(0, str(REPO_ROOT / "backend"))
-from app import prompts  # noqa: E402
+from app.llm import prompts  # noqa: E402
 
 MUBIT_BASE_URL = "https://api.mubit.ai/anthropic"
 MAX_TOKENS = 2048

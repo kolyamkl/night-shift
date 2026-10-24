@@ -6,7 +6,7 @@ from conftest import make_doc
 
 import build_chunks
 import send_batch
-from app import prompts
+from app.llm import prompts
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 import pytest
 
-from app import identifiers
-from app.extract import extract_text
-from app.pipeline import run_pipeline
+from app.domain import identifiers
+from app.domain.extract import extract_text
+from app.domain.pipeline import run_pipeline
 
 
 def found(text: str) -> list[tuple[str, str]]:

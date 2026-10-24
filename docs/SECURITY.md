@@ -49,15 +49,15 @@ encryption against the server operator.
 
 | Control | Behavior and evidence |
 | --- | --- |
-| Account isolation | Every document operation checks the signed-in owner; foreign documents return 404. [API](../backend/app/main.py) |
-| Password storage | Argon2id hashes; passwords are not stored in plaintext. [Auth](../backend/app/auth.py) |
-| Login sessions | Random token in HttpOnly, SameSite=Lax cookie; only its SHA-256 hash is stored. Seven-day expiry and server-side logout revocation. Secure cookie on HTTPS or with `VEIL_COOKIE_SECURE=true`. [Auth](../backend/app/auth.py) |
-| Request protection | Mutating API requests require `X-Veil-Request: 1`; CORS is restricted to configured origins. Auth/document responses use `Cache-Control: no-store`. [Middleware](../backend/app/main.py) |
-| Login throttling | Login and registration share a 30-attempt/minute bucket per client address. This is not an inference quota. [Auth](../backend/app/auth.py) |
-| Encrypted storage | Fernet encrypts document payloads, results, vaults, summaries and chat. Payload identity includes document ID and kind; a key probe rejects the wrong database/key pair. [Storage](../backend/app/storage.py) |
-| Correction persistence | Manual hides and unhides survive retries/rescans; stale writes cannot overwrite a newer result. [Pipeline](../backend/app/pipeline.py) |
-| Question protection | Known values and selected name parts plus regex-detected identifiers become placeholders using a vault copy. [Question processing](../backend/app/question.py) |
-| PDF redaction | Covered text/image pixels are removed, then selected document/image metadata and attachments are stripped. [PDF export](../backend/app/pdfout.py) |
+| Account isolation | Every document operation checks the signed-in owner; foreign documents return 404. [API](../backend/app/services/documents.py) |
+| Password storage | Argon2id hashes; passwords are not stored in plaintext. [Auth](../backend/app/services/auth.py) |
+| Login sessions | Random token in HttpOnly, SameSite=Lax cookie; only its SHA-256 hash is stored. Seven-day expiry and server-side logout revocation. Secure cookie on HTTPS or with `VEIL_COOKIE_SECURE=true`. [Auth](../backend/app/services/auth.py) |
+| Request protection | Mutating API requests require `X-Veil-Request: 1`; CORS is restricted to configured origins. Auth/document responses use `Cache-Control: no-store`. [Middleware](../backend/app/api/middleware.py) |
+| Login throttling | Login and registration share a 30-attempt/minute bucket per client address. This is not an inference quota. [Auth](../backend/app/services/auth.py) |
+| Encrypted storage | Fernet encrypts document payloads, results, vaults, summaries and chat. Payload identity includes document ID and kind; a key probe rejects the wrong database/key pair. [Storage](../backend/app/repositories/documents.py) |
+| Correction persistence | Manual hides and unhides survive retries/rescans; stale writes cannot overwrite a newer result. [Pipeline](../backend/app/domain/pipeline.py) |
+| Question protection | Known values and selected name parts plus regex-detected identifiers become placeholders using a vault copy. [Question processing](../backend/app/domain/question.py) |
+| PDF redaction | Covered text/image pixels are removed, then selected document/image metadata and attachments are stripped. [PDF export](../backend/app/domain/pdfout.py) |
 
 Routine chunk logs contain document/request IDs, status, counts and timing, not
 chunk text. This is not a guarantee that every third-party error or operational

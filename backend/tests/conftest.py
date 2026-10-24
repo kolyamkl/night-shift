@@ -4,26 +4,31 @@ import uuid
 import pymupdf
 import pytest
 
-from app.storage import MissingDocument, PostgresStore
+from app.db.database import Database
+from app.repositories import Storage
+from app.repositories.documents import DocumentRepository
+
+TEST_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+
+def storage_key() -> str:
+    return os.environ.get("VEIL_STORAGE_KEY") or TEST_KEY
 
 
 @pytest.fixture
 def postgres_store(monkeypatch):
-    """Integration tests use only an explicitly configured, separate database."""
+    """Integration tests use only an explicitly configured, separate database. The fixture is the app's
+    Storage, whose document calls default to a fresh test owner."""
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
         pytest.skip("Set TEST_DATABASE_URL to run PostgreSQL/API integration tests.")
     if url == os.environ.get("DATABASE_URL"):
         pytest.fail("TEST_DATABASE_URL must be separate from DATABASE_URL")
     # The test database persists between runs, so its test key must be stable too.
-    key = os.environ.get("VEIL_STORAGE_KEY") or "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
     suffix = uuid.uuid4().hex
     owner_id = uuid.uuid4().hex
 
-    class TestStore(PostgresStore):
-        test_suffix = suffix
-        test_owner = owner_id
-
+    class TestDocuments(DocumentRepository):
         def create(self, doc, *, owner_id=owner_id):
             return super().create(doc, owner_id=owner_id)
 
@@ -36,16 +41,24 @@ def postgres_store(monkeypatch):
         def delete(self, doc_id, *, owner_id=owner_id):
             return super().delete(doc_id, owner_id=owner_id)
 
-    store = TestStore(url, key)
-    store.initialize()
-    with store.connect() as conn:
+    class TestStorage(Storage):
+        test_suffix = suffix
+        test_owner = owner_id
+
+        def __init__(self, db):
+            super().__init__(db)
+            self.documents = TestDocuments(db)
+
+    store = TestStorage(Database(url, storage_key()))
+    store.db.migrate()
+    with store.db.connect() as conn:
         conn.execute("INSERT INTO veil_users (user_id, email, password_hash) VALUES (%s, %s, %s)",
                      (owner_id, f"storage-{suffix}@example.test", "unused-test-hash"))
-    monkeypatch.setattr(PostgresStore, "from_env", classmethod(lambda cls: store))
+    monkeypatch.setattr(Storage, "from_env", classmethod(lambda cls: store))
     yield store
-    with store.connect() as conn:
+    with store.db.connect() as conn:
         conn.execute("DELETE FROM veil_users WHERE email LIKE %s", (f"%-{suffix}@example.test",))
-
+    store.db.close()
 
 
 def make_pdf(lines_per_page: list[list[str]]) -> bytes:

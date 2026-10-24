@@ -17,7 +17,7 @@ from pathlib import Path
 import pymupdf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
-from app.extract import extract_pdf  # noqa: E402
+from app.domain.extract import extract_pdf  # noqa: E402
 from evalkit.spans import locate  # noqa: E402
 
 OUT = Path(sys.argv[1])

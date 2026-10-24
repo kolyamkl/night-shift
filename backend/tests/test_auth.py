@@ -1,21 +1,23 @@
 import uuid
+from dataclasses import replace
 
 import pytest
 from argon2 import PasswordHasher
 from fastapi.testclient import TestClient
 
-from app.auth import COOKIE, token_hash
+from app.api.deps import COOKIE
 from app.main import app
+from app.repositories.accounts import token_hash
 
 
 @pytest.fixture
 def browser(postgres_store, monkeypatch):
-    monkeypatch.setattr(app.state, "t1_factory", None)
-    monkeypatch.setattr(app.state, "t2", None)
+    monkeypatch.setattr(app.state.models, "t1_factory", None)
+    monkeypatch.setattr(app.state.models, "t2", None)
     with TestClient(app, headers={"X-Veil-Request": "1"},
                     client=(postgres_store.test_suffix, 50000)) as client:
         yield client
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         conn.execute("DELETE FROM veil_auth_limits WHERE bucket = %s", (token_hash(postgres_store.test_suffix),))
 
 
@@ -33,7 +35,7 @@ def test_register_login_logout_and_password_hash(browser, postgres_store):
     cookie = registered.headers["set-cookie"]
     assert "HttpOnly" in cookie and "SameSite=lax" in cookie and "Max-Age=604800" in cookie
     token = browser.cookies.get(COOKIE)
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         stored = conn.execute("SELECT password_hash FROM veil_users WHERE user_id = %s", (user["id"],)).fetchone()[0]
         assert stored != body["password"] and PasswordHasher().verify(stored, body["password"])
         hashed = conn.execute("SELECT token_hash FROM veil_sessions WHERE user_id = %s", (user["id"],)).fetchone()[0]
@@ -61,7 +63,7 @@ def test_duplicate_email_normalization_and_wrong_password(browser, postgres_stor
 
 
 def test_expiry_and_secure_cookie(browser, postgres_store, monkeypatch):
-    monkeypatch.setenv("VEIL_COOKIE_SECURE", "true")
+    monkeypatch.setattr(app.state, "config", replace(app.state.config, cookie_secure=True))
     response = browser.post("/api/auth/register", json=credentials(postgres_store))
     assert "Secure" in response.headers["set-cookie"]
     # Secure cookies are not sent over HTTP. Expiry is also enforced server side.
@@ -70,7 +72,7 @@ def test_expiry_and_secure_cookie(browser, postgres_store, monkeypatch):
     browser.cookies.clear()
     browser.cookies.set(COOKIE, token)
     assert browser.get("/api/auth/me").status_code == 200
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         conn.execute("UPDATE veil_sessions SET expires_at = now() - interval '1 second' WHERE token_hash = %s",
                      (token_hash(token),))
     assert browser.get("/api/auth/me").status_code == 401
@@ -128,12 +130,12 @@ def test_csrf_validation_and_throttle(browser, postgres_store):
     assert browser.post("/api/auth/register", json={**body, "email": "not-an-email"}).status_code == 422
     assert browser.options("/api/auth/login", headers={"Origin": "https://evil.example",
         "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "X-Veil-Request"}).status_code == 400
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         conn.execute("INSERT INTO veil_auth_limits (bucket, attempts, reset_at) VALUES (%s, 30, now() + interval '1 minute')",
                      (token_hash(postgres_store.test_suffix),))
     limited = browser.post("/api/auth/register", json=body)
     assert limited.status_code == 429 and limited.headers["retry-after"] == "60"
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         conn.execute("UPDATE veil_auth_limits SET reset_at = now() - interval '1 second' WHERE bucket = %s",
                      (token_hash(postgres_store.test_suffix),))
     assert browser.post("/api/auth/register", json=body).status_code == 201
@@ -142,12 +144,12 @@ def test_csrf_validation_and_throttle(browser, postgres_store):
 def test_ownerless_legacy_documents_stay_private(browser, postgres_store):
     # Simulate a document saved before accounts existed, without deleting it.
     doc_id = uuid.uuid4().hex
-    with postgres_store.connect() as conn:
+    with postgres_store.db.connect() as conn:
         conn.execute("INSERT INTO veil_documents (doc_id, payload) VALUES (%s, %s)", (doc_id, b"legacy"))
     try:
         browser.post("/api/auth/register", json=credentials(postgres_store))
         assert browser.get(f"/api/documents/{doc_id}").status_code == 404
         assert browser.delete(f"/api/documents/{doc_id}").status_code == 404
     finally:
-        with postgres_store.connect() as conn:
+        with postgres_store.db.connect() as conn:
             conn.execute("DELETE FROM veil_documents WHERE doc_id = %s", (doc_id,))

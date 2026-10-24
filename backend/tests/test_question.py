@@ -2,9 +2,9 @@ import pytest
 from evalkit.redact import Vault, restore
 from fastapi.testclient import TestClient
 
+from app.domain.pipeline import T1Result
+from app.domain.question import plain, pseudonymise
 from app.main import app
-from app.pipeline import T1Result
-from app.question import plain, pseudonymise
 
 
 @pytest.fixture
@@ -71,13 +71,13 @@ def client(postgres_store):
         seen.append((question, redacted_text))
         return "**[PERSON_1]** can leave with two months' notice.", "mreq_answer"
 
-    app.state.t1_factory, app.state.t2 = t1_factory, t2
+    app.state.models.t1_factory, app.state.models.t2 = t1_factory, t2
     with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as test_client:
         assert test_client.post("/api/auth/register", json={
             "email": f"q-{postgres_store.test_suffix}@example.test", "password": "test-password"}).status_code == 201
         test_client.seen = seen
         yield test_client
-    app.state.t1_factory = app.state.t2 = None
+    app.state.models.t1_factory = app.state.models.t2 = None
 
 
 def test_the_ai_never_sees_a_name_typed_in_the_question(client):
