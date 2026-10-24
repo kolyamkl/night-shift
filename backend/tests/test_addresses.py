@@ -15,9 +15,9 @@ def widened(text: str, *parts: tuple[str, str]) -> list[tuple[str, str]]:
 
 
 def test_flat_building_and_town_join_the_street_the_model_hid():
-    text = "Relating to: Flat 3306, Amory Tower, 203 Marsh Wall, London, E14 9SE"
-    assert widened(text, ("203 Marsh Wall", "ADDRESS"), ("E14 9SE", "POSTCODE")) == [
-        ("Flat 3306, Amory Tower, 203 Marsh Wall, London", "ADDRESS"), ("E14 9SE", "POSTCODE")]
+    text = "Relating to: Flat 2714, Halcyon Tower, 88 Larkspur Quay, London, E14 6XQ"
+    assert widened(text, ("88 Larkspur Quay", "ADDRESS"), ("E14 6XQ", "POSTCODE")) == [
+        ("Flat 2714, Halcyon Tower, 88 Larkspur Quay, London", "ADDRESS"), ("E14 6XQ", "POSTCODE")]
 
 
 def test_an_address_over_several_lines_is_taken_in_whole():
@@ -52,6 +52,6 @@ def test_a_postcode_without_a_street_before_it_hides_only_the_postcode():
 
 
 def test_the_pipeline_widens_the_model_address():
-    doc = extract_text("Relating to: Flat 3306, Amory Tower, 203 Marsh Wall, London, E14 9SE")
-    res = run_pipeline(doc, t1=lambda chunk: T1Result([{"text": "203 Marsh Wall", "type": "ADDRESS"}], "mreq_1", None))
+    doc = extract_text("Relating to: Flat 2714, Halcyon Tower, 88 Larkspur Quay, London, E14 6XQ")
+    res = run_pipeline(doc, t1=lambda chunk: T1Result([{"text": "88 Larkspur Quay", "type": "ADDRESS"}], "mreq_1", None))
     assert res.redacted_text == "Relating to: [ADDRESS_1], [POSTCODE_1]"

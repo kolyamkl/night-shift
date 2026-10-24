@@ -1,8 +1,8 @@
 """IP addresses and UUIDs for the regex layer.
 
-An IP address in a contract or a log ("Logged IP Address: 64.137.54.89") points to a person's device,
+An IP address in a contract or a log ("Logged IP Address: 198.51.100.23") points to a person's device,
 so UK GDPR counts it as personal data, and T1's prompt does not name it. E-signature services stamp
-each signature with a UUID ("Signature Reference: 1BA790A7-C543-4DED-8A6B-1782F7D6FDE0") that leads
+each signature with a UUID ("Signature Reference: 08F242F3-AAAD-4631-915F-D28E74946264") that leads
 back to the signer's record. Both have a fixed shape, so a regex finds them better than a model.
 
 Four-part clause numbers ("4.2.1.3") look like IPv4 addresses, so an IPv4 address needs "IP" just
