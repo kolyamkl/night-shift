@@ -88,7 +88,9 @@ Storage (updated 24 Oct): documents, source PDFs, layout, pipeline results, vaul
 and review corrections persist encrypted in PostgreSQL. `backend/app/storage.py`
 replaces the old `DOCS`/`RESULTS` dictionaries. See [DATABASE.md](DATABASE.md) for
 setup, migrations, deletion, tests, and email/password accounts. Document text
-is never logged. `/app?doc=<id>` reopens saved work and requires UI review again.
+is never logged. `/app?doc=<id>` reopens saved work. Since migration 003 the backend
+also stores each document's review status and chat turns (questions and answers
+encrypted) and lists a user's documents (`GET /api/documents`, section 5).
 Registration/login need no email verification. Every document route is scoped
 to its signed-in owner. Legacy ownerless records remain private and require
 explicit administrative assignment; registration does not claim them.
@@ -128,17 +130,27 @@ Known limits:
 | GET | `/api/auth/me` | current `{id, email}` or 401 |
 | POST | `/api/auth/logout` | revokes the current session |
 | POST | `/api/documents` | form `text` or `file` (≤20 MB) → `{doc_id, kind, filename, text, pages}` |
-| GET | `/api/documents/{id}` | saved `{document, result, revision}` |
-| DELETE | `/api/documents/{id}` | deletes the document and result; returns 204 |
+| GET | `/api/documents` | the caller's documents for the sidebar, last updated first, at most 200, no text (contract below) |
+| GET | `/api/documents/{id}` | saved `{document, result, revision, status, turns}` |
+| PATCH | `/api/documents/{id}` | `{status: review/approved/declined}` → `{doc_id, status}` |
+| DELETE | `/api/documents/{id}` | deletes the document, result and chat turns; returns 204 |
 | POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}`; each chunk is `{index, chunk_id, start, end, status, error, mreq_id, latency_ms, found}`. Optional `?retry=failed` (below) |
 | POST | `/api/documents/{id}/redact/stream` | the same run as server-sent events (contract below). Optional `?retry=failed` |
 | GET | `/api/documents/{id}/pages/{n}.png` | page image (PDF only) |
 | GET | `/api/documents/{id}/file` | redacted PDF or text download |
-| POST | `/api/documents/{id}/ask` | `{question}` → `{answer, answer_with_placeholders, sent_text, unknown_placeholders, mreq_id}` |
+| POST | `/api/documents/{id}/ask` | `{question}` → `{answer, answer_with_placeholders, sent_text, unknown_placeholders, mreq_id, turn_id, created_at}`; the turn is stored |
 | POST | `/api/documents/{id}/corrections` | `{action: hide/unhide, text, type}` → new result |
 | GET | `/api/samples` | sample cards from `data/synthetic/pdfs` (title, kind, pages, value counts from gold) |
 | GET | `/api/samples/{name}/thumb.png` | thumbnail (width 120, darkened) |
 | POST | `/api/samples/{name}` | opens a sample as a document |
+
+Saved documents, review status and chat (fixed: the frontend builds against it; additions only):
+- `GET /api/documents` → `[{doc_id, filename, kind: "pdf"/"text", pages, status, created_at, updated_at, has_result, changes, turns}]`. Only the caller's documents, `updated_at` newest first, at most 200. `pages` is 0 for text. `changes` is the number of hidden spans in the latest result (the length of `entities`), `null` without a result. `turns` is the number of stored chat turns. No document text.
+- Times are ISO 8601 UTC with milliseconds, as JavaScript's `toISOString` gives: `2026-10-24T17:36:24.912Z`.
+- `status` is `new`, `review`, `approved` or `declined`. Upload and sample give `new`. A saved scan (`/redact`, or `done` of `/redact/stream`) turns `new` into `review` and leaves `approved` and `declined` alone, since editing after approve is allowed. `PATCH /api/documents/{id}` `{status}` sets `review`, `approved` or `declined` (anything else is 422; an unknown or foreign document is 404).
+- `GET /api/documents/{id}` adds `status` and `turns: [{turn_id, created_at, question, answer, answer_with_placeholders, unknown_placeholders, mreq_id}]`, oldest first.
+- `POST /ask` stores the turn, encrypted, before it answers, and adds `turn_id` and `created_at`. A failed ask (409 not scanned, 502 model error, 503 model off) stores nothing. `sent_text` is not stored.
+- `updated_at` moves on upload, scan, correction, a status change and a stored chat turn, so the sidebar order follows activity.
 
 Env: `DATABASE_URL`, `VEIL_STORAGE_KEY` (required), `MUBIT_API_KEY` (or `backend/.env`), `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`. Load root configuration with `uv run --env-file ../.env` from `backend/`.
 

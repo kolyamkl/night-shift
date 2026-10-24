@@ -226,11 +226,27 @@ def health() -> dict:
             "key_source": app.state.key_source if on else None, "database": "postgresql"}
 
 
+@app.get("/api/documents")
+def list_documents(user: User) -> list[dict]:
+    """The caller's documents, last updated first, at most 200; summaries only, no document text."""
+    return app.state.store.list_documents(owner_id=user["id"])
+
+
 @app.get("/api/documents/{doc_id}")
 def read_document(doc_id: str, user: User) -> dict:
     saved = app.state.store.get(doc_id, owner_id=user["id"])
     return {"document": _doc_payload(saved.document), "revision": saved.revision,
-            "result": _result_payload(saved.document, saved.result) if saved.result else None}
+            "result": _result_payload(saved.document, saved.result) if saved.result else None,
+            "status": saved.status, "turns": app.state.store.turns(doc_id, owner_id=user["id"])}
+
+
+class StatusChange(BaseModel):
+    status: Literal["review", "approved", "declined"]
+
+
+@app.patch("/api/documents/{doc_id}")
+def change_status(doc_id: str, body: StatusChange, user: User) -> dict:
+    return {"doc_id": doc_id, "status": app.state.store.set_status(doc_id, body.status, owner_id=user["id"])}
 
 
 @app.delete("/api/documents/{doc_id}", status_code=204)
@@ -393,8 +409,11 @@ def ask(doc_id: str, body: Ask, user: User) -> dict:
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"The model did not answer: {exc}") from None
     answer, unknown = restore(raw, res.vault)
-    return {"answer": answer, "answer_with_placeholders": raw, "sent_text": res.redacted_text,
+    turn = {"question": body.question, "answer": answer, "answer_with_placeholders": raw,
             "unknown_placeholders": unknown, "mreq_id": mreq}
+    turn_id, created_at = app.state.store.add_turn(doc_id, turn, owner_id=user["id"])
+    return {"answer": answer, "answer_with_placeholders": raw, "sent_text": res.redacted_text,
+            "unknown_placeholders": unknown, "mreq_id": mreq, "turn_id": turn_id, "created_at": created_at}
 
 
 class Correction(BaseModel):
