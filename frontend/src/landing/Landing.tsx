@@ -25,12 +25,12 @@ function TopBar() {
     <header className={`topbar sticky top-0 z-40 ${solid ? "is-solid" : ""}`}>
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-8">
         <a href="/" className="font-pixel text-[30px] leading-none font-bold">MuGuard</a>
-        <nav className="ml-auto hidden items-center gap-6 sm:flex" aria-label="Page sections">
+        <nav className="ml-auto hidden items-center gap-8 sm:flex" aria-label="Page sections">
           <a href="#journey" className="topbar-link">How it works</a>
           <a href="#learns" className="topbar-link">Learning</a>
           <a href="#numbers" className="topbar-link">Numbers</a>
         </nav>
-        <LinkButton href="/app" variant="primary" size="sm" iconRight="right" className="ml-auto sm:ml-0">
+        <LinkButton href="/app" variant="primary" size="sm" iconRight="right" className="ml-auto sm:ml-0 sm:px-btn-md">
           Protect a document
         </LinkButton>
       </div>

@@ -81,11 +81,13 @@ function Scene({ p, still, scale, width, pan, camX }: {
 
 function Bar({ wipe, tag, children }: { wipe: MotionValue<number>; tag: string; children: string }) {
   const tagOpacity = useTransform(wipe, [0.85, 1], [0, 1]);
+  // The bar is at least as wide as its placeholder, so a short value with a long tag ("20-45-77", SORT_CODE_1) is fully covered.
+  const width = `max(100% + 4px, ${tag.length * 6.6 + 10}px)`;
   return (
     <span className="relative inline-block font-semibold text-signal-deep">
       {children}
-      <motion.span className="absolute -inset-x-0.5 -inset-y-0.5 origin-left bg-ink" style={{ scaleX: wipe }} />
-      <motion.span className="absolute inset-0 flex items-center px-1 font-label text-[9px] leading-none text-signal-soft" style={{ opacity: tagOpacity }}>
+      <motion.span className="absolute -inset-y-0.5 -left-0.5 origin-left bg-ink" style={{ scaleX: wipe, width: `calc(${width})` }} />
+      <motion.span className="absolute inset-y-0 left-0 flex items-center px-1 font-label text-[9px] leading-none whitespace-nowrap text-signal-soft" style={{ opacity: tagOpacity, width: `calc(${width} - 4px)` }}>
         {tag}
       </motion.span>
     </span>

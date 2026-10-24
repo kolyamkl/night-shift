@@ -18,7 +18,7 @@
   border-bottom-color: var(--color-ink);
 }
 .topbar-link {
-  font: 400 11px/1 var(--font-label);
+  font: 400 13px/1 var(--font-label);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 6px 2px;
@@ -187,6 +187,11 @@
 }
 
 @media (min-width: 640px) {
+  .sm\:px-btn-md {
+    font-size: 16px;
+    padding: 9px 16px;
+    gap: 10px;
+  }
   .sm\:px-btn-xl {
     font-size: 26px;
     padding: 18px 30px;
