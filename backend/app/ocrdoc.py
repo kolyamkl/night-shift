@@ -12,7 +12,8 @@ pdfium renders them, with /Rotate and the CropBox applied), turned counterclockw
 Page.rotation degrees with the canvas grown to fit (PIL rotate with expand=True). Page.rotation
 covers both a deskew of a few degrees and a page read on its side or upside down (90, 180, 270).
 Word.bbox is in PDF points in PyMuPDF's unrotated page frame, the frame page.get_text("words") and
-add_redact_annot use, as in extract.py.
+add_redact_annot use, as in extract.py. Text-layer pages of a mixed PDF (some pages scanned) have
+boxes in another frame; see _from_text_layer.
 """
 
 from __future__ import annotations
@@ -27,17 +28,21 @@ from difflib import SequenceMatcher
 from itertools import accumulate
 
 import pymupdf
-from PIL import ExifTags, Image, ImageOps, ImageSequence
+import pypdfium2 as pdfium
+from PIL import ExifTags, Image, ImageOps
 
 from . import ingest
 from .extract import Document, Word, extract_text
+from .ingest.extract import page_frames
 from .ingest.layout import assemble, group_rows
 
 log = logging.getLogger(__name__)
 
 PAD_CHARS = 1.5  # word boxes grow by this many average character widths each side, within the line box
-MAX_PAGE_SIDE = 14400.0  # points (200 inches): the largest page PDF readers accept
-LOSSY = {"JPEG", "MPO", "HEIF", "HEIC", "AVIF", "WEBP"}  # re-encoded as JPEG; anything else as PNG
+PHOTO_SIDE = 842.0  # points (A4's long side): the page size of a photo, whose dpi says nothing about paper
+MAX_SCAN_SIDE = 1200.0  # points; a page longer than this at the image's dpi is a photo, not a scan
+MAX_PIXELS = 3000  # long side of the stored image; OCR has already read the full-size one
+LOSSY = {"JPEG", "MPO", "HEIF", "HEIC", "AVIF", "WEBP"}  # stored as JPEG; anything else as PNG
 
 # Helvetica advance widths (1/1000 em) for ASCII 32 to 126. A word's place in its line is estimated
 # twice, from these widths and from plain character counts, and its box covers both: on test renders
@@ -65,7 +70,7 @@ def document_from_ocr(data: bytes, filename: str) -> Document:
     try:
         source = _image_pdf(data, len(ocr.pages)) if ocr.kind == "image" else _first_pages(data, len(ocr.pages))
         pdf = pymupdf.open(stream=source, filetype="pdf")
-        words, missed, total = _words(ocr, pdf)
+        words, missed, total = _words(ocr, pdf, source)
     except Exception as exc:  # noqa: BLE001 - fall back to text only, as before boxes existed
         log.warning("OCR boxes failed (%s); this document is kept as text only", type(exc).__name__)
         return extract_text(ocr.text, filename)
@@ -76,18 +81,22 @@ def document_from_ocr(data: bytes, filename: str) -> Document:
     return replace(extract_text(ocr.text, filename), kind="pdf", words=words, pages=pages, source=source)
 
 
-def _words(ocr: ingest.ExtractedDocument, pdf: pymupdf.Document) -> tuple[list[Word], int, int]:
+def _words(ocr: ingest.ExtractedDocument, pdf: pymupdf.Document, source: bytes) -> tuple[list[Word], int, int]:
     """Words of every page with offsets into ocr.text and boxes on the PDF page, plus how many OCR
     lines were missed and how many there were."""
     words: list[Word] = []
     missed = total = 0
     start = 0  # where this page's text begins in ocr.text: pages with text are joined by a blank line
+    pdfium_doc = pdfium.PdfDocument(source) if any(p.source == "text_layer" for p in ocr.pages) else None
     for page in ocr.pages:
         if not page.text:
             continue
         pno = page.number - 1
         pdf_page = pdf[pno]
-        point = _to_pdf(pdf_page, page.rotation)
+        if page.source == "text_layer":
+            point = _from_text_layer(pdfium_doc[pno])
+        else:
+            point = _to_pdf(pdf_page, page.rotation)
         bounds = pdf_page.rect * pdf_page.derotation_matrix
         placed, page_missed = _place_lines(page)
         missed += page_missed
@@ -188,8 +197,6 @@ def _to_pdf(pdf_page: pymupdf.Page, rotation: float) -> Point:
 
     Undo ingest's turn about the page centre, scale the shown page to points, then take away the
     PDF's own /Rotate. Rounding of pixel sizes inside ingest is ignored: under one OCR pixel.
-    Text-layer pages (rotation 0) take the same path, which is right for unrotated, uncropped pages;
-    ingest's own text-layer boxes are not consistent on other pages.
     """
     w, h = pdf_page.rect.width, pdf_page.rect.height  # the page as shown, as ingest rendered it
     c, s = math.cos(math.radians(rotation)), math.sin(math.radians(rotation))
@@ -199,6 +206,22 @@ def _to_pdf(pdf_page: pymupdf.Page, rotation: float) -> Point:
     def point(fx: float, fy: float) -> pymupdf.Point:
         dx, dy = fx * fw - fw / 2, fy * fh - fh / 2
         return pymupdf.Point(w / 2 + dx * c - dy * s, h / 2 + dx * s + dy * c) * derotate
+
+    return point
+
+
+def _from_text_layer(pdf_page: pdfium.PdfPage) -> Point:
+    """Map a point of a text-layer line box to PDF points on the stored page.
+
+    Those boxes are not in the frame above: ingest divides pdfium's character boxes (PDF user space,
+    before /Rotate) by the page size as shown and flips y (ingest.extract._text_layer_lines). Undo
+    exactly that, then put the origin at the CropBox's top left, as PyMuPDF does.
+    """
+    w, h = pdf_page.get_size()
+    left, _bottom, _right, top = pdf_page.get_cropbox()
+
+    def point(fx: float, fy: float) -> pymupdf.Point:
+        return pymupdf.Point(fx * w - left, top - (1 - fy) * h)
 
     return point
 
@@ -228,47 +251,59 @@ def _first_pages(data: bytes, count: int) -> bytes:
 
 
 def _image_pdf(data: bytes, count: int) -> bytes:
-    """One PDF page per image or TIFF frame that ingest read, holding the pixels it read."""
+    """One PDF page per image or TIFF frame that ingest read, holding the pixels it read.
+
+    Every image is encoded again, so nothing of the upload's metadata (EXIF with GPS, device and
+    owner, XMP, PNG text) reaches the PDF: a page with no box is never rewritten by the redaction.
+    """
     img = Image.open(io.BytesIO(data))
     pdf = pymupdf.open()
-    for index, frame in enumerate(ImageSequence.Iterator(img)):
+    for index, frame in enumerate(page_frames(img)):  # the frames ingest reads: one for an iPhone MPO
         if index >= count:
             break
         frame = frame.copy()
         orientation = frame.getexif().get(ExifTags.Base.Orientation, 1)
         upright = ImageOps.exif_transpose(frame)  # what ingest does first, so pixels and boxes agree
-        xdpi, ydpi = _dpi(frame)
-        if orientation in (5, 6, 7, 8):  # turned a quarter: the axes swap
-            xdpi, ydpi = ydpi, xdpi
-        width, height = upright.width * 72 / xdpi, upright.height * 72 / ydpi
-        shrink = min(1.0, MAX_PAGE_SIDE / max(width, height))
-        page = pdf.new_page(width=width * shrink, height=height * shrink)
-        if count == 1 and img.format == "JPEG" and orientation == 1 and frame.mode in ("RGB", "L"):
-            stream = data  # the photo as uploaded, not compressed a second time
-        else:
-            stream = _encode(upright, lossy=img.format in LOSSY)
-        page.insert_image(page.rect, stream=stream, keep_proportion=False)
+        width, height = _page_size(upright, _dpi(frame), turned=orientation in (5, 6, 7, 8))
+        page = pdf.new_page(width=width, height=height)
+        page.insert_image(page.rect, stream=_encode(upright, lossy=img.format in LOSSY), keep_proportion=False)
     return pdf.tobytes(garbage=3, deflate=True)
 
 
-def _dpi(img: Image.Image) -> tuple[float, float]:
-    """The image's resolution, or 72 dpi (one pixel per point) when it has none."""
+def _dpi(img: Image.Image) -> tuple[float, float] | None:
+    """The image's resolution, or None when it has none (or a nonsense one)."""
     dpi = img.info.get("dpi")
     try:
         x, y = float(dpi[0]), float(dpi[1])
     except (TypeError, ValueError, IndexError):
-        return 72.0, 72.0
-    return (x, y) if 10 <= x <= 10000 and 10 <= y <= 10000 else (72.0, 72.0)
+        return None
+    return (x, y) if 10 <= x <= 10000 and 10 <= y <= 10000 else None
+
+
+def _page_size(img: Image.Image, dpi: tuple[float, float] | None, turned: bool) -> tuple[float, float]:
+    """A scan keeps its paper size (pixels at its dpi). A photo (no dpi, or a page longer than
+    MAX_SCAN_SIDE at it: phones say 72 dpi) gets a page whose long side is PHOTO_SIDE."""
+    xdpi, ydpi = dpi or (72.0, 72.0)
+    if turned:  # EXIF turned the image a quarter: the axes swap
+        xdpi, ydpi = ydpi, xdpi
+    width, height = img.width * 72 / xdpi, img.height * 72 / ydpi
+    if dpi is None or max(width, height) > MAX_SCAN_SIDE:
+        scale = PHOTO_SIDE / max(width, height)
+        width, height = width * scale, height * scale
+    return width, height
 
 
 def _encode(img: Image.Image, lossy: bool) -> bytes:
-    """PNG or JPEG bytes of the image, transparency put on white as ingest does before OCR."""
+    """PNG or JPEG bytes of the image with no metadata, transparency put on white as ingest does
+    before OCR, at most MAX_PIXELS on the long side."""
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         rgba = img.convert("RGBA")
         img = Image.new("RGB", rgba.size, (255, 255, 255))
         img.paste(rgba, mask=rgba.getchannel("A"))
     else:
         img = img.convert("L" if img.mode in ("1", "L") else "RGB")
+    img.info = {}  # EXIF, XMP, ICC, text chunks: none of it is written
+    img.thumbnail((MAX_PIXELS, MAX_PIXELS), Image.LANCZOS)
     buf = io.BytesIO()
     if lossy:
         img.save(buf, "JPEG", quality=92)

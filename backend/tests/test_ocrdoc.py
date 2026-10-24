@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 from app import ingest, ocrdoc
-from app.extract import Document
+from app.extract import Document, extract_pdf
 from app.ingest import vision
 from app.ingest.fixes import fix_identifiers
 from app.ingest.layout import assemble
@@ -176,11 +176,13 @@ def assert_offsets(doc: Document, text: str):
         assert doc.text[w.start:w.end] == w.text and w.text.strip() == w.text != ""
 
 
-def assert_boxes_match_the_ink(doc: Document, scenes: list[Scene], tol=1.5):
+def assert_boxes_match_the_ink(doc: Document, scenes: list[Scene | None], tol=1.5):
     """Every word box covers that word's ink on the stored page, stays inside its line's ink box,
-    and is not much wider than the word."""
+    and is not much wider than the word. scenes[n] is page n's scene (None: not a scanned page)."""
     pdf = pymupdf.open(stream=doc.source, filetype="pdf")
     for pno, scene in enumerate(scenes):
+        if scene is None:
+            continue
         page = pdf[pno]
         f, _ = scene.to_image(_render(page))
 
@@ -209,8 +211,10 @@ def assert_redaction_removes_the_pixels(doc: Document):
     after = pymupdf.open(stream=redact_pdf(doc.source, boxes), filetype="pdf")
     assert after.page_count == before.page_count
     for pno in range(before.page_count):
-        assert _dark(_embedded(after, after[pno])).getbbox() is None, f"text ink left in the image on page {pno}"
         page = before[pno]
+        if not page.get_images():  # a text-layer page: see test_mixed_pdf_reads_its_scanned_pages
+            continue
+        assert _dark(_embedded(after, after[pno])).getbbox() is None, f"text ink left in the image on page {pno}"
         old, new = _render(page), _render(after[pno])
         covered = Image.new("L", old.size, 0)
         draw = ImageDraw.Draw(covered)
@@ -246,18 +250,18 @@ def test_words_get_offsets_into_ingest_text_and_boxes_inside_their_line(monkeypa
     doc = document_from_ocr(png(Image.new("RGB", (1000, 500), "white")), "photo.png")
 
     assert_offsets(doc, text)
-    assert doc.pages == [(1000.0, 500.0)]  # no dpi: one pixel per point
+    assert doc.pages == [(842.0, 421.0)]  # no dpi: a photo, long side 842 pt (A4)
     assert [w.text for w in doc.words] == ["Dear", "Ann", "Lee,", "Account:", "31926819", "Kind", "regards"]
-    boxes = {ln.text: (ln.bbox[0] * 1000, ln.bbox[1] * 500, ln.bbox[2] * 1000, ln.bbox[3] * 500) for ln in lines}
+    boxes = {ln.text: (ln.bbox[0] * 842, ln.bbox[1] * 421, ln.bbox[2] * 842, ln.bbox[3] * 421) for ln in lines}
     by_text = {"Dear": "Dear Ann Lee,", "Ann": "Dear Ann Lee,", "Lee,": "Dear Ann Lee,", "Account:": "Account:",
                "31926819": "3l926819", "Kind": "Kind regards", "regards": "Kind regards"}
     for w in doc.words:
         x0, y0, x1, y1 = boxes[by_text[w.text]]
-        assert x0 - 1e-6 <= w.bbox[0] < w.bbox[2] <= x1 + 1e-6 and y0 - 1e-6 <= w.bbox[1] < w.bbox[3] <= y1 + 1e-6
+        assert x0 - 1e-3 <= w.bbox[0] < w.bbox[2] <= x1 + 1e-3 and y0 - 1e-3 <= w.bbox[1] < w.bbox[3] <= y1 + 1e-3
     keys = {w.text: w.line for w in doc.words}
     assert keys["Ann"] == keys["Lee,"] != keys["Account:"] != keys["31926819"]  # one key per OCR line
     left, right = (next(w.bbox for w in doc.words if w.text == t) for t in ("Dear", "Lee,"))
-    assert left[0] == pytest.approx(100) and right[2] == pytest.approx(500) and left[2] < right[0]
+    assert left[0] == pytest.approx(84.2) and right[2] == pytest.approx(421) and left[2] < right[0]
 
 
 def test_a_line_missing_from_the_text_is_skipped_and_counted(monkeypatch, caplog):
@@ -336,14 +340,80 @@ def test_exif_rotated_jpeg_becomes_an_upright_page(letter_vision):
     assert_redaction_removes_the_pixels(doc)
 
 
-def test_jpeg_without_orientation_is_embedded_as_uploaded(letter_vision):
+SECRET = "Jane Secretname"
+
+
+def traces(pdf_bytes: bytes, needle: str) -> list[str]:
+    """Where needle appears in a PDF: the file bytes, any object, any stream (raw or decoded)."""
+    found = ["file"] if needle.encode() in pdf_bytes else []
+    pdf = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    for xref in range(1, pdf.xref_length()):
+        if needle in pdf.xref_object(xref):
+            found.append(f"object {xref}")
+        if pdf.xref_is_stream(xref) and any(needle.encode() in (data or b"")
+                                            for data in (pdf.xref_stream_raw(xref), pdf.xref_stream(xref))):
+            found.append(f"stream {xref}")
+    return found
+
+
+def _photo_with_metadata(fmt: str) -> bytes:
     buf = io.BytesIO()
-    LETTER.image().save(buf, "JPEG", quality=90, dpi=(150, 150))
-    doc = document_from_ocr(buf.getvalue(), "scan.jpg")
-    pdf = pymupdf.open(stream=doc.source, filetype="pdf")
-    assert pdf.extract_image(pdf[0].get_images()[0][0])["image"] == buf.getvalue()
+    if fmt == "JPEG":
+        exif = Image.Exif()
+        exif[0x013B] = SECRET  # Artist
+        exif[0x8298] = f"Copyright {SECRET}"
+        LETTER.image().save(buf, "JPEG", quality=90, dpi=(150, 150), exif=exif, comment=f"by {SECRET}")
+    else:
+        from PIL.PngImagePlugin import PngInfo
+        info = PngInfo()
+        info.add_text("Author", SECRET)
+        LETTER.image().save(buf, "PNG", dpi=(150, 150), pnginfo=info)
+    assert SECRET.encode() in buf.getvalue()
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("fmt", ["JPEG", "PNG"])
+def test_photo_metadata_never_reaches_the_pdf(letter_vision, fmt):
+    # A page with no box is never rewritten by the redaction, so the upload's EXIF must not be stored at all.
+    doc = document_from_ocr(_photo_with_metadata(fmt), "IMG_0001.jpg")
+    assert traces(doc.source, SECRET) == []
+    assert traces(redact_pdf(doc.source, []), SECRET) == []
     assert_boxes_match_the_ink(doc, [LETTER])
     assert_redaction_removes_the_pixels(doc)
+
+
+def test_a_photo_page_is_a4_sized_and_its_image_capped(letter_vision):
+    big = LETTER.image().resize((3100, 4385), Image.LANCZOS)  # a phone photo: 72 dpi or none
+    for dpi in (None, (72, 72)):
+        doc = document_from_ocr(png(big, **({"dpi": dpi} if dpi else {})), "IMG_0002.png")
+        assert doc.pages == [pytest.approx((842 * 3100 / 4385, 842), rel=1e-3)]
+        pdf = pymupdf.open(stream=doc.source, filetype="pdf")
+        assert max(pymupdf.Pixmap(pdf, pdf[0].get_images()[0][0]).irect[2:]) == 3000
+        assert_boxes_match_the_ink(doc, [LETTER])  # boxes come from fractions, so they follow the page
+    assert_redaction_removes_the_pixels(doc)
+
+
+@pytest.mark.parametrize(("size", "dpi", "page"), [
+    ((1240, 1754), (150, 150), (595.2, 841.9)),  # an A4 scan keeps its paper size
+    ((2480, 3508), (300, 300), (595.2, 841.9)),
+    ((1754, 2480), (150, 150), (841.9, 1190.4)),  # A3 at 150 dpi: still under 1200 pt
+    ((3024, 4032), (72, 72), (631.5, 842.0)),  # a phone photo: 42 inches at its dpi
+    ((800, 600), None, (842.0, 631.5)),  # no dpi
+])
+def test_page_size_rules(size, dpi, page):
+    assert ocrdoc._page_size(Image.new("L", size), dpi, turned=False) == pytest.approx(page, abs=0.1)
+
+
+def test_an_iphone_mpo_is_one_page(letter_vision):
+    buf = io.BytesIO()
+    LETTER.image().save(buf, "MPO", save_all=True, append_images=[SECOND.image()], quality=90)
+    img = Image.open(io.BytesIO(buf.getvalue()))
+    assert img.format == "MPO" and img.n_frames == 2
+    assert len(ingest.extract(buf.getvalue()).pages) == 1  # the second frame is a depth map or a preview
+    doc = document_from_ocr(buf.getvalue(), "IMG_0003.JPG")
+    assert_offsets(doc, LETTER_TEXT)
+    assert len(doc.pages) == 1 and pymupdf.open(stream=doc.source, filetype="pdf").page_count == 1
+    assert_boxes_match_the_ink(doc, [LETTER])
 
 
 def test_multi_frame_tiff_gives_one_page_per_frame(letter_vision):
@@ -384,6 +454,59 @@ def test_scanned_pdf_page_with_its_own_rotate(letter_vision, pdf_rotate):
     assert doc.pages == [pytest.approx((1240 * 0.48, 1754 * 0.48))]  # as shown, like extract.py
     assert_boxes_match_the_ink(doc, [LETTER])
     assert_redaction_removes_the_pixels(doc)
+
+
+def _scan_page(pdf, scene, stamp=None):
+    """A scanned page: the scene's image over the whole page at 150 dpi, maybe with a real text stamp."""
+    page = pdf.new_page(width=scene.size[0] * 0.48, height=scene.size[1] * 0.48)
+    page.insert_image(page.rect, stream=png(scene.image()))
+    if stamp:
+        page.insert_text((page.rect.width - 90, page.rect.height - 24), stamp, fontsize=8)
+    return page
+
+
+def test_scanned_pages_finds_scans_even_under_a_text_stamp():
+    text = pymupdf.open()
+    text.new_page().insert_text((72, 72), "Tenant: Raj Patel", fontsize=11)
+    stamped = pymupdf.open()
+    _scan_page(stamped, LETTER, stamp="Page 1 of 1")
+    mixed = pymupdf.open()
+    mixed.new_page().insert_text((72, 72), "Cover note for Ann Lee", fontsize=11)
+    _scan_page(mixed, LETTER)
+    assert ingest.scanned_pages(text.tobytes()) == []
+    assert ingest.scanned_pages(stamped.tobytes()) == [1]
+    assert ingest.scanned_pages(mixed.tobytes()) == [2]
+    assert ingest.scanned_pages(png(LETTER.image())) == []
+
+
+def test_mixed_pdf_reads_its_scanned_pages(letter_vision):
+    # Page 1 has a text layer and is turned and cropped (/Rotate 90, a CropBox); page 2 is a scan.
+    pdf = pymupdf.open()
+    cover = pdf.new_page(width=600, height=800)
+    cover.insert_text((72, 100), "Cover note: Tenant Raj Patel, sort code 20-45-77, account 31926819.", fontsize=10)
+    cover.insert_text((72, 120), "The landlord returns the deposit at the end of the term.", fontsize=10)
+    cover.set_cropbox(pymupdf.Rect(20, 30, 580, 780))
+    cover.set_rotation(90)
+    _scan_page(pdf, LETTER)
+    data = pdf.tobytes()
+    ocr = ingest.extract(data)
+    assert [p.source for p in ocr.pages] == ["text_layer", "ocr"]
+    doc = document_from_ocr(data, "bundle.pdf")
+    assert_offsets(doc, ocr.pages[0].text + "\n\n" + LETTER_TEXT)
+    assert_boxes_match_the_ink(doc, [None, LETTER])
+    assert_redaction_removes_the_pixels(doc)
+
+    page = pymupdf.open(stream=data, filetype="pdf")[0]
+    own = page.get_text("words")  # PyMuPDF's own word boxes, in the same frame
+    got = [w for w in doc.words if w.page == 0]
+    assert [w.text for w in got] == [w[4] for w in own]
+    for w, (x0, y0, x1, y1, *_rest) in zip(got, own):
+        assert w.bbox[0] <= x0 + 1 and w.bbox[2] >= x1 - 1 and w.bbox[1] <= (y0 + y1) / 2 <= w.bbox[3], w.text
+    target = [w for w in got if w.text in ("Raj", "Patel,")]
+    out = redact_pdf(doc.source, [Box(0, *w.bbox, type="PERSON", placeholder="[PERSON_1]", span_index=0) for w in target])
+    text = pymupdf.open(stream=out, filetype="pdf")[0].get_text()
+    assert "Raj" not in text and "Patel" not in text
+    assert "code 20-45-77, account 31926819." in text and "returns the deposit at the end of the term." in text
 
 
 def test_text_layer_pages_also_get_boxes(monkeypatch):
@@ -439,6 +562,35 @@ def test_photo_upload_gives_boxes_and_a_redacted_pdf(client):
     for word, ink, _piece in LETTER.words():
         has_ink = dark.crop(tuple(round(v) for v in _box_around(f, ink))).getbbox() is not None
         assert has_ink == (word not in ("Raj", "Patel", "31926819", "LS6", "2AB")), word
+
+
+def test_a_scan_with_a_page_number_stamp_is_read_with_ocr(client):
+    pdf = pymupdf.open()
+    _scan_page(pdf, LETTER, stamp="Page 1 of 1")
+    data = pdf.tobytes()
+    assert extract_pdf(data, "scan.pdf").text == "Page 1 of 1"  # all PyMuPDF sees: the stamp
+    doc = client.post("/api/documents", files={"file": ("scan.pdf", data, "application/pdf")}).json()
+    assert doc["kind"] == "pdf" and doc["text"] == LETTER_TEXT
+    res = client.post(f"/api/documents/{doc['doc_id']}/redact").json()
+    assert {e["text"] for e in res["entities"]} >= {"Raj Patel", "31926819", "LS6 2AB"}
+    out = pymupdf.open(stream=client.get(f"/api/documents/{doc['doc_id']}/file").content, filetype="pdf")
+    image = _embedded(out, out[0])
+    f, _ = LETTER.to_image(image)
+    dark = _dark(image)
+    for word, ink, _piece in LETTER.words():
+        has_ink = dark.crop(tuple(round(v) for v in _box_around(f, ink))).getbbox() is not None
+        assert has_ink == (word not in ("Raj", "Patel", "31926819", "LS6", "2AB")), word
+
+
+def test_a_text_pdf_is_not_sent_to_ocr(client, monkeypatch):
+    def no_ocr(_image):
+        raise AssertionError("a PDF with a text layer and no scanned page is not read with OCR")
+
+    monkeypatch.setattr(vision, "recognize", no_ocr)
+    pdf = pymupdf.open()
+    pdf.new_page().insert_text((72, 72), "Tenant: Raj Patel, sort code 20-45-77", fontsize=11)
+    doc = client.post("/api/documents", files={"file": ("lease.pdf", pdf.tobytes(), "application/pdf")}).json()
+    assert doc["kind"] == "pdf" and doc["text"] == "Tenant: Raj Patel, sort code 20-45-77"
 
 
 def test_blank_photo_says_no_text_was_found(client):

@@ -53,8 +53,8 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 ```
 upload / paste / sample
   └─ POST /api/documents
-       ├─ PDF with a text layer  → extract.extract_pdf (PyMuPDF words: text + box + char range)
-       ├─ PDF without text (scan) → ocrdoc.document_from_ocr (ingest OCR) → PDF + estimated word boxes
+       ├─ PDF with a text layer, no scanned page → extract.extract_pdf (PyMuPDF words: text + box + char range)
+       ├─ PDF with a scanned page (ingest.scanned_pages) → ocrdoc.document_from_ocr (ingest OCR) → PDF + word boxes
        ├─ image (jpg png heic tiff webp) → ocrdoc.document_from_ocr → image turned into a PDF + word boxes
        ├─ .eml → headers + body text
        └─ .txt .md .csv .json → text
@@ -78,24 +78,27 @@ Storage: documents and results live in memory (`DOCS`, `RESULTS` dicts) for the 
 
 ## 4. OCR integration (photos and scans get boxes)
 
-`backend/app/main.py::_ocr()` handles images and PDFs whose PyMuPDF text is empty. It calls `backend/app/ocrdoc.py::document_from_ocr(data, filename)`, which runs `app.ingest.extract(data)` (Apple Vision OCR, macOS only) and returns a **PDF** document (`kind="pdf"`) with word boxes. Photos and scans then get black boxes in the "Pages" view and a truly redacted PDF download, like text-layer PDFs.
+`backend/app/main.py::_ocr()` handles images, and every PDF in which ingest finds a scanned page (`app.ingest.scanned_pages`: no text, or little text over an image covering 40% of the page, such as a scan with a page-number stamp). Other PDFs keep `extract.extract_pdf`. `_ocr()` calls `backend/app/ocrdoc.py::document_from_ocr(data, filename)`, which runs `app.ingest.extract(data)` (Apple Vision OCR, macOS only) and returns a **PDF** document (`kind="pdf"`) with word boxes. Photos and scans then get black boxes in the "Pages" view and a truly redacted PDF download, like text-layer PDFs. Checked by Nick on his Mac with real Vision: three synthetic samples photographed upright, turned 90 degrees and skewed 3 degrees gave exact offsets and full coverage, and re-OCR of the redacted PDFs read no hidden value.
 
-- **Images** (jpg, png, heic, tiff, webp) become a PDF with PyMuPDF: one page per image or TIFF frame that ingest read. EXIF orientation is applied and transparency goes on white, as ingest does before OCR, so pixels and boxes agree. Page size = pixels at the image's dpi, or 72 dpi when it has none. A JPEG that needs no turning is embedded as uploaded (no second compression).
-- **Scanned PDFs** keep their bytes. If ingest stopped at its 100-page limit, the unread pages are dropped, since nothing on them would be hidden.
+- **Images** (jpg, png, heic, tiff, webp) become a PDF with PyMuPDF: one page per image or TIFF frame that ingest read. An iPhone MPO JPEG is one page: its later frames are a depth map or a preview (`ingest.extract.page_frames`). EXIF orientation is applied and transparency goes on white, as ingest does before OCR, so pixels and boxes agree.
+  - Every image is encoded again (JPEG q92 for photos, PNG otherwise) with no metadata, so EXIF (GPS, device, owner), XMP and PNG text never reach the PDF.
+  - The stored image is at most 3000 px on its long side (OCR already read the full-size one).
+  - Page size: a scan keeps its paper size (pixels at its dpi). A photo (no dpi, or a page longer than 1200 pt at its dpi; phones say 72 dpi) gets a page whose long side is 842 pt (A4). A 3024 x 4032 phone photo: page 632 x 842 pt, page PNG at `scale=2` 0.6 s and 1.2 MB, redacted PDF 1.6 s and 3.9 MB (it was 7.6 s and 16 MB, 2.7 s and 6.4 MB at 72 dpi).
+- **Scanned PDFs** keep their bytes. If ingest stopped at its 100-page limit, the unread pages are dropped, since nothing on them would be hidden. Text-layer pages of a mixed PDF are read from pdfium's text by ingest, and their boxes come from inverting ingest's own formula (`_from_text_layer`), right on turned and cropped pages too.
 - **Text** = exactly `ingest`'s text, so offsets agree with T1 and the regex layer. Each OCR line is found, in reading order (`ingest.layout.group_rows`), in the text ingest assembled before its identifier repairs, then carried over to the repaired text by aligning the two (`difflib`). So lines whose postcode or account number was repaired still get boxes. A line that cannot be placed is skipped and counted in a log warning (counts only, never document text).
 - **Word boxes**: each line is split into words. A word's box is its share of the line box, estimated twice (from character counts and from Helvetica widths) and covering both, plus 1.5 average characters each side, clipped to the line box. On test renders in Arial, Times, Calibri, Cambria and Courier metrics this covered every word. Character counts alone missed by up to 3 characters. Lines that Vision reads on their side or upside down are split along their reading direction (`Line.angle`).
-- **Frames**: ingest's line boxes are fractions of the last image it read for that page: the page as shown (EXIF applied; for PDFs as pdfium renders it, with /Rotate and CropBox), turned counterclockwise by `Page.rotation` (a deskew, or 90/180/270) with the canvas grown to fit. `ocrdoc` undoes that turn about the page centre, scales to points, then removes the PDF's own /Rotate (`page.derotation_matrix`). So `Word.bbox` is in PyMuPDF's unrotated page frame, the same frame as `extract.py` words and `add_redact_annot`.
-- **Download**: `pdfout.redact_pdf` calls `apply_redactions(images=PDF_REDACT_IMAGE_PIXELS)` (PyMuPDF's default, now explicit): the image pixels under each box are blanked in the file, then the black box is drawn. Tests check the embedded image itself has no text ink left.
+- **Frames**: ingest's OCR line boxes are fractions of the last image it read for that page: the page as shown (EXIF applied; for PDFs as pdfium renders it, with /Rotate and CropBox), turned counterclockwise by `Page.rotation` (a deskew, or 90/180/270) with the canvas grown to fit. `ocrdoc` undoes that turn about the page centre, scales to points, then removes the PDF's own /Rotate (`page.derotation_matrix`). So `Word.bbox` is in PyMuPDF's unrotated page frame, the same frame as `extract.py` words and `add_redact_annot`.
+- **Download** (`pdfout.redact_pdf`, every PDF, text or scan):
+  - `apply_redactions(images=PDF_REDACT_IMAGE_PIXELS)` (PyMuPDF's default, now explicit) blanks the image pixels under each box in the file, then draws the black box.
+  - Then, on every page, boxed or not, it takes out what lies outside the page content and can name people: document info (author, title...), XMP, embedded files and file attachments, the outline (bookmarks), page thumbnails, XMP and app data (`/PieceInfo`) on pages and images, and EXIF, XMP, IPTC and comments inside JPEG images. The JPEG image data stays byte for byte; JFIF, ICC and Adobe colour segments are kept because decoding needs them.
 - **Fallback**: if building the PDF or the boxes fails unexpectedly, the document is kept as text only (`kind="text"`, the old behaviour) with a log warning.
-- **Tests**: `backend/tests/test_ocrdoc.py`. On Linux a fake Vision reader stands in. It finds three colour marks on each test page to work out how ingest turned the image. Everything else is the real ingest (EXIF, deskew, 90/180/270 retries, layout, repairs).
+- **Tests**: `backend/tests/test_ocrdoc.py` and `test_pdfout.py` (`cd backend && uv run pytest -q`). On Linux a fake Vision reader stands in. It finds three colour marks on each test page to work out how ingest turned the image. Everything else is the real ingest (EXIF, deskew, 90/180/270 retries, layout, repairs). Ingest's own tests: `cd backend && uv run --with reportlab python -m pytest -q ../tests/ingest` (plain `pytest` there runs from the project venv without reportlab and fails 3 tests).
 
 Known limits:
-- Word boxes are estimates inside Vision's line box (Vision gives no per-word boxes here). They cover a character or two more than the word.
-- Phone photos without a real dpi make big pages (72 dpi: a 3024 x 4032 photo is a 3024 x 4032 pt page). `GET /pages/{n}.png?scale=2` then renders about 6000 x 8000 px (7.6 s, 16 MB on the test machine). Cap the render size in `page_image`. The downloaded PDF is fine either way, but a redacted photo grows (1.5 MB in, 6.4 MB out) because MuPDF stores the changed image losslessly.
+- Word boxes are estimates inside Vision's line box (Vision gives no per-word boxes here). They cover a character or two more than the word. On text-layer pages of a mixed PDF this also removes a neighbouring character or two of real text.
+- A mixed PDF now needs Apple Vision: on a machine without it, its upload gets the OCR error (415) instead of a text PDF whose scanned pages would stay unread.
 - Pages with /Rotate 90 or 270 (scans, and text-layer PDFs before this change): the boxes are right in the downloaded PDF, but the review overlay draws them over the page as shown, so they look misplaced there.
-- Mixed PDFs (some pages with a text layer, some scanned) still go through `extract.extract_pdf` only, so their scanned pages are not read. Route them to `document_from_ocr` when ingest finds a scanned page.
-- ingest's text-layer line boxes are off on rotated or cropped pages (pdfium character boxes divided by the rotated page size). This only matters if such a page reaches `document_from_ocr`.
-- Not run with real Apple Vision yet (Linux only so far). See the PR for the Mac check.
+- A redacted photo still grows (1.5 MB in, 3.9 MB out) because MuPDF stores a changed image losslessly.
 
 ## 5. API (FastAPI, `backend/app/main.py`)
 

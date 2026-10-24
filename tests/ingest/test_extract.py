@@ -4,7 +4,7 @@ import pytest
 from ingest_helpers import image_pdf, macos_only, no_ocr, png_bytes, render_page, text_pdf
 from PIL import Image
 
-from app.ingest import UnsupportedDocument, extract
+from app.ingest import Line, UnsupportedDocument, extract
 
 LETTER = [
     "Hollis & Mercer Ltd\nLevel 12, 95 Queen's Court\nLeeds LS14 1TP",
@@ -105,6 +105,22 @@ def test_blank_page_gives_no_text_and_a_warning():
     doc = extract(png_bytes(Image.new("RGB", (1654, 2339), "white")))
     assert doc.text == ""
     assert doc.warnings == ["page 1: no text found"]
+
+
+def test_an_iphone_mpo_is_read_as_one_page():
+    # iPhone JPEGs are often MPO files: the second frame is a depth map or a preview, not a page
+    seen = []
+
+    def recognize(image):
+        seen.append(image.size)
+        return [Line(text="Dear Ann Lee, thank you for your letter.", bbox=(0.1, 0.1, 0.9, 0.14), confidence=1.0)]
+
+    buf = io.BytesIO()
+    Image.new("RGB", (1600, 1200), "white").save(buf, "MPO", save_all=True, append_images=[Image.new("RGB", (400, 300))])
+    assert Image.open(io.BytesIO(buf.getvalue())).n_frames == 2
+    doc = extract(buf.getvalue(), recognize=recognize)
+    assert [p.number for p in doc.pages] == [1] and seen == [(1600, 1200)]
+    assert doc.text == "Dear Ann Lee, thank you for your letter."
 
 
 def test_unreadable_inputs_are_refused():
