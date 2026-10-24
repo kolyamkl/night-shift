@@ -75,9 +75,9 @@ upload / paste / sample
 Model calls (both through Mubit, `backend/app/llm.py`):
 - **T1**, recording ON (calls keep training a Mubit task), session `doc-<doc_id>`. `VEIL_T1_PROMPT` picks the prompt, and each prompt is its own Mubit task:
   - `evalkit` (default): frozen prompt `evalkit/src/evalkit/prompts.py`, model `VEIL_T1_MODEL` (default `gpt-6-luna`), chunks ≤4000 chars, answer = JSON list of `{text, type}` parsed by `evalkit.send_batch.parse_entities`. Mubit task "Find personal data".
-  - `rewrite`: Mykola's `backend/app/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (Mubit's reviewer reads only about the first 1,530 chars of a call). Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
+  - `rewrite`: Mykola's `backend/app/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (Mubit's reviewer reads only about the first 1,530 chars of a call), each sent stripped of surrounding whitespace as `scripts/dataset/build_chunks.py` made the training chunks. Values with fewer than two letters or digits, and PERSON values that are only a title, are dropped, since every value is hidden everywhere in the document. Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
 - **T2**: model `VEIL_T2_MODEL` (default `claude-haiku-4-5`), header `x-middleware-record: off` (no second task, Mubit stores no user questions).
-- Key: the first value starting with `mbt_` in `MUBIT_API_KEY`, then `backend/.env`, then the repo-root `.env` (where `scripts/dataset/send_batch.py` reads it too). `/api/health` reports where it came from (`key_source`), never the key.
+- Key and settings: the first value starting with `mbt_` in `MUBIT_API_KEY`, then `backend/.env`, then the repo-root `.env` (where `scripts/dataset/send_batch.py` reads it too). `VEIL_T1_PROMPT`, `VEIL_T1_MODEL` and `VEIL_T2_MODEL` are looked up the same way (section 5). `/api/health` reports where the key came from (`key_source`), never the key.
 - No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now"). The startup log says which prompt, model and key source are in use.
 
 Storage: documents and results live in memory (`DOCS`, `RESULTS` dicts) for the server's lifetime. Nothing is written to disk; document text is never logged. Per chunk the log holds only doc id, chunk index, status, latency, `mreq_` id and the number of values found.
@@ -98,8 +98,8 @@ Next step for OCR (not done): build `Word`s from `ingest` `Line`s (split each li
 |---|---|---|
 | GET | `/api/health` | `{model: on/off, t1_model, t1_prompt: evalkit/rewrite, t2_model, key_source: env/backend/.env/.env/null}` |
 | POST | `/api/documents` | form `text` or `file` (≤20 MB) → `{doc_id, kind, filename, text, pages}` |
-| POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}`; each chunk is `{index, chunk_id, start, end, status, error, mreq_id, latency_ms, found}` |
-| POST | `/api/documents/{id}/redact/stream` | the same run as server-sent events (contract below) |
+| POST | `/api/documents/{id}/redact` | runs the pipeline → `{redacted_text, entities, boxes, chunks, stats, model}`; each chunk is `{index, chunk_id, start, end, status, error, mreq_id, latency_ms, found}`. Optional `?retry=failed` (below) |
+| POST | `/api/documents/{id}/redact/stream` | the same run as server-sent events (contract below). Optional `?retry=failed` |
 | GET | `/api/documents/{id}/pages/{n}.png` | page image (PDF only) |
 | GET | `/api/documents/{id}/file` | redacted PDF or text download |
 | POST | `/api/documents/{id}/ask` | `{question}` → `{answer, answer_with_placeholders, sent_text, unknown_placeholders, mreq_id}` |
@@ -114,7 +114,15 @@ Stream contract (`/redact/stream`, fixed: the frontend builds against it):
 - Events in order: `start` once `{doc_id, model, t1_model, t1_prompt, chunks: [{index, chunk_id, start, end}]}`; `regex` once `{entities: [{start, end, text, type, source: "regex"}]}`; `chunk` once per chunk in the order chunks finish `{index, chunk_id, start, end, status: ok/error/empty/off, error, mreq_id, latency_ms, found, entities: [{..., source: "model"}]}`; `done` once, exactly the `/redact` JSON from the same builder (`RESULTS` is stored first, so `/file`, `/ask` and `/corrections` work right away). `error` `{message}` only for an unexpected failure that stops the run; a failed chunk is a `chunk` with `status: "error"`.
 - `entities` of a chunk are the occurrences, inside its `[start, end)`, of the values T1 returned for it; `found` is the number of values T1 returned. `off` = no key, no call; `empty` = whitespace-only chunk, no call. All offsets are character offsets into the `text` from `POST /api/documents`.
 
-Env: `MUBIT_API_KEY` (else `backend/.env`, else root `.env`), `VEIL_T1_PROMPT` (`evalkit` default, or `rewrite`), `VEIL_T1_MODEL` (evalkit prompt only), `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`.
+Retry only what failed: `POST /api/documents/{id}/redact/stream?retry=failed` (and `POST /redact?retry=failed`):
+- Same events, in the same order, as a normal run.
+- If `RESULTS` holds an earlier run of this document with the same chunk plan (same T1 prompt and the same ranges), its chunks with status `ok` or `empty` make no new T1 call: their `chunk` events go out at once with the stored `mreq_id`, `latency_ms`, `found` and `entities`. Only chunks that were `error` (or `off`, when the model is now on) call T1. `done` is then what a full run would give; like any scan, it starts without reviewer corrections.
+- With no earlier result or a different plan, every chunk runs, as without the parameter. Any other value of `retry` is a 422.
+- `PipelineResult.chunk_values` keeps what T1 returned per chunk and `PipelineResult.plan` the prompt, for this.
+
+One scan per document at a time: each scan (`/redact` or `/redact/stream`, with or without `retry`) gets a generation number. Only the newest may store `RESULTS[doc_id]` and send `done`. An older one stops making new T1 calls, goes quiet and ends with `error` `{"message": "A newer scan of this document started, so this one stopped."}`; an older `/redact` gets 409 with the same text.
+
+Settings and key lookup: `MUBIT_API_KEY`, `VEIL_T1_PROMPT` (`evalkit` default, or `rewrite`), `VEIL_T1_MODEL` (evalkit prompt only) and `VEIL_T2_MODEL` are each read from a real environment variable first, then from `backend/.env`, then from the repo-root `.env` (so the root `.env` that holds the key can also say `VEIL_T1_PROMPT=rewrite`). Only these names are read from the files; nothing is loaded into `os.environ`. For the key, only a value starting with `mbt_` counts. The startup log names the prompt and where it came from, for example `T1 on: prompt rewrite (VEIL_T1_PROMPT from .env), model claude-haiku-4-5, 1400-character chunks, Mubit key from .env`; a bad `VEIL_T1_PROMPT` stops startup. `VEIL_CORS` and `VEIL_SAMPLES_DIR` are read from the environment only.
 
 ## 6. How to run
 
@@ -122,8 +130,9 @@ Env: `MUBIT_API_KEY` (else `backend/.env`, else root `.env`), `VEIL_T1_PROMPT` (
 # backend (Python 3.12/3.13, uv); evalkit is a path dependency
 cd backend && uv sync && uv run uvicorn app.main:app --reload --port 8000
 # key: one line MUBIT_API_KEY=mbt_... in the root .env (or backend/.env, or export it); all gitignored.
-# Lookup order: MUBIT_API_KEY, backend/.env, .env. The startup log and /api/health show the source.
-# Second T1 prompt (Mykola's rewrite design): VEIL_T1_PROMPT=rewrite uv run uvicorn app.main:app --port 8000
+# Lookup order: environment, backend/.env, .env. The startup log and /api/health show the source.
+# Second T1 prompt (Mykola's rewrite design): VEIL_T1_PROMPT=rewrite in the same .env (see .env.example),
+# or VEIL_T1_PROMPT=rewrite uv run uvicorn app.main:app --port 8000
 
 # watch a scan stream (synthetic sample only)
 DOC=$(curl -s -X POST localhost:8000/api/samples/01_tenancy_agreement.pdf | python3 -c "import json,sys; print(json.load(sys.stdin)['doc_id'])")

@@ -100,3 +100,22 @@ def test_reviewer_can_unhide_a_false_positive():
     res = run_pipeline(doc, t1=model_finds(("Jo Smith", "PERSON"), ("Rose Garden", "ADDRESS")))
     fixed = rebuild(doc, res, unhide={"Rose Garden"})
     assert fixed.redacted_text == "[PERSON_1] bought a Rose Garden ticket."
+
+
+def test_a_stopped_run_makes_no_more_calls():
+    t1 = model_finds(("Jo Smith", "PERSON"))
+    res = run_pipeline(extract_text("Jo Smith.\n\n" * 50), t1=t1, max_chars=100, stop=lambda: True)
+    assert t1.calls == [] and {c.status for c in res.chunks} == {"error"}
+    assert res.chunks[0].error.startswith("stopped")
+
+
+def test_a_reused_run_keeps_ok_chunks_only_under_the_same_plan_and_ranges():
+    doc = extract_text("Jo Smith.\n\n" * 50)
+    t1 = model_finds(("Jo Smith", "PERSON"))
+    first = run_pipeline(doc, t1=t1, max_chars=100, plan="evalkit")
+    assert len(first.chunk_values) == len(first.chunks) and first.chunk_values[0] == [{"text": "Jo Smith", "type": "PERSON"}]
+    t1.calls.clear()
+    again = run_pipeline(doc, t1=t1, max_chars=100, plan="evalkit", reuse=first)
+    assert t1.calls == [] and again.chunks == first.chunks and again.redacted_text == first.redacted_text
+    run_pipeline(doc, t1=t1, max_chars=200, plan="evalkit", reuse=first)  # other ranges: every chunk again
+    assert len(t1.calls) == len(chunk_ranges(doc.text, 200))

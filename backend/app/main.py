@@ -1,7 +1,8 @@
 """Veil API: upload or paste, redact through Mubit, download the redacted file, ask about it, fix it.
 
 Run: uv run uvicorn app.main:app --reload --port 8000
-The Mubit key comes from MUBIT_API_KEY, backend/.env or the repo-root .env (see llm.py).
+The Mubit key and the VEIL_* settings come from the environment, backend/.env or the repo-root .env
+(see llm.py).
 Documents live in memory for the session; nothing is written to disk and document text is never logged.
 """
 
@@ -13,10 +14,11 @@ import queue
 import re
 import threading
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import asdict
 from email import policy
 from pathlib import Path
+from typing import Literal
 
 import pymupdf
 from evalkit.redact import restore
@@ -26,7 +28,7 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from .extract import Document, extract_pdf, extract_text
-from .llm import T1_CHUNK_CHARS, T1_MODEL, T1_PROMPT, T2_MODEL, find_key, make_t1_factory, make_t2
+from .llm import T1_CHUNK_CHARS, describe, find_key, load_settings, make_t1_factory, make_t2
 from .pdfout import redact_pdf
 from .pipeline import Emit, PipelineResult, rebuild, run_pipeline
 
@@ -44,16 +46,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+SETTINGS = load_settings()
 _key, app.state.key_source = find_key()
-app.state.t1_prompt, app.state.t1_model = T1_PROMPT, T1_MODEL
-app.state.t1_factory = make_t1_factory(_key)
-app.state.t2 = make_t2(_key)
+app.state.t1_prompt, app.state.t1_model, app.state.t2_model = SETTINGS.t1_prompt, SETTINGS.t1_model, SETTINGS.t2_model
+app.state.t1_factory = make_t1_factory(_key, SETTINGS.t1_prompt, SETTINGS.evalkit_model)
+app.state.t2 = make_t2(_key, SETTINGS.t2_model)
 del _key
-if app.state.t1_factory:
-    log.info("T1 on: prompt %s, model %s, %d-character chunks, Mubit key from %s",
-             T1_PROMPT, T1_MODEL, T1_CHUNK_CHARS[T1_PROMPT], app.state.key_source)
-else:
-    log.info("T1 off: no Mubit key (mbt_...) in MUBIT_API_KEY, backend/.env or .env; regex layer only")
+log.info(describe(SETTINGS, app.state.key_source))
 
 DOCS: dict[str, Document] = {}
 RESULTS: dict[str, PipelineResult] = {}
@@ -154,7 +153,7 @@ def _ocr(data: bytes, name: str) -> dict:
 def health() -> dict:
     on = bool(app.state.t1_factory)
     return {"model": "on" if on else "off", "t1_model": app.state.t1_model if on else None,
-            "t1_prompt": app.state.t1_prompt, "t2_model": T2_MODEL if app.state.t2 else None,
+            "t1_prompt": app.state.t1_prompt, "t2_model": app.state.t2_model if app.state.t2 else None,
             "key_source": app.state.key_source if on else None}
 
 
@@ -187,18 +186,47 @@ async def create_document(text: str | None = Form(None), file: UploadFile | None
     raise HTTPException(415, "This file type is not supported yet. Use PDF, an image, TXT or EML, or paste the text.")
 
 
-def _scan(doc: Document, emit: Emit | None = None) -> dict:
-    """Run the pipeline, store the result for /file, /ask and /corrections, and return its payload."""
-    factory = app.state.t1_factory
-    res = run_pipeline(doc, t1=factory(doc.doc_id) if factory else None,
-                       max_chars=T1_CHUNK_CHARS[app.state.t1_prompt], emit=emit)
-    RESULTS[doc.doc_id] = res
+SCANS: dict[str, int] = {}  # doc_id -> generation of its newest scan
+_SCAN_LOCK = threading.Lock()
+
+
+class Superseded(Exception):
+    """A newer scan of the same document started, so this one may not store its result."""
+
+
+def _start_scan(doc_id: str) -> Callable[[], bool]:
+    """Register a new scan of the document; the check it returns turns True once a newer scan starts."""
+    with _SCAN_LOCK:
+        gen = SCANS[doc_id] = SCANS.get(doc_id, 0) + 1
+    return lambda: SCANS.get(doc_id) != gen
+
+
+def _scan(doc: Document, superseded: Callable[[], bool], retry: str | None = None,
+          emit: Emit | None = None) -> dict:
+    """Run the pipeline and, if no newer scan started, store the result for /file, /ask and
+    /corrections and return its payload. retry="failed" keeps the earlier run's ok and empty chunks."""
+    factory, prompt = app.state.t1_factory, app.state.t1_prompt
+    res = run_pipeline(doc, t1=factory(doc.doc_id) if factory else None, max_chars=T1_CHUNK_CHARS[prompt],
+                       emit=emit, plan=prompt, reuse=RESULTS.get(doc.doc_id) if retry == "failed" else None,
+                       stop=superseded)
+    with _SCAN_LOCK:
+        if superseded():
+            raise Superseded
+        RESULTS[doc.doc_id] = res
     return _result_payload(doc, res)
 
 
+Retry = Literal["failed"] | None
+SUPERSEDED = "A newer scan of this document started, so this one stopped."
+
+
 @app.post("/api/documents/{doc_id}/redact")
-def redact(doc_id: str) -> dict:
-    return _scan(_doc(doc_id))
+def redact(doc_id: str, retry: Retry = None) -> dict:
+    doc = _doc(doc_id)
+    try:
+        return _scan(doc, _start_scan(doc_id), retry)
+    except Superseded:
+        raise HTTPException(409, SUPERSEDED) from None
 
 
 PING_SECONDS = 5.0  # a comment line while waiting, so proxies and the browser keep the stream open
@@ -209,20 +237,24 @@ def _sse(name: str, data: dict) -> str:
     return f"event: {name}\ndata: {json.dumps(data)}\n\n"
 
 
-def _events(doc: Document) -> Iterator[str]:
+def _events(doc: Document, superseded: Callable[[], bool], retry: str | None) -> Iterator[str]:
     """Server-sent events for one scan: start, regex, chunk (as each finishes), then done or error.
-    The scan runs in its own thread, so it finishes and stores its result even if the client leaves."""
+    The scan runs in its own thread, so it finishes and stores its result even if the client leaves.
+    A scan replaced by a newer one goes quiet and ends with an error event."""
     events: queue.Queue = queue.Queue()
     on = bool(app.state.t1_factory)
     head = {"doc_id": doc.doc_id, "model": "on" if on else "off",
             "t1_model": app.state.t1_model if on else None, "t1_prompt": app.state.t1_prompt}
 
     def emit(name: str, data: dict) -> None:
-        events.put((name, {**head, **data} if name == "start" else data))
+        if not superseded():
+            events.put((name, {**head, **data} if name == "start" else data))
 
     def work() -> None:
         try:
-            events.put(("done", _scan(doc, emit)))
+            events.put(("done", _scan(doc, superseded, retry, emit)))
+        except Superseded:
+            events.put(("error", {"message": SUPERSEDED}))
         except Exception as exc:  # noqa: BLE001 - reported to the client; the type only, never document text
             log.error("scan failed doc=%s error=%s", doc.doc_id, type(exc).__name__)
             events.put(("error", {"message": f"The scan stopped unexpectedly ({type(exc).__name__}). Try again."}))
@@ -240,8 +272,11 @@ def _events(doc: Document) -> Iterator[str]:
 
 
 @app.post("/api/documents/{doc_id}/redact/stream")
-def redact_stream(doc_id: str) -> StreamingResponse:
-    return StreamingResponse(_events(_doc(doc_id)), headers=SSE_HEADERS)
+def redact_stream(doc_id: str, retry: Retry = None) -> StreamingResponse:
+    """?retry=failed: call T1 only for the chunks that failed (or were off) in the stored run, if it
+    has the same chunk plan; other chunks are sent at once from that run. Otherwise a full run."""
+    doc = _doc(doc_id)
+    return StreamingResponse(_events(doc, _start_scan(doc_id), retry), headers=SSE_HEADERS)
 
 
 @app.get("/api/documents/{doc_id}/pages/{page}.png")

@@ -92,6 +92,7 @@ def test_health_names_the_prompt_and_where_the_key_came_from(client, monkeypatch
     monkeypatch.setattr(app.state, "key_source", ".env")
     monkeypatch.setattr(app.state, "t1_prompt", "rewrite")
     monkeypatch.setattr(app.state, "t1_model", "claude-haiku-4-5")
+    monkeypatch.setattr(app.state, "t2_model", "claude-haiku-4-5")
     health = client.get("/api/health").json()
     assert health == {"model": "on", "t1_model": "claude-haiku-4-5", "t1_prompt": "rewrite",
                       "t2_model": "claude-haiku-4-5", "key_source": ".env"}

@@ -9,6 +9,7 @@
 
 run_pipeline can report progress through `emit(name, data)`: "start" (the chunk plan), "regex" (the
 regex hits), then one "chunk" per chunk in the order they finish. The API streams these as events.
+Given an earlier result with the same plan (`reuse`), it calls T1 only for the chunks that failed.
 """
 
 import logging
@@ -73,6 +74,8 @@ class PipelineResult:
     model_values: dict[str, str] = field(default_factory=dict)  # what T1 returned: value -> type
     hidden: dict[str, str] = field(default_factory=dict)  # reviewer: value -> type to hide
     unhidden: set[str] = field(default_factory=set)  # reviewer: values to show
+    chunk_values: list[list[dict]] = field(default_factory=list)  # what T1 returned per chunk, by index
+    plan: str = ""  # what set the chunk plan (the T1 prompt); a retry reuses chunks only under the same plan
 
 
 def chunk_ranges(text: str, max_chars: int = MAX_CHARS) -> list[tuple[int, int]]:
@@ -129,11 +132,27 @@ def _entity(sp: Span, source: str, offset: int = 0) -> dict:
     return {"start": sp.start + offset, "end": sp.end + offset, "text": sp.text, "type": sp.type, "source": source}
 
 
+REUSABLE = ("ok", "empty")
+
+
+def _reusable(prev: PipelineResult | None, plan: str, ranges: list[tuple[int, int]]
+              ) -> dict[int, tuple[ChunkInfo, list[dict]]]:
+    """Chunks of an earlier run that need no new T1 call: same plan and ranges, status ok or empty."""
+    if (prev is None or prev.plan != plan or len(prev.chunk_values) != len(prev.chunks)
+            or [(c.start, c.end) for c in prev.chunks] != ranges):
+        return {}
+    return {c.index: (c, prev.chunk_values[c.index]) for c in prev.chunks if c.status in REUSABLE}
+
+
 def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars: int = MAX_CHARS,
-                 workers: int = 6, emit: Emit | None = None) -> PipelineResult:
+                 workers: int = 6, emit: Emit | None = None, plan: str = "",
+                 reuse: PipelineResult | None = None, stop: Callable[[], bool] | None = None) -> PipelineResult:
+    """`reuse`: an earlier result of this document; its ok and empty chunks are kept (no T1 call) when
+    its plan and chunk ranges match. `stop`: once it returns True, chunks not yet started make no call."""
     text = doc.text
     ranges = chunk_ranges(text, max_chars)
     ids = [f"{doc.doc_id}-c{i:02d}" for i in range(len(ranges))]
+    kept = _reusable(reuse, plan, ranges)
     if emit:
         emit("start", {"chunks": [{"index": i, "chunk_id": ids[i], "start": s, "end": e}
                                   for i, (s, e) in enumerate(ranges)]})
@@ -145,6 +164,8 @@ def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars:
             return ChunkInfo(i, ids[i], s, e, "off", "model off"), []
         if not text[s:e].strip():
             return ChunkInfo(i, ids[i], s, e, "empty"), []
+        if stop is not None and stop():
+            return ChunkInfo(i, ids[i], s, e, "error", "stopped: a newer scan of this document started"), []
         t0 = time.monotonic()
         try:
             r = t1(text[s:e])
@@ -157,24 +178,30 @@ def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars:
         return ChunkInfo(i, ids[i], s, e, "ok", None, r.mreq_id, ms, found=len(r.entities)), r.entities
 
     finished: dict[int, tuple[ChunkInfo, list[dict]]] = {}
+
+    def report(info: ChunkInfo, ents: list[dict], reused: bool) -> None:
+        finished[info.index] = (info, ents)
+        # Metadata only: never the chunk text or the values.
+        log.info("t1 chunk doc=%s index=%d status=%s latency_ms=%s mreq=%s found=%d reused=%s",
+                 doc.doc_id, info.index, info.status, info.latency_ms, info.mreq_id, info.found, reused)
+        if emit:
+            hits = locate(text[info.start:info.end], ents)
+            emit("chunk", {**asdict(info), "entities": [_entity(sp, "model", info.start) for sp in hits]})
+
+    for i in sorted(kept):
+        report(*kept[i], reused=True)
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        for fut in as_completed([pool.submit(run_chunk, i) for i in range(len(ranges))]):
-            info, ents = fut.result()
-            finished[info.index] = (info, ents)
-            # Metadata only: never the chunk text or the values.
-            log.info("t1 chunk doc=%s index=%d status=%s latency_ms=%s mreq=%s found=%d",
-                     doc.doc_id, info.index, info.status, info.latency_ms, info.mreq_id, info.found)
-            if emit:
-                hits = locate(text[info.start:info.end], ents)
-                emit("chunk", {**asdict(info), "entities": [_entity(sp, "model", info.start) for sp in hits]})
-    results = [finished[i] for i in range(len(ranges))]
-    chunks = [c for c, _ in results]
+        todo = [pool.submit(run_chunk, i) for i in range(len(ranges)) if i not in kept]
+        for fut in as_completed(todo):
+            report(*fut.result(), reused=False)
+    chunks = [finished[i][0] for i in range(len(ranges))]
+    chunk_values = [finished[i][1] for i in range(len(ranges))]
 
     values: dict[str, str] = {}
-    for _, ents in results:
+    for ents in chunk_values:
         for e in ents:
             values.setdefault(e["text"], e["type"])
-    return _build(doc, values, chunks, {}, set())
+    return _build(doc, values, chunks, {}, set(), chunk_values, plan)
 
 
 def rebuild(doc: Document, prev: PipelineResult, hide: dict[str, str] | None = None,
@@ -184,11 +211,11 @@ def rebuild(doc: Document, prev: PipelineResult, hide: dict[str, str] | None = N
     unhidden = (prev.unhidden | set(unhide or ())) - set(hide or {})
     for v in unhide or ():
         hidden.pop(v, None)
-    return _build(doc, prev.model_values, prev.chunks, hidden, unhidden)
+    return _build(doc, prev.model_values, prev.chunks, hidden, unhidden, prev.chunk_values, prev.plan)
 
 
 def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidden: dict[str, str],
-           unhidden: set[str]) -> PipelineResult:
+           unhidden: set[str], chunk_values: list[list[dict]], plan: str) -> PipelineResult:
     text = doc.text
     wanted = {**values, **hidden}
     model_spans = locate(text, [{"text": v, "type": t} for v, t in wanted.items()])
@@ -201,5 +228,5 @@ def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidde
     return PipelineResult(
         spans=spans, redacted_text=redacted, vault=vault, boxes=_boxes(doc, spans, vault),
         chunks=chunks, stats=dict(Counter(s.type for s in spans)),
-        model_values=values, hidden=hidden, unhidden=unhidden,
+        model_values=values, hidden=hidden, unhidden=unhidden, chunk_values=chunk_values, plan=plan,
     )

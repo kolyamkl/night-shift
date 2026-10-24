@@ -11,14 +11,16 @@ VEIL_T1_PROMPT picks one of two T1 designs (each is its own Mubit task):
 T2 answers a question about the redacted text. It is sent with `x-middleware-record: off`, so it
 creates no second task and Mubit stores no user questions.
 
-The key (mbt_...) comes from MUBIT_API_KEY, then backend/.env, then the repo-root .env. Only where
-it came from is ever reported. Without a key both calls are off and the app runs on regex only.
+The key (mbt_...) and the VEIL_* settings come from the environment, then backend/.env, then the
+repo-root .env. Only the names asked for are read from those files, and only where the key came from
+is ever reported. Without a key both calls are off and the app runs on regex only.
 """
 
 import os
 import re
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from evalkit import providers
@@ -31,7 +33,7 @@ from . import prompts
 from .pipeline import MAX_CHARS, T1Result
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-# Where the key may live, in lookup order after the MUBIT_API_KEY variable. Both files are gitignored.
+# Where the key and the VEIL_* settings may live, in lookup order after the environment. Both gitignored.
 KEY_FILES: tuple[tuple[str, Path], ...] = (
     ("backend/.env", BACKEND_DIR / ".env"),
     (".env", BACKEND_DIR.parent / ".env"),
@@ -39,14 +41,9 @@ KEY_FILES: tuple[tuple[str, Path], ...] = (
 
 EVALKIT, REWRITE = "evalkit", "rewrite"
 T1_PROMPTS = (EVALKIT, REWRITE)
-T1_PROMPT = os.environ.get("VEIL_T1_PROMPT", EVALKIT).strip().lower() or EVALKIT
-if T1_PROMPT not in T1_PROMPTS:
-    raise ValueError(f"VEIL_T1_PROMPT must be one of {', '.join(T1_PROMPTS)}, not {T1_PROMPT!r}")
-EVALKIT_MODEL = os.environ.get("VEIL_T1_MODEL", "gpt-6-luna")
-T1_MODELS = {EVALKIT: EVALKIT_MODEL, REWRITE: prompts.MODEL_ID}
 T1_CHUNK_CHARS = {EVALKIT: MAX_CHARS, REWRITE: 1400}
-T1_MODEL = T1_MODELS[T1_PROMPT]
-T2_MODEL = os.environ.get("VEIL_T2_MODEL", "claude-haiku-4-5")
+DEFAULT_EVALKIT_MODEL = "gpt-6-luna"
+DEFAULT_T2_MODEL = "claude-haiku-4-5"
 
 # The rewrite request, field for field as scripts/dataset/send_batch.py sends it.
 MUBIT_ANTHROPIC = "https://api.mubit.ai/anthropic"
@@ -61,15 +58,16 @@ T2_SYSTEM_PROMPT = (
 )
 
 
-def _from_env_file(path: Path) -> str | None:
+def _from_env_file(path: Path, name: str) -> str | None:
+    """The value of one NAME=value line in a .env file (the last one wins), or None. Nothing else is read."""
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
         return None
     value = None
     for line in lines:
-        name, _, rest = line.strip().removeprefix("export ").partition("=")
-        if name.strip() == "MUBIT_API_KEY":
+        key, _, rest = line.strip().removeprefix("export ").partition("=")
+        if key.strip() == name:
             value = rest.strip().strip("'\"")
     return value
 
@@ -81,10 +79,56 @@ def find_key(files: Sequence[tuple[str, Path]] = KEY_FILES) -> tuple[str | None,
     if value.startswith("mbt_"):
         return value, "env"
     for source, path in files:
-        value = (_from_env_file(path) or "").strip()
+        value = (_from_env_file(path, "MUBIT_API_KEY") or "").strip()
         if value.startswith("mbt_"):
             return value, source
     return None, None
+
+
+def setting(name: str, default: str, files: Sequence[tuple[str, Path]] = KEY_FILES) -> tuple[str, str]:
+    """(value, source) of one setting: a non-empty environment variable wins, then each file, then the
+    default ("default"). Only this name is read; nothing is loaded into os.environ."""
+    value = os.environ.get(name, "").strip()
+    if value:
+        return value, "env"
+    for source, path in files:
+        value = (_from_env_file(path, name) or "").strip()
+        if value:
+            return value, source
+    return default, "default"
+
+
+@dataclass
+class Settings:
+    t1_prompt: str  # "evalkit" or "rewrite"
+    t1_model: str  # the model the chosen prompt runs on
+    evalkit_model: str  # VEIL_T1_MODEL, used by the evalkit prompt only
+    t2_model: str
+    sources: dict[str, str]  # setting name -> "env", "backend/.env", ".env" or "default"
+
+
+def load_settings(files: Sequence[tuple[str, Path]] = KEY_FILES) -> Settings:
+    prompt, prompt_source = setting("VEIL_T1_PROMPT", EVALKIT, files)
+    prompt = prompt.lower()
+    if prompt not in T1_PROMPTS:
+        raise ValueError(f"VEIL_T1_PROMPT (from {prompt_source}) must be one of {', '.join(T1_PROMPTS)}, "
+                         f"not {prompt!r}")
+    evalkit_model, model_source = setting("VEIL_T1_MODEL", DEFAULT_EVALKIT_MODEL, files)
+    t2_model, t2_source = setting("VEIL_T2_MODEL", DEFAULT_T2_MODEL, files)
+    # The rewrite prompt always runs on prompts.MODEL_ID: another model would be another Mubit task.
+    return Settings(prompt, prompts.MODEL_ID if prompt == REWRITE else evalkit_model, evalkit_model, t2_model,
+                    {"VEIL_T1_PROMPT": prompt_source, "VEIL_T1_MODEL": model_source, "VEIL_T2_MODEL": t2_source})
+
+
+def describe(settings: Settings, key_source: str | None) -> str:
+    """The startup log line: which prompt and model T1 uses and where they and the key came from."""
+    src = settings.sources["VEIL_T1_PROMPT"]
+    origin = "default" if src == "default" else f"VEIL_T1_PROMPT from {src}"
+    prompt = f"prompt {settings.t1_prompt} ({origin})"
+    if key_source is None:
+        return f"T1 off: no Mubit key (mbt_...) in MUBIT_API_KEY, backend/.env or .env; regex layer only; {prompt}"
+    return (f"T1 on: {prompt}, model {settings.t1_model}, {T1_CHUNK_CHARS[settings.t1_prompt]}-character chunks, "
+            f"Mubit key from {key_source}")
 
 
 # What a hidden value of a type may look like inside one line. A rewrite answer is matched line by
@@ -97,7 +141,9 @@ _VALUE_PATTERNS = {
     "SORT_CODE": r"\d{2}[- ]?\d{2}[- ]?\d{2}",
 }
 _ANY_VALUE = r"[^\n]+?"
-_TITLE = re.compile(r"^(?:Mr|Mrs|Ms|Miss|Mx|Dr|Prof)\.?\s+(?=\S)")
+_TITLES = r"(?:Mr|Mrs|Ms|Miss|Mx|Dr|Prof|Sir|Dame|Rev)\.?"
+_TITLE = re.compile(rf"^{_TITLES}\s+(?=\S)", re.IGNORECASE)
+_TITLE_ONLY = re.compile(_TITLES, re.IGNORECASE)
 
 
 def _literal(text: str) -> str:
@@ -145,13 +191,19 @@ def _match_line(line: str, answer: str) -> list[tuple[int, int, str]] | None:
 
 
 def align_rewrite(chunk: str, answer: str) -> tuple[list[Span], int]:
-    """Hidden spans in the chunk and the characters changed outside placeholders. The rewrite prompt
-    keeps line breaks and never lets a value cross one, so lines are matched as templates one by one;
-    a line that does not fit, or an answer with a different number of lines, falls back to evalkit's diff."""
-    lines, answers = _lines(chunk), _lines(answer)
+    """Hidden spans in the chunk and the characters changed outside placeholders.
+
+    The chunk is sent stripped, as in the training data, so the answer is aligned against chunk.strip();
+    the spans keep offsets into the chunk. The rewrite prompt keeps line breaks and never lets a value
+    cross one, so lines are matched as templates one by one; a line that does not fit, or an answer with
+    a different number of lines, falls back to evalkit's diff."""
+    sent = chunk.strip()
+    lead = len(chunk) - len(chunk.lstrip())
+    lines, answers = _lines(sent), _lines(answer)
     if len(lines) != len(answers):
-        return spans_from_rewrite(chunk, answer)
-    spans: list[Span] = []
+        spans, changed = spans_from_rewrite(sent, answer)
+        return [Span(sp.start + lead, sp.end + lead, sp.type, sp.text) for sp in spans], changed
+    spans = []
     changed = 0
     for (offset, line), (_, ans) in zip(lines, answers):
         found = _match_line(line, ans)
@@ -159,21 +211,27 @@ def align_rewrite(chunk: str, answer: str) -> tuple[list[Span], int]:
             line_spans, line_changed = spans_from_rewrite(line, ans)
             found = [(sp.start, sp.end, sp.type) for sp in line_spans]
             changed += line_changed
-        spans += [Span(offset + s, offset + e, t, chunk[offset + s:offset + e]) for s, e, t in found]
+        spans += [Span(lead + offset + s, lead + offset + e, t, line[s:e]) for s, e, t in found]
     return spans, changed
 
 
 def rewrite_values(chunk: str, answer: str) -> list[dict] | None:
     """Distinct values from a rewrite answer, or None when the answer does not line up with the chunk
     (more than a little text changed outside the placeholders, such as a summary or a refusal).
+
+    Every value is later hidden everywhere in the document, so tiny ones are dropped: fewer than two
+    letters or digits, or a PERSON that is only a title (a misaligned diff can turn "Mr" into a value).
     A title before a name stays visible, as in the evalkit prompt, so "Mr Raj Patel" and a later
     "Raj Patel" share one placeholder."""
     spans, changed = align_rewrite(chunk, answer)
-    if changed > max(30, len(chunk) // 20):
+    if changed > max(30, len(chunk.strip()) // 20):
         return None
     values: dict[str, str] = {}
     for sp in spans:
-        values.setdefault(_TITLE.sub("", sp.text) if sp.type == "PERSON" else sp.text, sp.type)
+        value = _TITLE.sub("", sp.text) if sp.type == "PERSON" else sp.text
+        if sum(c.isalnum() for c in value) < 2 or (sp.type == "PERSON" and _TITLE_ONLY.fullmatch(value)):
+            continue
+        values.setdefault(value, sp.type)
     return [{"text": v, "type": t} for v, t in values.items()]
 
 
@@ -220,7 +278,7 @@ def _rewrite_t1(key: str, http_client=None) -> Callable[[str], Callable[[str], T
                         model=prompts.MODEL_ID,
                         max_tokens=REWRITE_MAX_TOKENS,
                         system=prompts.T1_SYSTEM_PROMPT,
-                        messages=[{"role": "user", "content": chunk}],
+                        messages=[{"role": "user", "content": chunk.strip()}],  # as build_chunks.py sent them
                         metadata={"user_id": f"doc-{doc_id}"},
                     )
                     break
@@ -243,7 +301,7 @@ def _rewrite_t1(key: str, http_client=None) -> Callable[[str], Callable[[str], T
     return factory
 
 
-def make_t1_factory(key: str | None, prompt: str = T1_PROMPT, model: str = EVALKIT_MODEL,
+def make_t1_factory(key: str | None, prompt: str = EVALKIT, model: str = DEFAULT_EVALKIT_MODEL,
                     http_client=None) -> Callable[[str], Callable[[str], T1Result]] | None:
     """A per-document T1 maker, or None without a key. `model` applies to the evalkit prompt only:
     the rewrite prompt always uses prompts.MODEL_ID, since another model would be another Mubit task."""
@@ -254,14 +312,14 @@ def make_t1_factory(key: str | None, prompt: str = T1_PROMPT, model: str = EVALK
     return _evalkit_t1(key, model)
 
 
-def make_t2(key: str | None) -> Callable[[str, str], tuple[str, str | None]] | None:
+def make_t2(key: str | None, model: str = DEFAULT_T2_MODEL) -> Callable[[str, str], tuple[str, str | None]] | None:
     if not key:
         return None
-    call = providers.CALL[providers.provider_for(T2_MODEL)]
+    call = providers.CALL[providers.provider_for(model)]
 
     def t2(question: str, redacted_text: str) -> tuple[str, str | None]:
         user = f"Document:\n{redacted_text}\n\nQuestion: {question}"
-        rep = call(key, T2_MODEL, T2_SYSTEM_PROMPT, user, "veil-chat", {"x-middleware-record": "off"}, False, 2000)
+        rep = call(key, model, T2_SYSTEM_PROMPT, user, "veil-chat", {"x-middleware-record": "off"}, False, 2000)
         if rep.status != 200 or rep.text is None:
             raise RuntimeError(rep.stop_reason or "no answer")
         return rep.text, rep.mreq_id
