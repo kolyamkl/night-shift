@@ -2,12 +2,13 @@
 
 T1 finds personal data in a chunk, with recording left on so the calls keep training a Mubit task.
 VEIL_T1_PROMPT picks one of two T1 designs (each is its own Mubit task):
-- "evalkit" (default): the frozen evalkit prompt, model VEIL_T1_MODEL (default gpt-6-luna), the answer
-  is a JSON list of values, chunks of at most 4000 characters.
-- "rewrite": backend/app/prompts.py with its MODEL_ID through https://api.mubit.ai/anthropic, sent with
-  the anthropic SDK exactly as scripts/dataset/send_batch.py sends it, so the calls land in the same
-  Mubit task. The answer is the chunk rewritten with placeholders; align_rewrite turns it back into
-  values. Chunks are at most 1400 characters: Mubit's reviewer reads only about the first 1,530.
+- "rewrite" (default): backend/app/prompts.py with its MODEL_ID (claude-haiku-4-5) through
+  https://api.mubit.ai/anthropic, sent with the anthropic SDK exactly as scripts/dataset/send_batch.py
+  sends it, so the calls land in the same Mubit task ("Redact personal data"). The answer is the chunk
+  rewritten with placeholders; align_rewrite turns it back into values. Chunks are at most 1400
+  characters: Mubit's reviewer reads only about the first 1,530.
+- "evalkit": the frozen evalkit prompt, model VEIL_T1_MODEL (default gpt-6-luna), the answer is a JSON
+  list of values, chunks of at most 4000 characters (Mubit task "Find personal data").
 T2 answers a question about the redacted text. It is sent with `x-middleware-record: off`, so it
 creates no second task and Mubit stores no user questions.
 
@@ -108,7 +109,7 @@ class Settings:
 
 
 def load_settings(files: Sequence[tuple[str, Path]] = KEY_FILES) -> Settings:
-    prompt, prompt_source = setting("VEIL_T1_PROMPT", EVALKIT, files)
+    prompt, prompt_source = setting("VEIL_T1_PROMPT", REWRITE, files)
     prompt = prompt.lower()
     if prompt not in T1_PROMPTS:
         raise ValueError(f"VEIL_T1_PROMPT (from {prompt_source}) must be one of {', '.join(T1_PROMPTS)}, "
@@ -301,7 +302,7 @@ def _rewrite_t1(key: str, http_client=None) -> Callable[[str], Callable[[str], T
     return factory
 
 
-def make_t1_factory(key: str | None, prompt: str = EVALKIT, model: str = DEFAULT_EVALKIT_MODEL,
+def make_t1_factory(key: str | None, prompt: str = REWRITE, model: str = DEFAULT_EVALKIT_MODEL,
                     http_client=None) -> Callable[[str], Callable[[str], T1Result]] | None:
     """A per-document T1 maker, or None without a key. `model` applies to the evalkit prompt only:
     the rewrite prompt always uses prompts.MODEL_ID, since another model would be another Mubit task."""

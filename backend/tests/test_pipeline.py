@@ -86,12 +86,12 @@ def test_pdf_spans_become_boxes_on_the_right_page(tenancy_pdf):
 
 
 def test_reviewer_can_hide_a_missed_value_everywhere_without_calling_the_model_again():
-    doc = extract_text("Client code CL-20931 was opened. Ref CL-20931 again.")
+    doc = extract_text("Quote CL-20931 when you write. CL-20931 again.")
     t1 = model_finds()
     first = run_pipeline(doc, t1=t1)
     assert "CL-20931" in first.redacted_text
     fixed = rebuild(doc, first, hide={"CL-20931": "CUSTOM"})
-    assert fixed.redacted_text == "Client code [CUSTOM_1] was opened. Ref [CUSTOM_1] again."
+    assert fixed.redacted_text == "Quote [CUSTOM_1] when you write. [CUSTOM_1] again."
     assert len(t1.calls) == 1  # the fix reuses the model's earlier answers
 
 
