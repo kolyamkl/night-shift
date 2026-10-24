@@ -1,5 +1,7 @@
 # Night Shift: Mubit audit and idea research
 
+> Dated product research; historical SDK, routing and company observations may change. Use [Mubit integration](../../MUBIT.md) for the current repository implementation.
+
 Date: 2026-10-23, written 16:45 to 17:30 BST, before kickoff. Research only, no project code.
 Method: three research agents (competitors, idea market, Mubit team and signals) plus first-hand reading of Mubit's docs, SDK and product sites. 180 evidence rows with checked quotes live in `evidence/`. Raw page copies stay local (copyright), not in this public repo.
 Labels: **[F]** fact seen in a source, **[E]** estimate with method, **[I]** our inference.

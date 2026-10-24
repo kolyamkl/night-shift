@@ -1,5 +1,7 @@
 # Veil web app: what to build
 
+> Historical build specification. Some requirements below were proposals and some privacy statements predate the implementation. Use [Architecture](ARCHITECTURE.md), [Mubit](MUBIT.md) and [Security](SECURITY.md) for current behavior.
+
 One page, Quillbot-style: drop or paste anything (text, PDF, image, email), see what personal data was found, get the same file back with black boxes, and ask Claude or GPT about it without the provider ever seeing the personal data.
 
 ## 1. What Mubit needs from the app (checked against docs.mubit.ai and Context7, 24 Oct)

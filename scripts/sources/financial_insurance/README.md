@@ -1,6 +1,8 @@
 # Financial and insurance documents (dataset-finance)
 
-Builds `data/docs/financial.jsonl` and `data/docs/insurance.jsonl` in the documents schema shared with the other dataset builders. Design: `docs/superpowers/specs/2026-10-23-pii-training-dataset-design.md` (branch `docs/dataset-design`), sections 3, 4, 5 and 9.
+[Mubit workflow](../../../docs/MUBIT.md) · [Documentation index](../../../docs/README.md). Run commands from the repository root.
+
+Builds `data/docs/financial.jsonl` and `data/docs/insurance.jsonl` in the documents schema shared with the other dataset builders. Current schema: [dataset guide](../../../data/README.md). The original design was on the historical `docs/dataset-design` branch.
 
 **Status (24 Oct 2026):** built. `financial.jsonl` holds 55 Gretel documents; `insurance.jsonl` holds 45 Gretel documents and 5 fills of INS1. INS2 (Lloyd's blanket bond on sec.gov) is blocked by decision: sec.gov is never fetched, and there is no INS2 template. Counts, drop reasons and the pinned revision are in `data/sources/financial_insurance/manifest.json`.
 

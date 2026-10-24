@@ -1,6 +1,8 @@
-# Local PostgreSQL storage
+# PostgreSQL storage and accounts
 
-Veil now saves documents and redactions in PostgreSQL instead of process memory.
+[Documentation index](README.md) · [Saved-data summary](DATABASE-CONTENTS.md) · [Security](SECURITY.md)
+
+Veil saves documents, redactions, review status and chat in PostgreSQL.
 Email/password accounts protect every saved document. Registration signs the
 user in immediately; there is no verification email or code.
 Original text, filenames, source PDFs, extracted page layout, detected entities,
@@ -111,10 +113,11 @@ Migration 003 (`003_status_and_chat.sql`) only adds:
 
 Every encrypted payload is bound to its document ID and a kind (`document`,
 `result`, `meta`, `turn`), so ciphertext moved to another document or column
-fails to load. A chat turn stores the question, the restored answer, the answer
-with placeholders, unknown placeholders and the Mubit request ID; it does not
-store the redacted text sent to the model. Questions, answers and filenames are
-never logged.
+fails to load. A chat turn stores the original and sent question, the restored
+answer, the answer with placeholders, unknown placeholders and the Mubit request
+ID; it does not store the redacted document sent to the model. Routine storage
+operations do not log questions, answers or filenames; this is not a claim about
+every third-party exception or infrastructure log.
 
 Each successful scan/correction updates the result and increments its revision
 in one transaction. A concurrently completed operation based on an older saved
@@ -175,9 +178,11 @@ An administrator can explicitly assign those documents after confirming ownershi
 
 The local configuration still binds to loopback. The backend can
 decrypt the stored contents; encryption at rest does not redact outbound model
-requests. The existing T1 routing, question redaction, and backend approval
-enforcement gaps remain separate work. No consent record or model training job
-is created by saving a document. Documents persist until explicitly deleted;
+requests. T1 still receives original chunks. Questions are now filtered using
+known values and regexes, but unfamiliar values can be missed; backend approval
+enforcement remains separate work. See [Security](SECURITY.md). Saving review
+status is not a consent audit trail. No model training job is created by saving
+a document. Documents persist until explicitly deleted;
 there is no automatic expiry or browser delete control in this change.
 
 ## Authentication
@@ -218,8 +223,10 @@ across all document endpoints. No verification emails or model calls are sent.
 
 A managed PostgreSQL service also runs on Railway (project `night-shift`, service
 `Postgres`, environment `production`). It is reachable through Railway's public
-TCP proxy and requires the generated password and TLS (`sslmode=require`). Only the
-database is hosted. The backend and frontend still run locally.
+TCP proxy and requires the generated password and TLS (`sslmode=require`).
+The web service, private backend and PostgreSQL are all hosted. The backend
+uses Railway's private database URL; local administrative access, when enabled,
+uses the public TCP proxy with TLS. See [deployment](DEPLOY.md).
 
 Its settings live in the ignored root `.env.railway`, which contains only
 `DATABASE_URL` and that database's own `VEIL_STORAGE_KEY`. Pass it after `.env`
@@ -233,5 +240,5 @@ uv run --env-file ../.env --env-file ../.env.railway --no-sync uvicorn app.main:
 The Railway key is separate from the local cluster key and must stay paired with
 the Railway database. Startup refuses a mismatched key. Back up the key outside
 Railway. Keep `TEST_DATABASE_URL` pointed at the local `veil_test` database. Never
-run the test suite against Railway. To recover the URL, run
-`railway variables --service Postgres` in the linked repo.
+run the test suite against Railway. Retrieve credentials only through Railway's
+protected settings. Do not paste variable dumps into docs, logs or chat.

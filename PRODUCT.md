@@ -4,28 +4,51 @@
 
 ## Platform
 
-web
-
-## Stack
-React + Vite + TypeScript + Tailwind frontend (chosen by the team in the build request); FastAPI backend in `backend/` that calls models through Mubit.
+Web. The React/Vite/TypeScript/Tailwind interface talks to a FastAPI backend,
+with PostgreSQL storage and model requests through Mubit. The app is deployed
+on Railway; macOS development additionally supports Apple Vision OCR.
 
 ## Users
-Both, on one page with no separate modes:
-- staff at firms that handle other people's documents (solicitors, letting agents, accountants, HR, insurers) who want to ask ChatGPT or Claude about a client's contract, bill or email without sending the client's personal data to the model provider;
-- individuals who want an AI's help with their own tenancy agreement, bank letter or payslip without handing over their name, address or account numbers.
 
-## Product Purpose
-Veil hides personal data in any document before it reaches a frontier model. Drop or paste a document; Veil finds names, addresses, account and card numbers, NI numbers, dates of birth and organisation-specific references, shows them on the page, returns the same file with the values truly removed, and lets the user ask Claude or GPT about the document. The model only ever sees placeholders such as [PERSON_1]; the answer comes back with the real values put back locally. Success: zero personal values in what the provider receives, with answers as useful as on the original.
+People reviewing contracts, letters, bills and other documents who want control
+over which personal values appear in the version they share with an answering
+AI. This includes individuals and staff at firms handling client documents.
+
+## Product purpose
+
+Veil is a document redaction and review desk: detect sensitive values, inspect
+and correct them, export a redacted file, and ask questions using placeholders.
+The backend restores values in answers. Accounts keep saved documents, review
+status and chat available after a reload.
+
+The current implementation sends original chunks through Mubit for detection.
+The answering model receives the redacted document and a filtered question.
+Do not describe the app as preventing all original data from reaching providers,
+end-to-end encrypted, fully anonymous, or compliant by default. See
+[Data protection](docs/SECURITY.md) for the implemented boundary and open gaps.
 
 ## Positioning
-The redaction model is trained and hosted through Mubit and learns from each reviewer correction: a missed client code or an over-hidden word becomes a model update, so the model learns each firm's own identifiers. Rule-based redactors cannot learn from corrections, and a plain prompt to a frontier model sends the personal data to that provider first.
+
+The product combines UK identifier rules, model-assisted detection, human review,
+PDF content removal and useful answers with values restored. Mubit provides
+recorded task traffic, review, training and routing tools. Automatic learning
+from in-app corrections is a future integration: current hide/unhide changes
+update the saved document, not Mubit feedback or model weights.
 
 ## Terminology
-- Personal value types: PERSON, ADDRESS, POSTCODE, EMAIL, PHONE, BANK_ACCOUNT, SORT_CODE, IBAN, CARD, NI_NUMBER, DOB, ID_DOC, CUSTOM.
-- Placeholder: `[PERSON_1]`; one placeholder per distinct value per document.
-- "Pseudonymised", never "anonymised" or "compliant" (ICO: pseudonymised data is still personal data).
 
-## Constraints
-- Demo documents are synthetic (fake people); no real personal data in the demo.
-- UI copy has no em dashes.
-- Hackathon demo: must run live on a laptop, clear in under three minutes.
+- T1: detector; T2: answering model. Both requests go through Mubit.
+- Placeholder: a token such as `[PERSON_1]`; the vault maps it to the hidden value.
+- Pseudonymised: values are replaced but can be restored by the backend.
+- Review status: saved UI workflow state, not a versioned consent audit trail.
+- Model “on”: a key is configured; not proof that a trained adapter serves calls.
+
+## Experience and constraints
+
+Use invented people and identifiers in demos. Show the review step and the actual
+redacted content, and label incomplete scans clearly. Keep the walkthrough under
+three minutes. Follow [DESIGN.md](DESIGN.md) for the pixel castle visual system,
+readable document typography and reduced-motion behavior. Public UI copy avoids
+em dashes. The current product name remains Veil.
+
+[Documentation index](docs/README.md) · [Architecture](docs/ARCHITECTURE.md)

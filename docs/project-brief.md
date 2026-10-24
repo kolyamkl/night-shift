@@ -1,5 +1,7 @@
 # Night Shift Hackathon: Project Brief for Claude Code
 
+> Historical pre-build brief: the tenancy-checker direction and proposed learning loop are context, not the shipped product. Start with the [current documentation](README.md).
+
 23 Oct 2026 · Nick
 
 *Snapshot of the team's Claude Doc brief, exported 23 Oct 2026.*

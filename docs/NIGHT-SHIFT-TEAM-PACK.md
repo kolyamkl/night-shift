@@ -1,5 +1,7 @@
 # Night Shift Team Pack
 
+> Historical hackathon planning snapshot. Requirements and proposed privacy gates below are not proof they were implemented. See the [current documentation](README.md), especially [Security](SECURITY.md).
+
 Everything we researched, decided and plan to build for the Night Shift hackathon (Mubit, London, 23 to 25 Oct 2026), in one file.
 
 - Written: Friday 23 Oct 2026, evening, before hacking starts.

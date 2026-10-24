@@ -2,10 +2,18 @@
 
 Small toolkit for Veil's redaction task T1: the frozen prompt, placeholder redaction and restore, a regex baseline, scoring, the Mubit round builder and the Mubit batch sender.
 
+[Documentation index](../docs/README.md) · [Current Mubit integration](../docs/MUBIT.md)
+
+The app imports the vault, matching and regex helpers from this package. Its
+optional `VEIL_T1_PROMPT=evalkit` mode uses the JSON-list prompt here; the default
+app detector uses the rewrite prompt in `backend/app/prompts.py`. These can be
+different Mubit tasks. Do not assume a successful historical evalkit training
+run is the adapter serving the current rewrite task.
+
 ```bash
-cd /Users/dima/Projects/night-shift/evalkit
+cd evalkit  # from the repository root
 uv sync
-uv run pytest -q            # 6 tests
+uv run pytest -q            # toolkit tests
 ```
 
 | Module | What it does |
@@ -17,9 +25,9 @@ uv run pytest -q            # 6 tests
 | `regex_baseline.py`, `baseline.py` | Baseline 1: regex + validators + context words. |
 | `score.py` | Leaks per 100 documents, zero-leak documents, per-type recall (hidden / strict / partial), precision, over-redaction, keep-trap hits. |
 | `build_rounds.py` | Builds `data/rounds/` from `data/synthetic/` and `data/external/`. |
-| `send_batch.py` | Sends chunks through Mubit (GPT, Claude or Gemini; `--design list` or `--design rewrite`). **Dry run unless `--live`.** Only Mubit-safe records are sent. Resume-safe. |
+| `send_batch.py` | Sends chunks through Mubit (GPT, Claude or Gemini; `--design list` or `--design rewrite`). **Dry run unless `--live`.** Records marked `mubit_ok: false` are refused; provenance still needs review. Resume-safe. |
 | `providers.py`, `rewrite.py` | One call per provider route on the starter credit; spans recovered from rewrite answers. |
-| `team_docs.py`, `bakeoff.py` | Teammates' documents in our format; compare designs x teachers with `--record off` (nothing trains). |
+| `team_docs.py`, `bakeoff.py` | Teammates' documents in our format; compare designs x teachers with `--record off` (recording disabled in the request). |
 | `mistakes.py` | Lists wrong replies with their `mreq_` id and the corrected JSON, ready to paste in the Mubit console. |
 
 ## Typical commands
@@ -31,7 +39,7 @@ uv run python -m evalkit.build_rounds --data ../data
 # 2. Dry run: counts, doc types, cost estimate, first request
 uv run python -m evalkit.send_batch --chunks ../data/rounds/r1_core.jsonl --out runs/r1_core.jsonl
 
-# 3. Teacher pilot (no task is created: record off), once per candidate model
+# 3. Teacher pilot (real inference, recording off requested), once per candidate model
 export MUBIT_API_KEY=mbt_...   # never commit it
 uv run python -m evalkit.send_batch --chunks ../data/rounds/r0_pilot.jsonl --out runs/pilot_luna.jsonl \
   --model gpt-6-luna --record off --live

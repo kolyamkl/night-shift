@@ -1,5 +1,7 @@
 # PII dataset research (24 Oct 2026)
 
+> Research snapshot, including earlier training designs and measurements. For the current app request shape and operational workflow, read [Mubit integration](../../MUBIT.md).
+
 Overnight research and data build for Veil's redaction model (Mubit task T1).
 
 **Start with [TRAINING-PLAN.md](TRAINING-PLAN.md).** Ukrainian summary: [summary-uk.md](summary-uk.md).

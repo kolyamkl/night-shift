@@ -1,5 +1,7 @@
 # Correspondence templates
 
+[Dataset schema and workflow](../../README.md) · [Documentation index](../../../docs/README.md). Paths in commands below are relative to the repository root.
+
 One file per source: `R1.txt` to `R5.txt` (Enron email threads) and `R6.txt` to `R9.txt`
 (UK letter templates, filled). Each file has a header (`# key: value` lines ending with
 `# ---`) and the source text in which every personal value is a typed slot such as

@@ -1,5 +1,7 @@
 # Contracts sources (C1 to C12)
 
+[Dataset schema and workflow](../../../data/README.md) · [Documentation index](../../../docs/README.md). Run commands from the repository root.
+
 Builds `data/docs/contracts.jsonl` from the approved contract sources in the dataset
 design (section 4). The answer key comes from this code, never from an LLM.
 

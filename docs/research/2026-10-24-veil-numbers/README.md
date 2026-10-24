@@ -1,5 +1,7 @@
 # Why Veil: the numbers
 
+> Dated research evidence, not a guarantee about this app. Review [current data protection](../../SECURITY.md) before reusing product claims, and re-check dated external figures before publication.
+
 Checked on 24 October 2026. Every figure below was read on its source page by us; the full evidence (exact quotes, samples, caveats and confidence) is in [work/](work/). Prices and surveys from companies that sell security products are marked as such.
 
 **The case in one paragraph.** People already paste their own documents into ChatGPT and Claude, mostly at work and mostly through tools their employer never approved. UK regulators now say in writing that client data must not go into public AI tools without safeguards, and breaches that involve unapproved AI cost more than average. Firms do not want bans; they want a safe way to keep using AI. Veil hides personal values before a document leaves the laptop, puts them back in the answer, and learns each firm's own identifiers from corrections through Mubit.

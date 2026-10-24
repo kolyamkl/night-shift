@@ -1,62 +1,68 @@
-# What Veil saves in PostgreSQL
+# What Veil saves
 
-This describes Veil's PostgreSQL storage and email/password authentication as
-implemented on 24 October 2026. See [DATABASE.md](DATABASE.md) for local setup,
-configuration, and verification commands.
+[Documentation index](README.md) · [Database operations](DATABASE.md) · [Data protection](SECURITY.md)
+
+Veil uses PostgreSQL for accounts, sessions, documents, their latest redaction,
+review status and chat history. Content is encrypted by the backend before it
+is written. The server-held key is separate from the database.
 
 ## Saved data
 
-| Data | What is saved | Protection |
+| Data | Saved fields | Protection |
 | --- | --- | --- |
-| Accounts | User ID, normalized email, password hash, creation date | Passwords use Argon2id hashes; emails are not encrypted |
-| Login sessions | Session-token hash, user ID, creation date, expiry | Only a SHA-256 hash of the random token is stored |
-| Documents | Filename, original text, PDF bytes when available, extracted words and page layout | Encrypted before database storage |
-| Document metadata | Document ID, owner ID, revision, creation and update dates | Stored as ordinary database fields; access is restricted to the owner |
-| Redaction results | Detected entities and spans, redacted text, PDF boxes, statistics, chunk results and model request IDs | Encrypted |
-| Placeholder vault | Mappings between placeholders and original sensitive values | Encrypted |
-| Review corrections | Current hide/unhide choices and model-detected values used to rebuild redactions | Encrypted with the latest result; no separate edit history |
-| Login rate limits | Hashed client-address bucket, attempt count, reset time | Short-lived counters |
-| Database maintenance | Migration filenames, checksums, application dates, encrypted key-verification probe | The encryption key itself is not stored in PostgreSQL |
+| Accounts | User ID, normalized email, password hash, creation time | Argon2id password hash; email and account metadata are plaintext |
+| Sessions | Token hash, owner and expiry | SHA-256 of a random token; raw token is only in the session cookie |
+| Documents | Filename, original text, source PDF when present, extracted layout | Fernet-encrypted payload |
+| List summary | Filename, kind, page and change counts | Encrypted metadata payload |
+| Record metadata | Document/owner IDs, revision, status, timestamps | Plain database fields; owner-scoped API access |
+| Redaction | Spans, redacted text, boxes, statistics, chunk values/plan and request IDs | Encrypted result payload |
+| Vault and corrections | Placeholder-to-value mapping, current hides and unhides | Encrypted with the result; no separate edit history |
+| Chat | Original question, sent question, restored answer, answer with placeholders, unknown placeholders, request ID | Encrypted turn payload; older turns may lack sent question |
+| Turn metadata | Turn ID, document/owner IDs, time | Plain database fields |
+| Auth limits | Hashed client-address bucket, attempts, reset time | Short-lived counters |
+| Maintenance | Migration filenames/checksums and key verification probe | Probe encrypted; no encryption key stored in PostgreSQL |
 
-The tables are `veil_users`, `veil_sessions`, `veil_documents`,
-`veil_redactions`, `veil_auth_limits`, `veil_schema_migrations`, and
-`veil_storage_settings`.
+## Relationships
 
-PDFs retain source bytes alongside extracted text and word boxes. Photos become
-metadata-stripped PDFs; scanned PDFs retain the processed PDF and OCR word boxes.
-If OCR-to-PDF conversion fails, the existing fallback saves extracted text only.
-Redaction snapshots also retain the prompt/chunk plan and each chunk's detected
-values, so retrying failed parts can reuse successful calls after a restart.
+```mermaid
+erDiagram
+    veil_users ||--o{ veil_sessions : owns
+    veil_users ||--o{ veil_documents : owns
+    veil_documents ||--o| veil_redactions : has
+    veil_documents ||--o{ veil_chat_turns : contains
+    veil_users ||--o{ veil_chat_turns : owns
+```
 
-## Not saved in this database
+`veil_auth_limits`, `veil_schema_migrations` and `veil_storage_settings` support
+authentication and database operations. Legacy documents can have no owner;
+they are inaccessible through the owner-scoped API until explicitly assigned.
 
-- Plaintext passwords or raw login-session tokens.
-- Chat questions, answers, or conversation history.
-- Approval/decline decisions or a consent audit trail.
-- Mubit API keys or the document encryption key.
-- Model weights or training-job history.
+## What is not stored here
 
-Registration does not send a verification email or check ownership of the email
-address. It creates the account and signs the user in immediately.
+- Plaintext passwords, raw session tokens, Mubit keys or the encryption key.
+- Model weights or Mubit training-job state.
+- A complete correction history or consent audit trail.
+- A per-turn copy of the whole redacted document sent to T2. The saved turn
+  contains the question sent, but the UI's document preview uses the current result.
 
-## Access and retention
+Approval/decline **is saved**; it is not the same as backend enforcement of
+approval or consent for training. Chat questions and answers **are saved**.
 
-Every saved document belongs to an account. Reading, scanning, correcting,
-downloading, deleting, or asking about it requires that owner's login session.
-Older documents without an owner remain inaccessible until an administrator
-explicitly assigns them.
+## Retention and recovery
 
-Documents and their latest redaction results survive backend restarts. They stay
-until explicitly deleted; there is no automatic document expiry. Deleting a
-document also deletes its stored redaction result. Database backups and write-ahead
-logs may retain encrypted historical records until their own retention ends.
+A saved document survives browser refresh and backend restart. Full rescans and
+failed-part retries preserve manual corrections. The latest snapshot replaces
+the earlier result under a revision check, preventing stale overwrites.
 
-Login sessions expire after seven days. Logout immediately revokes the current
-session. Expired session rows are cleaned up when a new session is created.
-Rate-limit counters reset after one minute; counters more than a day past their
-reset time are cleaned up on subsequent login or registration attempts.
+Documents remain until explicitly deleted. Deleting a document cascades to its
+redaction and chat turns. Backups and PostgreSQL write-ahead logs may retain
+historical encrypted records until their own retention ends; this operation
+does not delete any data already recorded by external services.
 
-Encryption protects stored document contents. The backend can decrypt them, and
-this storage design does not itself guarantee that outbound model requests are
-redacted or approved. Backend approval enforcement and question redaction remain
-separate work.
+Sessions expire after seven days; logout revokes the active session. Expired
+session cleanup happens on a new login/registration. Auth-limit cleanup occurs
+on later authentication attempts. No automatic document expiry is implemented.
+
+The backend can decrypt content. Keep the encryption key recoverable and paired
+with the correct database; replacing it does not rotate existing ciphertext.
+See [DATABASE.md](DATABASE.md) for schema, setup, migration and recovery details.

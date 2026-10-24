@@ -181,6 +181,12 @@ components:
 
 # Design System: Veil
 
+[Documentation index](docs/README.md) · [Product context](PRODUCT.md) · [Data protection](docs/SECURITY.md)
+
+The castle, shield and gate imagery explains the review experience. Product copy
+must still distinguish original-text detection from redacted Q&A, and must not
+imply that a visual approval animation enforces server-side consent.
+
 ## Overview
 
 **Creative North Star: "Bitmap Bone"**

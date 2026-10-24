@@ -1,9 +1,29 @@
 # T1 dataset: documents, chunks, answer keys and teacher results
 
-Data for Veil's redaction task T1 ("redact one document chunk"). Design:
-`docs/superpowers/specs/2026-10-23-pii-training-dataset-design.md` (branch `docs/dataset-design`).
+Data for Veil's redaction task T1 ("redact one document chunk"). Current app integration: [Mubit guide](../docs/MUBIT.md).
+The original dataset design was developed on the historical `docs/dataset-design`
+branch; this page documents the schema and scripts available in this checkout.
 All personal data in these files is fake. The answer key is written by code from
 the documents' entity offsets, never by an LLM.
+
+[Documentation index](../docs/README.md) · [Synthetic generator](../datagen/README.md) · [External converters](../dataconv/README.md)
+
+```mermaid
+flowchart LR
+    A["Templates and invented values"] --> B["Documents with exact span labels"]
+    B --> C["Validate and split"]
+    C --> D["Training chunks"]
+    C --> E["Held-out evaluation chunks"]
+    D --> F["Dry run, then explicitly send to Mubit"]
+    F --> G["Teacher replies and request IDs"]
+    G --> H["Score training replies against training labels"]
+    E --> I["Separate inference with recording off requested"]
+    I --> J["Score against held-out labels"]
+```
+
+The train path produces recorded calls for review; accepted examples and model
+training live in Mubit. Local scoring compares replies with the answer key.
+Evaluation data stays separate from training traffic.
 
 ## Layout
 
@@ -25,7 +45,7 @@ UTF-8, one JSON object per line:
 | Field | Type | Notes |
 |---|---|---|
 | `doc_id` | string | Unique, e.g. `contracts-C4-f2`, `financial-gretel-01234` |
-| `source_id` | string | `C1`..`C12`, `R1`..`R11`, `INS1`, `INS2` (design section 4) or `gretel-<row id>` |
+| `source_id` | string | `C1`..`C12`, `R1`..`R11`, `INS1`, `INS2` (source identifiers) or `gretel-<row id>` |
 | `group` | string | `contracts`, `correspondence`, `financial` or `insurance` |
 | `subtype` | string | Lower-case slug: `tenancy`, `employment`, `nda`, `lease`, `engagement_letter`, `email_thread`, `letter`, `bank_statement`, `invoice`, `loan_application`, `insurance_policy`, `insurance_claim`, ... |
 | `split` | string | `train`, `fresh` or `eval` |
@@ -103,7 +123,11 @@ Useful flags: `build_chunks.py --max-tokens N`; `send_batch.py --limit N
 the fixtures. When trying the pipeline on the fixtures, write the output outside
 `data/chunks/` (for example `--out-dir /tmp/chunks`) so fixture chunks are never committed.
 
-## Morning run order
+## Original build checklist (historical)
+
+This checklist records the initial dataset build. For new traffic, follow the
+[current Mubit workflow](../docs/MUBIT.md); counts below are targets, not a live
+training status.
 
 1. Merge the four dataset PRs (core, contracts, correspondence, finance). They touch disjoint files.
 2. `pip install -r requirements.txt`

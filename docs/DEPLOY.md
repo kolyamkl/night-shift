@@ -1,5 +1,7 @@
 # Railway deployment
 
+[Documentation index](README.md) · [Architecture](ARCHITECTURE.md) · [Security](SECURITY.md)
+
 Live app: <https://web-production-dc019.up.railway.app/app>
 Railway project: `night-shift` (environment `production`).
 
@@ -14,6 +16,21 @@ The browser only ever talks to `web`, so the site and API share an origin. Cooki
 sets `X-Forwarded-For` from Railway's `X-Real-IP`, and uvicorn trusts forwarded headers
 so auth throttling sees the real client. That trust is safe only because `backend`
 has no public domain. **Don't add one.**
+
+## Service topology
+
+```mermaid
+flowchart LR
+    U["Browser"] -->|"HTTPS"| W["Public web service: Caddy and React"]
+    W -->|"Private HTTP: /api"| B["Private backend: FastAPI"]
+    B -->|"Private database connection"| P[("PostgreSQL")]
+    B -->|"HTTPS model calls"| M["Mubit"]
+```
+
+TLS terminates at the public edge. The web service proxies the API so cookies
+stay on the same browser origin. Private-network traffic is not represented
+here as end-to-end encrypted. The database's optional public TCP proxy is an
+administrative access path, not the browser's route to documents.
 
 ## Variables
 
@@ -33,13 +50,30 @@ Set secrets from stdin so they don't show up in shell history, e.g.
 From the repo root (the build context for both images is the root):
 
 ```sh
-railway up --service backend --ci
-railway up --service web --ci
+railway up --service backend --environment production --ci
+railway up --service web --environment production --ci
 ```
 
 `.railwayignore` and `.dockerignore` keep `.env*`, `.local/`, `node_modules`, datasets
 and results out of the upload. Only `data/synthetic/pdfs` (the samples) ships.
+Deploy only services whose code changed. A backend correction does not require
+a frontend redeploy. The command uploads the checkout, so review `git status`
+and the ignore rules first.
+
 If a deployment hangs in DEPLOYING with no logs, `railway redeploy --service <name> --yes`.
+
+## Verify a rollout
+
+```sh
+railway deployment list --service backend --environment production --limit 1
+curl --fail --silent --show-error https://web-production-dc019.up.railway.app/api/health
+curl --fail --silent --show-error -o /dev/null -w '%{http_code}\n' https://web-production-dc019.up.railway.app/app
+```
+
+Wait for deployment status `SUCCESS`. Health checks verify the API/database and
+report configured models; they do not make an inference call or prove adapter
+routing. Use a synthetic document for a functional smoke test. Any scan with a
+configured key sends real T1 requests and may be recorded.
 
 ## Limits
 

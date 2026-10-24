@@ -1,5 +1,7 @@
 # Veil redesign: audit, research and decisions
 
+> Dated design decision log. The current visual rules are in [DESIGN.md](../../DESIGN.md); implemented data boundaries are in [Security](../SECURITY.md).
+
 24 October 2026. Scope: the landing page (`/`) and the app (`/app`) in `frontend/`.
 
 ## Audit: why it felt inconsistent and jerky

@@ -1,19 +1,19 @@
 # Veil: handoff for the next agent
 
-Written 2026-10-24 (hackathon day 2) for an AI coding agent picking this repo up cold. Read this first, then the files it points to. Paths are relative to the repo root. Facts marked "not verified" were not re-checked after the last merge.
+Written 2026-10-24 (hackathon day 2) for an AI coding agent picking this repo up cold. Start with the [documentation index](README.md) and [architecture diagrams](ARCHITECTURE.md), then use this implementation reference. Paths are relative to the repo root. Facts marked "not verified" were not re-checked after the last merge.
 
 ## 1. What Veil is
 
 Veil is a privacy layer for using AI chat with real client documents (Mubit "Night Shift" hackathon, London, 23 to 25 Oct 2026; repo github.com/BabyBoss45/night-shift, public).
 
 1. The user uploads a PDF, photo, scan, email or pasted text.
-2. **T1** finds personal data. T1 is a model trained through **Mubit** (teacher model `claude-haiku-4-5` behind Mubit's gateway while the adapter trains; `gpt-6-luna` with `VEIL_T1_PROMPT=evalkit`), plus a regex layer for UK identifiers and labelled client references.
+2. **T1** finds personal data. T1 is a model called through **Mubit** (requested model `claude-haiku-4-5`; serving route must be verified in the console; `gpt-6-luna` with `VEIL_T1_PROMPT=evalkit`), plus a regex layer for UK identifiers and labelled client references.
 3. The user reviews the redaction line by line: Approve all, Decline, "Not personal, show it" (unhide), "Fix a miss" (hide).
 4. Each distinct value becomes a placeholder such as `[PERSON_1]`. The download is a truly redacted PDF (text removed under the box) or redacted text.
-5. **T2** (any AI provider, default `claude-haiku-4-5` through Mubit with recording off) answers questions about the document. It sees placeholders only. Veil restores the real values locally in the answer.
-6. Reviewer corrections become Mubit training signal, so the model learns a firm's own codes.
+5. **T2** (any AI provider, default `claude-haiku-4-5` through Mubit with recording off) answers questions about the document. It receives the redacted document and a filtered question. Veil restores values on the backend; missed or deliberately unhidden values can remain visible.
+6. Reviewer corrections update the stored redaction without a model call. Mubit training feedback is a separate console workflow; the app does not automatically submit corrections.
 
-Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK identifiers. Mask-and-restore alone is common among competitors.
+Current boundary: T1 receives original text with default recording. Review happens afterward. Saved approval controls the UI but is not enforced by `/ask`. Read [Security](SECURITY.md) before making privacy claims; see [Mubit](MUBIT.md) for inference versus training.
 
 ## 2. Repo map
 
@@ -21,6 +21,9 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 |---|---|---|---|
 | `frontend/` | Dmytro | React 19 + Vite + TS + Tailwind v4 + Motion. `/` = landing (pixel castle scroll story), `/app` = the app | Built, checked in browser desktop + mobile on 24 Oct |
 | `backend/app/main.py` | Dmytro | FastAPI API (section 5) | Working; checked live on 24 Oct (section 11) |
+| `backend/app/auth.py` | Team | Email/password accounts, cookie sessions, authentication throttling | Owner checks used by private API routes |
+| `backend/app/storage.py`, `backend/migrations/` | Team | Encrypted PostgreSQL snapshots, review status, saved chat, revisions and migrations | Persistent storage |
+| `backend/app/question.py` | Team | Known-value and regex filtering of questions; answer text normalization | Used before T2 |
 | `backend/app/extract.py` | Dmytro | PDF via PyMuPDF: text plus every word's box and character range (needed for true redaction) | Working |
 | `backend/app/pipeline.py` | Dmytro | regex + T1 per chunk, merge spans, vault placeholders, boxes per line, `rebuild()` for reviewer fixes | Working |
 | `backend/app/refs.py` | Mykola | Regex rule for client, policy, claim and case references after their label, and meter serials and supply point numbers (MPAN, MPRN) (type `CUSTOM`), part of the regex layer | Working; 85% of `data/docs` CUSTOM values, 96% of the 30 original samples |
@@ -31,7 +34,7 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 | `backend/app/ingest/` | Mykola (PR #9) | Local reading of PDFs and images: pdfium text layer, Apple Vision OCR (macOS), identifier repairs after OCR. See its README | Merged; wired into uploads (section 4) |
 | `backend/app/prompts.py` | Mykola | The app's default T1 prompt (rewrite design, `claude-haiku-4-5`). See section 8 | Default since 24 Oct |
 | `backend/tests/` | Dmytro | API, extract, llm, ocrdoc, pdfout, pipeline, refs, stream tests | Pass (24 Oct) |
-| `evalkit/` | Dmytro | Frozen T1 prompt the app uses (`evalkit/src/evalkit/prompts.py`), scorer, regex baseline, vault/restore, round builder, Mubit sender, `autosend.sh` | Used by backend (path dependency) |
+| `evalkit/` | Dmytro | Optional JSON-list T1 prompt (`evalkit/src/evalkit/prompts.py`), scorer, regex baseline, vault/restore, round builder, Mubit sender, `autosend.sh` | Used by backend (path dependency) |
 | `datagen/` | Dmytro | Synthetic UK documents with gold spans (100k run, seed 42) and demo PDFs | Outputs in `data/synthetic/` (gitignored except `pdfs/`) |
 | `dataconv/` | Dmytro | Converters for open PII datasets (TAB, Gretel, Nemotron, OpenPII, bitext, ...) into our format | Outputs in `data/external/` (gitignored, licences vary) |
 | `data/synthetic/pdfs/` | Dmytro | 31 synthetic sample PDFs + `*.gold.json` labels; the app's "Try a sample" cards. `31_assured_periodic_tenancy` (Mykola) is a 20-page e-signed tenancy in the layout of a real agency contract, with an InkProof signature log (IP addresses, UUID signature references), overseas addresses, a guarantor, bank details, meter serials and initials on every page; 59 invented values, built by `scripts/samples/make_tenancy.py` | Committed (fake data only) |
@@ -40,7 +43,7 @@ Pitch line: the edge is per-firm learning via Mubit, true PDF redaction and UK i
 | `scripts/ocr/`, `tests/ingest/` | Mykola | OCR evaluation (render docs in 4 fonts x 6 qualities) and ingest tests | Committed |
 | `scripts/sources/`, `tests/dataset/` | Mykola | Source fetchers and dataset tests | Committed |
 | `requirements.txt`, `.env.example` (root) | Mykola | Deps for `scripts/` and `tests/`; key template for `scripts/dataset/send_batch.py` | Committed |
-| `docs/APP-SPEC.md` | Dmytro | What the web app must do (Mubit needs, flow, API, build order) | Mostly built |
+| `docs/APP-SPEC.md` | Dmytro | What the web app must do (Mubit needs, flow, API, build order) | Historical specification; current behavior is documented here |
 | `docs/design/2026-10-24-redesign-notes.md` | Dmytro | Redesign audit, library research, decisions | Done |
 | `docs/research/2026-10-24-pii-dataset/` | Dmytro | Dataset research, `TRAINING-PLAN.md`, `BAKEOFF.md` (teacher model choice), UK formats | Reference |
 | `docs/research/2026-10-24-veil-numbers/` | Dmytro | About 170 verified market numbers with sources (AI data leakage, rules and fines, market and deals) | Reference; investor page built from it |
@@ -78,18 +81,17 @@ upload / paste / sample
 ```
 
 Model calls (both through Mubit, `backend/app/llm.py`):
-- **T1**, recording ON (calls keep training a Mubit task), session `doc-<doc_id>`. `VEIL_T1_PROMPT` picks the prompt, and each prompt is its own Mubit task:
+- **T1**, default recording ON (calls can enter review for a Mubit task), session `doc-<doc_id>`. `VEIL_T1_PROMPT` picks the prompt, and each prompt is its own Mubit task:
   - `evalkit`: frozen prompt `evalkit/src/evalkit/prompts.py`, model `VEIL_T1_MODEL` (default `gpt-6-luna`), chunks ≤4000 chars, answer = JSON list of `{text, type}` parsed by `evalkit.send_batch.parse_entities`. Mubit task "Find personal data".
-  - `rewrite` (default): Mykola's `backend/app/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (Mubit's reviewer reads only about the first 1,530 chars of a call), each sent stripped of surrounding whitespace as `scripts/dataset/build_chunks.py` made the training chunks. Values with fewer than two letters or digits, and PERSON values that are only a title, are dropped, since every value is hidden everywhere in the document. Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
-- **T2**: model `VEIL_T2_MODEL` (default `claude-haiku-4-5`), header `x-middleware-record: off` (no second task, Mubit stores no user questions).
+  - `rewrite` (default): Mykola's `backend/app/prompts.py` with its `MODEL_ID` (`claude-haiku-4-5`; `VEIL_T1_MODEL` is ignored), chunks ≤1400 chars (chosen after early console review experiments; this is not a guaranteed platform limit), each sent stripped of surrounding whitespace as `scripts/dataset/build_chunks.py` made the training chunks. Values with fewer than two letters or digits, and PERSON values that are only a title, are dropped, since every value is hidden everywhere in the document. Sent with the `anthropic` SDK (pinned to the version in the root `requirements.txt`) exactly as `scripts/dataset/send_batch.py` sends it, so it lands in his Mubit task "Redact personal data"; a test compares the two requests. The answer is the chunk rewritten with `[TYPE_N]` placeholders; `llm.align_rewrite` matches it line by line as a template (falling back to `evalkit.rewrite.spans_from_rewrite`) to get the values. An answer that does not line up, or `stop_reason: max_tokens`, makes the chunk an error.
+- **T2**: model `VEIL_T2_MODEL` (default `claude-haiku-4-5`), header `x-middleware-record: off` (recording disabled for this request; not a blanket provider-retention guarantee).
 - Key and settings: the first value starting with `mbt_` in `MUBIT_API_KEY`, then `backend/.env`, then the repo-root `.env` (where `scripts/dataset/send_batch.py` reads it too). `VEIL_T1_PROMPT`, `VEIL_T1_MODEL` and `VEIL_T2_MODEL` are looked up the same way (section 5). `/api/health` reports where the key came from (`key_source`), never the key.
 - No key → both off; the app still works on the regex layer only (UI shows "Numbers only for now"). The startup log says which prompt, model and key source are in use.
 
 Storage (updated 24 Oct): documents, source PDFs, layout, pipeline results, vaults,
 and review corrections persist encrypted in PostgreSQL. `backend/app/storage.py`
 replaces the old `DOCS`/`RESULTS` dictionaries. See [DATABASE.md](DATABASE.md) for
-setup, migrations, deletion, tests, and email/password accounts. Document text
-is never logged. `/app?doc=<id>` reopens saved work. Since migration 003 the backend
+setup, migrations, deletion, tests, and email/password accounts. Routine chunk logs do not include document text; operational error logging still needs review. `/app?doc=<id>` reopens saved work. Since migration 003 the backend
 also stores each document's review status and chat turns (questions and answers
 encrypted) and lists a user's documents (`GET /api/documents`, section 5).
 Registration/login need no email verification. Every document route is scoped
@@ -139,7 +141,7 @@ Known limits:
 | POST | `/api/documents/{id}/redact/stream` | the same run as server-sent events (contract below). Optional `?retry=failed` |
 | GET | `/api/documents/{id}/pages/{n}.png` | page image (PDF only) |
 | GET | `/api/documents/{id}/file` | redacted PDF or text download |
-| POST | `/api/documents/{id}/ask` | `{question}` → `{answer, answer_with_placeholders, sent_text, unknown_placeholders, mreq_id, turn_id, created_at}`; the turn is stored |
+| POST | `/api/documents/{id}/ask` | `{question}` → `{answer, answer_with_placeholders, sent_text, sent_question, unknown_placeholders, mreq_id, turn_id, created_at}`; the turn is stored |
 | POST | `/api/documents/{id}/corrections` | `{action: hide/unhide, text, type}` → new result |
 | GET | `/api/samples` | sample cards from `data/synthetic/pdfs` (title, kind, pages, value counts from gold) |
 | GET | `/api/samples/{name}/thumb.png` | thumbnail (width 120, darkened) |
@@ -153,7 +155,25 @@ Saved documents, review status and chat (fixed: the frontend builds against it; 
 - `POST /ask` stores the turn, encrypted, before it answers, and adds `turn_id` and `created_at`. A failed ask (409 not scanned, 502 model error, 503 model off) stores nothing. `sent_text` is not stored. The turn and the response also carry `sent_question`, the question exactly as T2 received it (known values, parts of known names and regex finds replaced by placeholders); the Ask panel shows it under "What it sees". Turns stored before this have no `sent_question`.
 - `updated_at` moves on upload, scan, correction, a status change and a stored chat turn, so the sidebar order follows activity.
 
-Env: `DATABASE_URL`, `VEIL_STORAGE_KEY` (required), `MUBIT_API_KEY` (or `backend/.env`), `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`. Load root configuration with `uv run --env-file ../.env` from `backend/`.
+Configuration:
+
+| Setting | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Required PostgreSQL connection for the app |
+| `VEIL_STORAGE_KEY` | Required Fernet key matching that database |
+| `TEST_DATABASE_URL` | Separate disposable test database; never production |
+| `MUBIT_API_KEY` | Server-side inference key; absent means model-off |
+| `VEIL_T1_PROMPT` | `rewrite` default, or `evalkit` |
+| `VEIL_T1_MODEL` | Optional evalkit model override; ignored by rewrite |
+| `VEIL_T2_MODEL` | Answer model; defaults to `claude-haiku-4-5` |
+| `VEIL_COOKIE_SECURE` | Set `true` behind the production HTTPS proxy |
+| `VEIL_CORS` | Comma-separated trusted browser origins |
+| `VEIL_SAMPLES_DIR` | Optional sample PDF directory |
+| `VEIL_API` | Frontend development proxy target, not a backend setting |
+
+Load root configuration with `uv run --env-file ../.env` from `backend/`.
+Database variables must reach the process environment; only Mubit/model settings
+have the additional file lookup described below.
 
 Stream contract (`/redact/stream`, fixed: the frontend builds against it):
 - Unknown doc: 404 JSON `{"detail": "Document not found."}` for a missing document or another owner; unauthenticated requests get 401 before any stream. Otherwise 200 with `Content-Type: text/event-stream`, `Cache-Control: no-store`, `X-Accel-Buffering: no`.
@@ -163,7 +183,7 @@ Stream contract (`/redact/stream`, fixed: the frontend builds against it):
 
 Retry only what failed: `POST /api/documents/{id}/redact/stream?retry=failed` (and `POST /redact?retry=failed`):
 - Same events, in the same order, as a normal run.
-- If PostgreSQL holds an earlier run of this document with the same chunk plan (same T1 prompt and the same ranges), its chunks with status `ok` or `empty` make no new T1 call: their `chunk` events go out at once with the stored `mreq_id`, `latency_ms`, `found` and `entities`. Only chunks that were `error` (or `off`, when the model is now on) call T1. `done` is then what a full run would give; like any scan, it starts without reviewer corrections.
+- If PostgreSQL holds an earlier run of this document with the same chunk plan (same T1 prompt and the same ranges), its chunks with status `ok` or `empty` make no new T1 call: their `chunk` events go out at once with the stored `mreq_id`, `latency_ms`, `found` and `entities`. Only chunks that were `error` (or `off`, when the model is now on) call T1. `done` contains the rebuilt result with manual hides and unhides preserved. Full rescans preserve those corrections too, while calling T1 again for all parts.
 - With no earlier result or a different plan, every chunk runs, as without the parameter. Any other value of `retry` is a 422.
 - `PipelineResult.chunk_values` keeps what T1 returned per chunk and `PipelineResult.plan` the prompt, for this.
 
@@ -171,36 +191,25 @@ One scan per document at a time: each scan (`/redact` or `/redact/stream`, with 
 
 Settings and key lookup: `MUBIT_API_KEY`, `VEIL_T1_PROMPT` (`rewrite` default, or `evalkit`), `VEIL_T1_MODEL` (evalkit prompt only) and `VEIL_T2_MODEL` are each read from a real environment variable first, then from `backend/.env`, then from the repo-root `.env` (so the root `.env` that holds the key can also say `VEIL_T1_PROMPT=evalkit`). Only these names are read from the files; nothing is loaded into `os.environ`. For the key, only a value starting with `mbt_` counts. The startup log names the prompt and where it came from, for example `T1 on: prompt rewrite (VEIL_T1_PROMPT from .env), model claude-haiku-4-5, 1400-character chunks, Mubit key from .env`; a bad `VEIL_T1_PROMPT` stops startup. `VEIL_CORS` and `VEIL_SAMPLES_DIR` are read from the environment only.
 
-## 6. How to run
+## 6. How to run and verify
 
-```bash
-# backend (Python 3.12/3.13, uv); evalkit is a path dependency
-python3 scripts/local_db.py start
-cd backend && uv sync --frozen && uv run --env-file ../.env uvicorn app.main:app --reload --port 8000
-# key: one line MUBIT_API_KEY=mbt_... in the root .env (or backend/.env, or export it); all gitignored.
-# Lookup order: environment, backend/.env, .env. The startup log and /api/health show the source.
-# T1 prompt: rewrite (default, claude-haiku-4-5). For the evalkit prompt on gpt-6-luna put
-# VEIL_T1_PROMPT=evalkit in the same .env (see .env.example), or VEIL_T1_PROMPT=evalkit uv run uvicorn ...
-# All document/stream requests need a login cookie and X-Veil-Request: 1.
+Use the separate-terminal commands in the [root README](../README.md#run-locally)
+and [database guide](DATABASE.md). The full app is hosted on Railway; deployment
+commands and its service diagram are in [DEPLOY.md](DEPLOY.md).
 
-# watch a scan stream (synthetic sample only)
-DOC=$(curl -s -X POST localhost:8000/api/samples/01_tenancy_agreement.pdf | python3 -c "import json,sys; print(json.load(sys.stdin)['doc_id'])")
-curl -N -X POST localhost:8000/api/documents/$DOC/redact/stream
+All private routes require an authenticated owner's session cookie. Mutating
+requests also require `X-Veil-Request: 1`. A raw unauthenticated `curl` example
+will not start a scan. In the browser, register, choose a synthetic sample and
+inspect its POST stream in developer tools to see the actual request and events.
 
-# frontend (Vite proxies /api to 127.0.0.1:8000)
-npm --prefix frontend install && npm --prefix frontend run dev   # http://localhost:5173
+Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample;
+`/app?doc=<id>` reopens saved work for its owner.
 
-# tests
-cd backend && uv run --env-file ../.env pytest -q  # includes separate veil_test database
-cd backend && uv run --with reportlab python -m pytest -q ../tests/ingest   # OCR (Apple Vision, macOS)
-npm --prefix frontend test && npm --prefix frontend run build
-
-python -m pytest tests -q               # Mykola's tests (needs root requirements.txt installed)
-cd evalkit && uv run pytest -q
-```
-
-Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly;
-`/app?doc=<id>` reopens a document already saved in PostgreSQL.
+Run backend tests with a separate test database; they mock model calls. The
+root README lists backend, OCR, evalkit and frontend validation commands.
+See the component READMEs for dataset/generator checks. Test counts are dated
+observations; rerun the relevant suite after code changes rather than treating
+an old total as a current guarantee.
 
 ## 7. Frontend
 
@@ -228,10 +237,15 @@ Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly;
 
 ## 8. Open conflicts to resolve (team decision, do not pick silently)
 
-1. **Two T1 designs.** The app runs either (`VEIL_T1_PROMPT`). Since 24 Oct the default is `rewrite` (Nick's call): his Mubit task "Redact personal data" has a trained v1 adapter (held-out test 91.7% vs 66.7% for the base model), and the Night Shift check-in bot looks for Claude Haiku calls through `api.mubit.ai/anthropic`. `evalkit` stays available with `VEIL_T1_PROMPT=evalkit`.
-   - App + all Mubit training so far: `evalkit/src/evalkit/prompts.py` (`PROMPT_VERSION = 1`), output = JSON list of entities, teacher `gpt-6-luna`. Mubit console task "Find personal data", Training v1.
-   - Mykola: `backend/app/prompts.py`, output = the chunk rewritten with placeholders, model `claude-haiku-4-5`, used by `scripts/dataset/send_batch.py`. Marked "DRAFT pending Nick's review".
-   - Mubit fingerprints a task by model + system prompt + tools + output format. Any change creates a new task with zero kept examples. Pick one before more training traffic. `evalkit` can already send Mykola's documents (`evalkit/src/evalkit/team_docs.py`, rounds `team_train` / `team_eval`) and recover spans from rewrite answers (`rewrite.py`).
+1. **Two T1 designs.** The default app request is `rewrite`: `backend/app/prompts.py`,
+   `claude-haiku-4-5`, placeholder rewrite output, matching `scripts/dataset/send_batch.py`.
+   The optional `evalkit` design uses its frozen JSON entity-list prompt and defaults
+   to `gpt-6-luna`. They are separate task designs; do not merge their training counts.
+   A previous team report put a rewrite adapter's held-out result at 91.7% versus
+   66.7% for its base model. That is a historical report, not a live routing or
+   general redaction-accuracy claim. Check task/version and graded case count in
+   Mubit before quoting it. See [Mubit integration](MUBIT.md) for the current workflow.
+
 2. **Two dataset pipelines**: `datagen` + `dataconv` + `evalkit/build_rounds` (outputs gitignored under `data/synthetic`, `data/external`, `data/rounds`) vs `data/docs` + `scripts/dataset` (committed). Pick one format as canonical, or keep the converter.
 3. **Two Python setups**: `backend/pyproject.toml` (uv, used by the app) vs root `requirements.txt` + `tests/` (Mykola). Both can import `backend/app`. Fold into one before adding more.
 4. **Two PDF readers**: PyMuPDF words (`extract.py`, needed for boxes) vs pdfium lines (`ingest`). Keep PyMuPDF for text-layer PDFs unless `ingest` gains word boxes with character offsets.
@@ -242,13 +256,13 @@ Deep links: `/app?sample=01_tenancy_agreement.pdf` opens a sample directly;
 - Sent with recording on, 0 errors: `team_train`, `corrections`, `r2_fresh` (11:45 to 12:01 UTC).
 - `r3_reserve` was NOT sent: the `evalkit/autosend.sh` queue was stopped on 24 Oct, because the app's default T1 is now `rewrite` (Nick's task "Redact personal data") and r3 would have gone to the old task "Find personal data". Do not restart it unless the team goes back to `evalkit`.
 - Run logs and `corrections_todo.md` (wrong answers with `mreq_` ids for console corrections) are in `evalkit/runs/`, which is gitignored: they exist only on Dmytro's Mac.
-- Rules: only synthetic or Mubit-safe records go through Mubit. `data/external/eval_local_only.jsonl` must never be sent. The daily training limit resets at 00:00 UTC.
+- Rules: only synthetic or Mubit-safe records go through Mubit. `data/external/eval_local_only.jsonl` must never be sent. Check the current review/training limits and reset time in the Mubit console.
 
 ## 10. Hard rules for any agent
 
 - Never commit keys. `.env`, `.env.*`, `*.env` are gitignored (`.env.example` is the exception). A Mubit key was shown in screenshots: rotate it in app.mubit.ai.
 - Do not commit `data/external/`, `data/rounds/`, the rest of `data/synthetic/` (size, licences) or `evalkit/runs/`.
-- Honest claims only: say "pseudonymised", never "anonymised" or "compliant". T1 runs through Mubit (a remote gateway), so never claim the file never leaves the laptop. Correct copy: "the AI only sees the placeholders". OCR itself is local (Apple Vision).
+- Honest claims only: say "pseudonymised", never "anonymised" or "compliant". T1 runs through Mubit (a remote gateway), so never claim the file never leaves the laptop. Accurate copy: "the answering model receives the redacted document and filtered question; the detector receives original chunks." OCR runs in the backend on macOS (Apple Vision).
 - No em dashes in user-facing text or docs. Plain, short English in the UI.
 - The repo is public. Commit or push only when a human asks. Work on a branch and open a PR.
 
@@ -266,7 +280,15 @@ Checked on Nick's Mac on 24 Oct, after PRs #11 to #13, with a live Mubit key and
 Not verified:
 - The last design-review round: some screenshots predate the final fixes (mobile final CTA, mobile counters, reduced-motion page).
 
-## 12. Next steps, in order
+## 12. Next steps
+
+Privacy priorities: enforce approval against the current result revision before
+Q&A; add a pre-send disclosure/consent flow for T1 and recording; verify detector
+routing/fallback policy; extend question coverage and add inference quotas.
+See [Security](SECURITY.md) for the current limits. Automatic in-app correction
+feedback needs an explicit, verified Mubit integration.
+
+Earlier demo and data follow-ups:
 
 1. A real phone photo (HEIC) through the app on a Mac.
 2. New training traffic goes to the `rewrite` task only. `evalkit/runs/corrections_todo.md` (old task) is kept for reference.

@@ -1,5 +1,7 @@
 # OCR evaluation
 
+[Documentation index](../../docs/README.md) · [Ingestion](../../backend/app/ingest/README.md). Run commands from the repository root; real Apple Vision OCR requires macOS.
+
 `eval_ocr.py` measures how much personal data survives `backend/app/ingest` on dataset
 documents. Each sampled document is printed in one of four fonts (Arial, Times New Roman,
 Georgia, Courier New) and turned into a text-layer PDF and five image-only PDFs: a clean

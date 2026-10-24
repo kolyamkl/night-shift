@@ -7,12 +7,19 @@ labels for 13 entity types, chunks them for Mubit, splits them by document and c
 round files. Every value is fake: names are random combinations from name lists, identifiers are
 generated with valid formats and checksums, nothing is copied from real people.
 
+[Documentation index](../docs/README.md) · [Mubit workflow](../docs/MUBIT.md)
+
+This generator produces files; generating them does not train or deploy a model.
+The statistics below describe the recorded seed-42 run, not current live model
+performance. Its 6,000-character chunker is separate from the app's 1,400-character
+rewrite limit; rebuild/check request sizes for the task you intend to train.
+
 ## Run
 
 ```bash
-cd /Users/dima/Projects/night-shift/datagen
+cd datagen  # from the repository root
 uv sync
-uv run pytest -q                                   # 73 tests, about 10 s
+uv run pytest -q                                   # generator tests
 uv run python -m datagen.generate --n 100000 --seed 42 --out ../data/synthetic
 ```
 

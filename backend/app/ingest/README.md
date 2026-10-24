@@ -1,8 +1,12 @@
 # Document ingestion
 
-Turns an uploaded PDF or image into plain text for T1, entirely on this Mac. No LLM and
-no network call is involved, so a document's personal data stays on the machine until
-the redacted text is sent.
+[Documentation index](../../../docs/README.md) · [Data protection](../../../docs/SECURITY.md)
+
+Turns an uploaded PDF or image into plain text for T1 inside the backend process.
+Extraction itself makes no LLM or network call. The later T1 detection step sends
+original extracted chunks through Mubit; extraction is not an outbound privacy
+barrier. Apple Vision OCR requires macOS and is unavailable on Railway's Linux
+backend. Text-layer PDF extraction remains available there.
 
 ```python
 from app.ingest import extract, scanned_pages
