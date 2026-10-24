@@ -161,6 +161,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
     const text = sel?.toString().trim() ?? "";
     if (!sel || !text || !body.current?.contains(sel.anchorNode)) return setPick(null);
     if (text.includes("\n")) return setNote("Select text within one line, then press Hide.");
+    setNote(null);
     const r = sel.getRangeAt(0).getBoundingClientRect();
     setPop(null);
     setPick({ text, x: r.left, y: r.bottom + 10 });
@@ -379,7 +380,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
       {status === "review" && (
         <div className={`review-bar sticky bottom-3 mx-3 mb-3 lg:absolute lg:right-4 lg:bottom-4 lg:left-4 lg:mx-0 lg:mb-0 z-20 flex flex-col gap-3 bg-ink px-4 py-3 text-bone px-frame ${session.revealed ? "is-up" : ""}`}>
           <p className={`min-w-0 truncate text-[14px] ${fixing ? "font-semibold text-signal-soft" : "text-bone/85"}`} aria-live="polite">
-            {fixing ? "Select the missed text on the page, then press Hide." : (session.notice ?? note ?? statusNote)}
+            {fixing ? (note ?? "Select the missed text on the page, then press Hide.") : (session.notice ?? note ?? statusNote)}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="mr-auto font-label text-[12px] whitespace-nowrap tabular-nums">
@@ -387,7 +388,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
             </span>
             <Button size="sm" icon="up" onClick={() => goTo((focus ?? 0) - 1)}>Prev</Button>
             <Button size="sm" icon="down" onClick={() => goTo(focus === null ? 0 : focus + 1)}>Next</Button>
-            <Button size="sm" icon="marker" aria-pressed={fixing} onClick={() => setFixing((f) => !f)}>Fix a miss</Button>
+            <Button size="sm" icon="marker" aria-pressed={fixing} onClick={() => { setNote(null); setFixing((f) => !f); }}>Fix a miss</Button>
             <Button size="sm" variant="ghost" icon="close" onClick={onDecline}>Decline</Button>
             <Button variant="primary" icon="check" onClick={onApprove}>Approve all</Button>
           </div>

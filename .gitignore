@@ -42,3 +42,6 @@ frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
 /qa-out/
+
+# Playwright accounts for local runs
+frontend/e2e/.auth/

@@ -1,4 +1,4 @@
-# VEIL-QA-1: bugs left open (drafts)
+# VEIL-QA-1 and VEIL-QA-2: bugs left open (drafts)
 
 Found by black-box QA (Playwright) and a code audit on 24 Oct 2026, at commit aabbb71 on http://localhost:5173 with a local PostgreSQL, the AI model off (no Mubit key) and a fresh test account. The repo has no Linear line yet, so these are drafts; nothing was filed.
 
@@ -23,15 +23,15 @@ Fixed in the same pass and covered by `frontend/e2e/` (21 Playwright tests): the
 - Expected: plain words for a user, for example "The AI is not connected on this server, so questions cannot be answered yet."
 - Severity: minor. Fingerprint: `fe:/app:ask-model-off-copy`.
 
-### 4. [FE] Browser Back from a document leaves the app
+### 4. [FE] Browser Back from a document leaves the app (FIXED in VEIL-QA-2)
 - Steps: open a document from the rail, press the browser Back button.
 - Actual: the landing page opens. Expected: back to the intake or the previous document.
 - Severity: minor. Fingerprint: `fe:/app?doc:back-leaves-app`.
 
-### 5. [FE] Sign-in form comes back in sign-up mode after logging out
+### 5. [FE] Sign-in form comes back in sign-up mode after logging out (FIXED in VEIL-QA-2)
 - Severity: minor. Fingerprint: `fe:/app:logout-shows-signup`.
 
-### 6. [FE] Ask conversation gone after a reload
+### 6. [FE] Ask conversation gone after a reload (not reproduced in VEIL-QA-2 through the mock; recheck with a live key)
 - Steps: approve a document, ask a question, reload. Actual: the thread is empty. Expected: the stored turns come back (the backend stores them since 551de87).
 - Severity: minor. Fingerprint: `fe:/app?doc:ask-thread-lost-on-reload`.
 
@@ -70,3 +70,21 @@ Fixed in the same pass and covered by `frontend/e2e/` (21 Playwright tests): the
 - Stamps under the band, lost documents after resize: lay out absolutely positioned pieces from a ResizeObserver, not from window resize; a Playwright check after `setViewportSize`.
 - Hills off screen on phones: tile moving backgrounds by background position, not by translating a finite strip.
 - Review bar at the end of a long page: test long documents at phone size, not only short samples.
+
+## VEIL-QA-2 (24 to 25 Oct): the app end to end
+
+`frontend/e2e/app/` now runs 43 app tests in five Playwright projects (`npm run e2e` in `frontend`): through the
+mock model (`scripts/mock-stream.mjs`), through a mock whose third part fails once, on a phone, and against the
+real backend with the model off. They cover accounts, every file type, the pass, Next and Prev, Fix a miss,
+showing a value, Decline, Approve, the victory scene, downloads, Ask and What it sees, sessions, Back and Forward,
+double presses, access between accounts, layout at 1440 and 1024, text sizes, hover and focus, fonts and the phone.
+
+Fixed in this pass (each found by a failing test first):
+- The Ask panel's slide-in widened the page by 12 to 24 px for about 0.4 s (a horizontal scrollbar flashed).
+- In Fix a miss, a selection over two lines got no answer: the mode's own instruction hid the message.
+- Back from a document left the app; opening a document, picking another or New document are now history steps.
+- After logging out (or when the session ends) the form came back in sign-up mode.
+
+Still open from the exploratory run (screenshots in `qa-out/VEIL-QA-2/`, local only): #1 NI number partly hidden,
+#2 dates of birth not hidden without the model, #3 the model-off wording in Ask, #7 duplicate "pasted.txt" names,
+#9 the victory scene is cramped at 1440 x 900.
