@@ -316,8 +316,11 @@ fonts by [`frontend/scripts/readme_art.py`](frontend/scripts/readme_art.py).
 
 ## License
 
-[MIT](LICENSE) © 2026 Glib. Sample documents contain invented people only;
-external datasets keep their own licences (see [dataconv](dataconv/README.md)).
+[PolyForm Noncommercial 1.0.0](LICENSE) © 2026 Glib. Free for personal use,
+study, research, hobby projects and noncommercial organisations such as
+charities, schools and public bodies. Any commercial use needs a separate licence
+from the copyright holder. Sample documents contain invented people only; external
+datasets keep their own licences (see [dataconv](dataconv/README.md)).
 
 <p align="center">
   <img src="docs/readme/footer.svg" width="100%" alt="MuGuard. Pseudonymised, not anonymised: placeholders map back to real values only on your side. Built at Night Shift, London, on Mubit.">
