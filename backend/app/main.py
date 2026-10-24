@@ -36,6 +36,7 @@ from .extract import Document, extract_pdf, extract_text
 from .llm import T1_CHUNK_CHARS, describe, find_key, load_settings, make_t1_factory, make_t2
 from .pdfout import redact_pdf
 from .pipeline import Emit, PipelineResult, rebuild, run_pipeline
+from .question import plain, pseudonymise
 
 log = logging.getLogger("veil")
 if not log.handlers:
@@ -404,16 +405,19 @@ def ask(doc_id: str, body: Ask, user: User) -> dict:
     res = _scanned(doc_id, user["id"]).result
     if not app.state.t2:
         raise HTTPException(503, "The chat model is off. Start the backend with MUBIT_API_KEY set.")
+    sent_question, vault = pseudonymise(body.question, res.vault)  # the question is pseudonymised too
     try:
-        raw, mreq = app.state.t2(body.question, res.redacted_text)
+        raw, mreq = app.state.t2(sent_question, res.redacted_text)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"The model did not answer: {exc}") from None
-    answer, unknown = restore(raw, res.vault)
-    turn = {"question": body.question, "answer": answer, "answer_with_placeholders": raw,
-            "unknown_placeholders": unknown, "mreq_id": mreq}
+    raw = plain(raw)
+    answer, unknown = restore(raw, vault)
+    turn = {"question": body.question, "sent_question": sent_question, "answer": answer,
+            "answer_with_placeholders": raw, "unknown_placeholders": unknown, "mreq_id": mreq}
     turn_id, created_at = app.state.store.add_turn(doc_id, turn, owner_id=user["id"])
     return {"answer": answer, "answer_with_placeholders": raw, "sent_text": res.redacted_text,
-            "unknown_placeholders": unknown, "mreq_id": mreq, "turn_id": turn_id, "created_at": created_at}
+            "sent_question": sent_question, "unknown_placeholders": unknown, "mreq_id": mreq,
+            "turn_id": turn_id, "created_at": created_at}
 
 
 class Correction(BaseModel):

@@ -318,7 +318,7 @@ def test_chat_turns_are_stored_in_order_and_failed_asks_store_nothing(client):
         assert answer["answer"] == "The tenant is Raj Patel."
     assert answers[0]["turn_id"] < answers[1]["turn_id"]
     turns = client.get(path).json()["turns"]
-    assert turns == [{"turn_id": a["turn_id"], "created_at": a["created_at"], "question": q,
+    assert turns == [{"turn_id": a["turn_id"], "created_at": a["created_at"], "question": q, "sent_question": q,
                       "answer": "The tenant is Raj Patel.", "answer_with_placeholders": "The tenant is [PERSON_1].",
                       "unknown_placeholders": [], "mreq_id": "mreq_answer"}
                      for a, q in zip(answers, ("Who is the tenant?", "And again?"))]

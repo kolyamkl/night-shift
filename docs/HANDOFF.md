@@ -73,7 +73,8 @@ upload / paste / sample
          → boxes: words overlapping a span, one rectangle per line (PDF only)
   └─ review in the UI → POST /corrections {hide|unhide} → pipeline.rebuild (no new T1 calls)
   └─ GET /file → true-redacted PDF (pdfout) or redacted .txt
-  └─ POST /ask → T2 gets only redacted_text → evalkit.redact.restore puts values back
+  └─ POST /ask → question pseudonymised with a copy of the vault (app/question.py) → T2 gets only
+     redacted_text and that question → Markdown taken out → evalkit.redact.restore puts values back
 ```
 
 Model calls (both through Mubit, `backend/app/llm.py`):
@@ -149,7 +150,7 @@ Saved documents, review status and chat (fixed: the frontend builds against it; 
 - Times are ISO 8601 UTC with milliseconds, as JavaScript's `toISOString` gives: `2026-10-24T17:36:24.912Z`.
 - `status` is `new`, `review`, `approved` or `declined`. Upload and sample give `new`. A saved scan (`/redact`, or `done` of `/redact/stream`) turns `new` into `review` and leaves `approved` and `declined` alone, since editing after approve is allowed. `PATCH /api/documents/{id}` `{status}` sets `review`, `approved` or `declined` (anything else is 422; an unknown or foreign document is 404).
 - `GET /api/documents/{id}` adds `status` and `turns: [{turn_id, created_at, question, answer, answer_with_placeholders, unknown_placeholders, mreq_id}]`, oldest first.
-- `POST /ask` stores the turn, encrypted, before it answers, and adds `turn_id` and `created_at`. A failed ask (409 not scanned, 502 model error, 503 model off) stores nothing. `sent_text` is not stored.
+- `POST /ask` stores the turn, encrypted, before it answers, and adds `turn_id` and `created_at`. A failed ask (409 not scanned, 502 model error, 503 model off) stores nothing. `sent_text` is not stored. The turn and the response also carry `sent_question`, the question exactly as T2 received it (known values, parts of known names and regex finds replaced by placeholders); the Ask panel shows it under "What it sees". Turns stored before this have no `sent_question`.
 - `updated_at` moves on upload, scan, correction, a status change and a stored chat turn, so the sidebar order follows activity.
 
 Env: `DATABASE_URL`, `VEIL_STORAGE_KEY` (required), `MUBIT_API_KEY` (or `backend/.env`), `VEIL_T1_MODEL`, `VEIL_T2_MODEL`, `VEIL_CORS`, `VEIL_SAMPLES_DIR`. Load root configuration with `uv run --env-file ../.env` from `backend/`.

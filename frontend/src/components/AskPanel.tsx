@@ -63,6 +63,14 @@ export function AskPanel({ session, t2Model, onAsk }: {
           <div className="mt-2 bg-paper p-3 font-serif text-[14px] leading-relaxed whitespace-pre-wrap px-frame-thin">
             <Placeholders text={lastSent?.sent_text ?? session.result?.redacted_text ?? ""} />
           </div>
+          {lastSent?.sent_question && (
+            <>
+              <p className="mt-5 px-label text-quiet">Your last question, as the AI received it</p>
+              <div className="mt-2 bg-paper p-3 font-serif text-[14px] leading-relaxed px-frame-thin">
+                <Placeholders text={lastSent.sent_question} />
+              </div>
+            </>
+          )}
           {lastSent && (
             <>
               <p className="mt-5 px-label text-quiet">Its last answer, before Veil put the values back</p>

@@ -55,8 +55,11 @@ export function fromSummary(d: DocSummary): Session {
 // A stored turn as the Ask panel shows it. Turns do not keep the text that was sent, so "What it sees"
 // shows the current redacted text.
 export function fromTurn(t: StoredTurn, sent: string): Turn {
-  const { turn_id, created_at, question, answer, answer_with_placeholders, unknown_placeholders, mreq_id } = t;
-  return { question, answer: { answer, answer_with_placeholders, sent_text: sent, unknown_placeholders, mreq_id, turn_id, created_at } };
+  const { turn_id, created_at, question, sent_question, answer, answer_with_placeholders, unknown_placeholders, mreq_id } = t;
+  return {
+    question,
+    answer: { answer, answer_with_placeholders, sent_text: sent, sent_question, unknown_placeholders, mreq_id, turn_id, created_at },
+  };
 }
 
 // A stored document, opened: its result shown at once with no replay of the scan, and its chat.
