@@ -12,6 +12,10 @@ import { fromStored, isOpen, mergeList, withOpened, type Saved, type Session, ty
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");
 const distinct = (s: Session) => new Set(s.result?.entities.map((e) => e.placeholder)).size;
 const docUrl = (id: string) => `/app?doc=${encodeURIComponent(id)}`;
+// A new history entry, so the browser's Back returns to where the person was (the intake or another document).
+const go = (url: string) => {
+  if (window.location.pathname + window.location.search !== url) window.history.pushState(null, "", url);
+};
 
 export default function App() {
   return <AuthGate>{(user, logout) => <Workspace key={user.id} user={user} onLogout={logout} />}</AuthGate>;
@@ -83,6 +87,27 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
     }
   }, []);
 
+  // Back and Forward: the address says which document is open, or the intake when there is none.
+  const known = useRef(sessions);
+  known.current = sessions;
+  useEffect(() => {
+    const onPop = () => {
+      const id = new URLSearchParams(window.location.search).get("doc");
+      if (!id) {
+        setIntake(true);
+        setError(null);
+        return;
+      }
+      setActiveId(id);
+      setIntake(false);
+      if (!known.current.find((s) => s.id === id)?.doc) void openSaved(id);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // openSaved only sets state, so the first render's copy is enough
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const update = useCallback((id: string, patch: (s: Session) => Partial<Session>) => {
     setSessions((all) => all.map((s) => (s.id === id ? { ...s, ...patch(s) } : s)));
   }, []);
@@ -129,7 +154,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
       const session: Session = { id: doc.doc_id, filename: doc.filename, doc, status: "scanning", scan: emptyScan(), revealed: false, at: Date.now(), turns: [] };
       setSessions((all) => [session, ...all.filter((s) => s.id !== doc.doc_id)]);
       setActiveId(doc.doc_id);
-      window.history.replaceState(null, "", docUrl(doc.doc_id));
+      go(docUrl(doc.doc_id));
       setIntake(false);
       void redact(doc.doc_id);
     } catch (e) {
@@ -184,7 +209,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
   const revealedFor = useCallback((id: string) => () => update(id, () => ({ revealed: true })), [update]);
 
   return (
-    <div className={`grid min-h-screen grid-cols-[minmax(0,1fr)] lg:h-screen lg:grid-rows-1 ${layout}`}>
+    <div className={`grid min-h-screen grid-cols-[minmax(0,1fr)] overflow-x-clip lg:h-screen lg:grid-rows-1 ${layout}`}>
       <Rail
         email={user.email}
         onLogout={onLogout}
@@ -194,12 +219,12 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
         activeId={showIntake ? null : activeId}
         onSelect={(id) => {
           setActiveId(id);
-          window.history.replaceState(null, "", docUrl(id));
+          go(docUrl(id));
           setIntake(false);
           if (!sessions.find((s) => s.id === id)?.doc && fetching[id] !== null) void openSaved(id);
         }}
         onNew={() => {
-          window.history.replaceState(null, "", "/app");
+          go("/app");
           setIntake(true);
           setError(null);
         }}

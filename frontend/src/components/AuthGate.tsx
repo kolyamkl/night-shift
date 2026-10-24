@@ -16,7 +16,7 @@ export function AuthGate({ children }: { children: (user: User, logout: () => Pr
     api.me().then((value) => { if (!cancelled) setUser(value); }).catch((e) => {
       if (!cancelled && !(e instanceof ApiError && e.status === 401)) setError(e.message);
     }).finally(() => { if (!cancelled) setChecking(false); });
-    const expired = () => { setUser(null); setPassword(""); setError("Your session ended. Please log in again."); };
+    const expired = () => { setUser(null); setMode("login"); setPassword(""); setError("Your session ended. Please log in again."); };
     window.addEventListener("veil:unauthorized", expired);
     return () => { cancelled = true; window.removeEventListener("veil:unauthorized", expired); };
   }, []);
@@ -24,6 +24,7 @@ export function AuthGate({ children }: { children: (user: User, logout: () => Pr
   async function logout() {
     await api.logout();
     window.history.replaceState(null, "", "/app");
+    setMode("login");
     setPassword("");
     setError(null);
     setUser(null);

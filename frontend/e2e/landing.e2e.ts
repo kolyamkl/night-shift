@@ -67,9 +67,8 @@ test("L13 reduced motion: a press shows the finished state with the gate open", 
   await openGate(page);
   await expect(page.locator(".gdoc.is-stamped")).toHaveCount(5);
   await expect(score(page)).toBeVisible();
-  const leaf = await box(page.locator(".gate-leaf").first());
   const gate = await box(page.locator(".gate"));
-  expect(leaf.width, "left gate leaf swung open").toBeLessThan(gate.width / 4);
+  await expect.poll(async () => (await box(page.locator(".gate-leaf").first())).width, { message: "left gate leaf swung open" }).toBeLessThan(gate.width / 4);
   expect(errors).toEqual([]);
 });
 
