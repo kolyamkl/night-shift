@@ -51,7 +51,7 @@ def no_veil_env(monkeypatch):
 
 def test_settings_come_from_the_same_files_as_the_key_in_the_same_order(key_files, no_veil_env, monkeypatch):
     backend_env, root_env = key_files[0][1], key_files[1][1]
-    assert llm.load_settings(key_files).t1_prompt == "evalkit"  # the default
+    assert llm.load_settings(key_files).t1_prompt == "rewrite"  # the default
     root_env.write_text("MUBIT_API_KEY=mbt_root\nVEIL_T1_PROMPT=rewrite\nVEIL_T2_MODEL=claude-sonnet-x\n")
     got = llm.load_settings(key_files)
     assert (got.t1_prompt, got.t1_model, got.t2_model) == ("rewrite", "claude-haiku-4-5", "claude-sonnet-x")
@@ -86,7 +86,7 @@ def test_the_startup_line_names_the_prompt_and_its_source(key_files, no_veil_env
         "T1 on: prompt rewrite (VEIL_T1_PROMPT from .env), model claude-haiku-4-5, 1400-character chunks, "
         "Mubit key from .env")
     key_files[1][1].write_text("")
-    assert llm.describe(llm.load_settings(key_files), None).endswith("regex layer only; prompt evalkit (default)")
+    assert llm.describe(llm.load_settings(key_files), None).endswith("regex layer only; prompt rewrite (default)")
 
 
 def message(text: str, stop_reason: str = "end_turn") -> dict:
