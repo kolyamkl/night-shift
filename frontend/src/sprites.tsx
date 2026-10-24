@@ -8,25 +8,31 @@ export const STONE = "#8b8a85";
 export const STEEL = "#55534d";
 export const BONE = "#f8f7f3";
 
-export const COLORS: Record<string, string> = { k: INK, r: SIGNAL, g: STONE, s: STEEL, w: BONE, h: "#c9c7bd", m: "#dcdad1", c: "currentColor" };
+export const COLORS: Record<string, string> = { k: INK, r: SIGNAL, o: "#ff6b61", g: STONE, s: STEEL, w: BONE, h: "#c9c7bd", m: "#dcdad1", c: "currentColor" };
 
-type Rows = readonly string[];
+export type Rows = readonly string[];
+
+/** One path of horizontal runs per colour: [colour key, path data]. */
+export function runPaths(rows: Rows): [string, string][] {
+  const byColor: Record<string, string[]> = {};
+  rows.forEach((row, y) => {
+    let x = 0;
+    while (x < row.length) {
+      const ch = row[x];
+      let n = 1;
+      while (x + n < row.length && row[x + n] === ch) n++;
+      if (ch !== ".") (byColor[ch] ??= []).push(`M${x} ${y}h${n}v1h-${n}z`);
+      x += n;
+    }
+  });
+  return Object.entries(byColor).map(([ch, d]) => [ch, d.join("")]);
+}
 
 export function Sprite({ rows, scale, className, label }: { rows: Rows; scale: number; className?: string; label?: string }) {
-  const { w, h, paths } = useMemo(() => {
-    const byColor: Record<string, string[]> = {};
-    rows.forEach((row, y) => {
-      let x = 0;
-      while (x < row.length) {
-        const ch = row[x];
-        let n = 1;
-        while (x + n < row.length && row[x + n] === ch) n++;
-        if (ch !== ".") (byColor[ch] ??= []).push(`M${x} ${y}h${n}v1h-${n}z`);
-        x += n;
-      }
-    });
-    return { w: Math.max(...rows.map((r) => r.length)), h: rows.length, paths: Object.entries(byColor) };
-  }, [rows]);
+  const { w, h, paths } = useMemo(
+    () => ({ w: Math.max(...rows.map((r) => r.length)), h: rows.length, paths: runPaths(rows) }),
+    [rows],
+  );
   return (
     <svg
       className={className}
@@ -39,7 +45,7 @@ export function Sprite({ rows, scale, className, label }: { rows: Rows; scale: n
       aria-hidden={label ? undefined : true}
     >
       {paths.map(([ch, d]) => (
-        <path key={ch} fill={COLORS[ch]} d={d.join("")} />
+        <path key={ch} fill={COLORS[ch]} d={d} />
       ))}
     </svg>
   );

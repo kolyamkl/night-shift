@@ -2,6 +2,7 @@ import { motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScrol
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { KNIGHT_SMALL, Sprite } from "../sprites";
 import { AI_TOWER, CASTLE, HILLS_FAR, HILLS_NEAR, PIGEON, PORTCULLIS, SCROLL, TORCH, WALL_SIDE } from "./art";
+import { Hills } from "./Hills";
 
 // The stage is drawn at 1200 x 500 design pixels (5px per art cell) and scaled to fit; the art is vector, so it stays crisp.
 const W = 1200;
@@ -22,23 +23,64 @@ const DOC = [
   ["Account", "31926819", "ACCOUNT_1"],
 ] as const;
 
-// Wide screens fit the whole stage; narrow ones show it larger and pan a camera along the action.
+// The scene box takes the full window width and the height left under the captions. Wide screens fit the stage
+// to that box (hills and ground carry on past its sides); narrow ones show it larger and pan a camera along the action.
 const MIN_SCALE = 0.62;
 
 function useFit(ref: RefObject<HTMLDivElement | null>) {
-  const [width, setWidth] = useState(W);
+  const [box, setBox] = useState({ w: W, h: H });
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    const ro = new ResizeObserver(([e]) => setBox({ w: e.contentRect.width, h: e.contentRect.height }));
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref]);
-  const fit = Math.min(1.1, width / W);
-  const pan = fit < MIN_SCALE;
-  // On a phone the stage is sized from the height left under the captions, and the camera pans across it.
-  const tall = typeof window === "undefined" ? 1 : (window.innerHeight - 330) / H;
-  return { width, scale: pan ? Math.min(1, Math.max(MIN_SCALE, tall)) : fit, pan };
+  const byWidth = box.w / W;
+  const byHeight = box.h / H;
+  const pan = byWidth < MIN_SCALE;
+  const scale = pan ? Math.min(1, Math.max(MIN_SCALE, byHeight)) : Math.min(byWidth, Math.max(byHeight, MIN_SCALE));
+  return { width: box.w, scale, pan };
+}
+
+// Behind the actors: hills and ground across the whole window, at the stage's pixel size.
+function Backdrop({ scale, far, near }: { scale: number; far: MotionValue<number>; near: MotionValue<number> }) {
+  const cell = Math.round(6 * scale * 10) / 10;
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden>
+      <motion.div className="absolute -inset-x-[20%] opacity-70" style={{ top: (GROUND - 240) * scale, x: far }}>
+        <Hills rows={HILLS_FAR} edge="#8b8a85" fill="#c9c7bd" cell={cell} />
+      </motion.div>
+      <motion.div className="absolute -inset-x-[20%]" style={{ top: (GROUND - 120) * scale, x: near }}>
+        <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#dcdad1" cell={cell} />
+      </motion.div>
+      <div className="absolute inset-x-0 bottom-0 bg-mist" style={{ top: GROUND * scale }} />
+      <div className="absolute inset-x-0 bg-ink" style={{ top: GROUND * scale, height: Math.max(2, Math.round(4 * scale)) }} />
+    </div>
+  );
+}
+
+// The whole picture, pinned to the bottom of its box: backdrop, then the 1200 x 500 stage, centred or panned.
+function Scene({ p, still, scale, width, pan, camX }: {
+  p: MotionValue<number>;
+  still: boolean;
+  scale: number;
+  width: number;
+  pan: boolean;
+  camX: MotionValue<number>;
+}) {
+  const far = useTransform(() => (still ? 0 : p.get() * -80 * scale) + (pan ? camX.get() * 0.4 : 0));
+  const near = useTransform(() => (still ? 0 : p.get() * -200 * scale) + (pan ? camX.get() * 0.7 : 0));
+  return (
+    <div className="absolute inset-x-0 bottom-0" style={{ height: H * scale }}>
+      <Backdrop scale={scale} far={far} near={near} />
+      <motion.div className="absolute top-0" style={{ left: pan ? 0 : (width - W * scale) / 2, x: pan ? camX : 0 }}>
+        <div className="origin-top-left" style={{ transform: `scale(${scale})`, width: W }}>
+          <Stage p={p} still={still} />
+        </div>
+      </motion.div>
+    </div>
+  );
 }
 
 function Bar({ wipe, tag, children }: { wipe: MotionValue<number>; tag: string; children: string }) {
@@ -79,22 +121,11 @@ function Stage({ p, still }: { p: MotionValue<number>; still: boolean }) {
   const aiY = useTransform(p, [0.68, 0.72], [12, 0]);
   const homeOpacity = useTransform(p, [0.9, 0.93], [0, 1]);
   const homeScale = useTransform(p, [0.9, 0.97], [0.15, 1]);
-  const farX = useTransform(p, [0, 1], [0, -80]);
-  const nearX = useTransform(p, [0, 1], [0, -200]);
 
   const at = (x: number, y: number) => ({ left: x, top: y });
   return (
-    <div className="journey-stage relative overflow-hidden" style={{ width: W, height: H }}>
-      <motion.span className="absolute left-0 block opacity-70" style={{ top: 70, x: still ? 0 : farX }}>
-        <Sprite rows={HILLS_FAR} scale={6} />
-      </motion.span>
-      <motion.span className="absolute left-0 block" style={{ top: GROUND - 150, x: still ? 0 : nearX }}>
-        <Sprite rows={HILLS_NEAR} scale={6} />
-      </motion.span>
-      <span className="absolute inset-x-0 bg-mist" style={{ top: GROUND, bottom: 0 }} />
-      <span className="absolute inset-x-0 h-1 bg-ink" style={{ top: GROUND }} />
-
-      <span className="absolute" style={at(40, GROUND - 168)}>
+    <div className="relative" style={{ width: W, height: H }}>
+      <span className="absolute" style={at(40, GROUND - 168)} data-cursor="Your side: the real values come back here">
         <Sprite rows={CASTLE} scale={3} label="Your castle" />
       </span>
       <span className="stage-label absolute" style={at(70, GROUND + 14)}>Your side</span>
@@ -126,7 +157,7 @@ function Stage({ p, still }: { p: MotionValue<number>; still: boolean }) {
       <span className="absolute" style={at(540, GROUND - 280)}>
         <Sprite rows={WALL_SIDE} scale={5} label="The castle wall and its gate" />
       </span>
-      <motion.span className="absolute block" style={{ left: 545, top: GROUND - 350, y: still ? 0 : guardY }}>
+      <motion.span className="absolute block" style={{ left: 545, top: GROUND - 350, y: still ? 0 : guardY }} data-cursor="Veil's guard, trained through Mubit">
         <Sprite rows={KNIGHT_SMALL} scale={5} label="Veil's guard on the wall" />
       </motion.span>
       <span className="absolute" style={at(518, GROUND - 120)}>
@@ -137,7 +168,7 @@ function Stage({ p, still }: { p: MotionValue<number>; still: boolean }) {
       </span>
       <span className="stage-label absolute" style={at(478, GROUND + 14)}>Veil's guard, trained through Mubit</span>
 
-      <span className="absolute" style={at(1040, GROUND - 256)}>
+      <span className="absolute" style={at(1040, GROUND - 256)} data-cursor="AI provider: sees placeholders only">
         <Sprite rows={AI_TOWER} scale={4} label="The AI provider's tower" />
       </span>
       <span className="stage-label absolute" style={at(1032, GROUND + 14)}>AI provider</span>
@@ -185,8 +216,8 @@ function Caption({ i, step }: { i: number; step: number }) {
 
 export function Journey() {
   const section = useRef<HTMLElement>(null);
-  const fit = useRef<HTMLDivElement>(null);
-  const { width, scale, pan } = useFit(fit);
+  const box = useRef<HTMLDivElement>(null);
+  const { width, scale, pan } = useFit(box);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: section, offset: ["start start", "end end"] });
   const p = useSpring(scrollYProgress, { stiffness: 140, damping: 30, mass: 0.35 });
@@ -196,35 +227,33 @@ export function Journey() {
   useMotionValueEvent(p, "change", (v) => setStep(v < 0.2 ? 0 : v < 0.56 ? 1 : v < 0.78 ? 2 : 3));
 
   if (reduce) {
+    // No pinning: the finished scene at full width, sized from the width alone, then the four steps as a list.
+    const still = Math.min(1.2, width / W);
     return (
-      <section id="journey" className="px-4 py-20 sm:px-8">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="font-pixel text-[clamp(28px,3vw,40px)] font-bold">How Veil keeps a document inside the walls</h2>
-          <div ref={fit} className="mt-8 overflow-x-auto" style={{ height: H * scale + (pan ? 16 : 0) }}>
-            <div className="origin-top-left" style={{ transform: `scale(${scale})`, width: W }}>
-              <Stage p={p} still />
-            </div>
-          </div>
-          <ol className="mt-8 grid gap-6 md:grid-cols-2">
-            {STEPS.map(([t, d], i) => (
-              <li key={t} className="flex gap-4">
-                <span className="step-dot is-on">{i + 1}</span>
-                <span>
-                  <b className="text-[18px]">{t}</b>
-                  <span className="mt-1 block text-quiet">{d}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
+      <section id="journey" className="py-20">
+        <h2 className="mx-auto max-w-6xl px-4 font-pixel text-[clamp(28px,3vw,40px)] font-bold sm:px-8">How Veil keeps a document inside the walls</h2>
+        <div ref={box} className="relative mt-8" style={{ height: H * still }}>
+          <Scene p={p} still scale={still} width={width} pan={false} camX={camX} />
         </div>
+        <ol className="mx-auto mt-8 grid max-w-6xl gap-6 px-4 sm:px-8 md:grid-cols-2">
+          {STEPS.map(([t, d], i) => (
+            <li key={t} className="flex gap-4">
+              <span className="step-dot is-on">{i + 1}</span>
+              <span>
+                <b className="text-[18px]">{t}</b>
+                <span className="mt-1 block text-quiet">{d}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
       </section>
     );
   }
 
   return (
     <section id="journey" ref={section} className="relative h-[460vh]" aria-label="How Veil keeps a document inside the walls">
-      <div className="sticky top-16 flex h-[calc(100svh-4rem)] flex-col justify-center gap-6 overflow-hidden px-4 sm:px-8">
-        <div className="mx-auto w-full max-w-6xl">
+      <div className="sticky top-16 flex h-[calc(100svh-4rem)] flex-col overflow-hidden">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-8 sm:pt-10">
           <ol className="flex flex-wrap gap-2" aria-label="Steps">
             {STEPS.map(([t], i) => (
               <li key={t} className={`step ${step === i ? "is-on" : step > i ? "is-done" : ""}`}>
@@ -239,12 +268,8 @@ export function Journey() {
             ))}
           </div>
         </div>
-        <div ref={fit} className="-mx-4 w-[calc(100%+2rem)] overflow-hidden sm:mx-auto sm:w-full sm:max-w-[1320px]" style={{ height: H * scale }}>
-          <motion.div style={{ x: pan ? camX : 0 }}>
-            <div className="origin-top-left" style={{ transform: `scale(${scale})`, width: W }}>
-              <Stage p={p} still={false} />
-            </div>
-          </motion.div>
+        <div ref={box} className="relative mt-4 min-h-0 flex-1">
+          <Scene p={p} still={false} scale={scale} width={width} pan={pan} camX={camX} />
         </div>
       </div>
     </section>

@@ -215,7 +215,7 @@ export function DocumentPane({ session, onRevealed, onApprove, onReopen, onDecli
         </div>
       )}
 
-      <div ref={body} onMouseUp={onMouseUp} className={`relative min-h-0 flex-1 overflow-y-auto px-3 pt-6 pb-44 sm:px-6 ${fixing ? "cursor-text" : ""}`}>
+      <div ref={body} onMouseUp={onMouseUp} className={`relative min-h-0 flex-1 overflow-y-auto px-3 pt-6 pb-44 sm:px-6 ${fixing ? "cursor-quill" : ""}`}>
         {modelOff && !idle && view === "lines" && (
           <p className="mx-auto mb-4 flex max-w-[860px] items-center gap-2 bg-paper px-3 py-2 text-[14px] px-frame-thin">
             <span className="inline-block h-2.5 w-2.5 shrink-0 bg-stone" aria-hidden />

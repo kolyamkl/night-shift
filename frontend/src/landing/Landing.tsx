@@ -1,8 +1,10 @@
 import { animate, motion, useInView, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KNIGHT_SMALL, Sprite } from "../sprites";
-import { Button, Icon, LinkButton } from "../ui/kit";
-import { CASTLE, CASTLE_TOP, CASTLE_W, CLOUD, GATEHOUSE, HILLS_FAR, HILLS_NEAR, PENNANT, TORCH } from "./art";
+import { Button, LinkButton } from "../ui/kit";
+import { CASTLE_H, CASTLE_W, GATEHOUSE, HILLS_FAR } from "./art";
+import { Hills } from "./Hills";
+import { HeroScene } from "./HeroScene";
 import { Journey } from "./Journey";
 import "./landing.css";
 
@@ -14,39 +16,6 @@ const NUMBERS = [
   { to: 71, suffix: "%", text: "of UK employees have used AI tools their employer never approved. Only 32% worry about the customer data they put in.", source: "Microsoft UK and Censuswide, Oct 2025, 2,003 employees", href: "https://ukstories.microsoft.com/features/rise-in-shadow-ai-tools-raising-security-concerns-for-uk/" },
   { to: 3.13, prefix: "£", suffix: "m", text: "is the average cost of one data breach for a UK organisation in 2026.", source: "IBM Cost of a Data Breach, July 2026", href: "https://uk.newsroom.ibm.com/IBM-Study-More-Than-One-in-Five-Malicious-UK-Breaches-are-AI-Generated" },
 ];
-
-function Flicker({ frames, scale, late }: { frames: readonly (readonly string[])[]; scale: number; late?: boolean }) {
-  return (
-    <span className={`relative block ${late ? "flick-late" : ""}`}>
-      <Sprite rows={frames[0]} scale={scale} className="flick" />
-      <Sprite rows={frames[1]} scale={scale} className="flick flick-b absolute inset-0" />
-    </span>
-  );
-}
-
-// Hills are wide, so each colour is one path of horizontal runs instead of one square per cell.
-function Hills({ rows, edge, fill }: { rows: readonly string[]; edge: string; fill: string }) {
-  const paths = useMemo(() => {
-    const runs: Record<string, string[]> = { k: [], f: [] };
-    rows.forEach((row, y) => {
-      let x = 0;
-      while (x < row.length) {
-        const c = row[x];
-        let n = 1;
-        while (x + n < row.length && row[x + n] === c) n++;
-        if (c !== ".") runs[c === "k" ? "k" : "f"].push(`M${x} ${y}h${n}v1h-${n}z`);
-        x += n;
-      }
-    });
-    return runs;
-  }, [rows]);
-  return (
-    <svg viewBox={`0 0 ${rows[0].length} ${rows.length}`} className="block h-auto w-full" shapeRendering="crispEdges" aria-hidden>
-      <path d={paths.f.join("")} fill={fill} />
-      <path d={paths.k.join("")} fill={edge} />
-    </svg>
-  );
-}
 
 function TopBar() {
   const { scrollY } = useScroll();
@@ -80,9 +49,16 @@ function Hero() {
   const castleY = useTransform(scrollYProgress, [0, 1], shift(110));
   const nearY = useTransform(scrollYProgress, [0, 1], shift(170));
   const [p, setP] = useState(6);
+  const [played, setPlayed] = useState(false);
+  const text = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const fit = () =>
-      setP(Math.max(3, Math.min(7, Math.floor(Math.min(window.innerWidth * 0.62, 540) / CASTLE_W), Math.floor((window.innerHeight - 430) / 56))));
+    // One pixel size for the whole scene (castle, hills, clouds). The castle may run a little past the first screen
+    // so it reads big; the space it gets is what is left under the headline and buttons.
+    const fit = () => {
+      const top = (text.current?.getBoundingClientRect().bottom ?? 430) + window.scrollY;
+      const room = window.innerHeight * 1.1 - top - 64;
+      setP(Math.max(4, Math.min(Math.floor((window.innerWidth * 0.6) / CASTLE_W), Math.floor(room / (CASTLE_H + 4)))));
+    };
     fit();
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
@@ -90,7 +66,7 @@ function Hero() {
 
   return (
     <section ref={ref} className="hero relative overflow-hidden">
-      <motion.div style={{ y: textY, opacity: textOpacity }} className="relative z-10 mx-auto max-w-5xl px-4 pt-8 text-center sm:pt-10">
+      <motion.div ref={text} style={{ y: textY, opacity: textOpacity }} className="relative z-10 mx-auto max-w-5xl px-4 pt-8 text-center sm:pt-10">
         <h1 className="mx-auto max-w-[21ch] font-pixel text-[clamp(36px,4.8vw,66px)] leading-[1.04] font-bold text-balance">
           Your documents stay inside the walls.
         </h1>
@@ -98,7 +74,7 @@ function Hero() {
           Veil hides names, account numbers and IDs before a document goes to an AI, then puts the real values back in the answer.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <LinkButton href="/app" variant="primary" size="lg" iconRight="right">
+          <LinkButton href="/app" variant="primary" size="lg" iconRight="right" className={played ? "cta-glow" : ""}>
             Protect a document
           </LinkButton>
           <LinkButton href={SAMPLE} variant="secondary" size="lg" icon="file">
@@ -107,31 +83,7 @@ function Hero() {
         </div>
       </motion.div>
 
-      <div className="scene relative" style={{ height: 56 * p + 64 }}>
-        <Sprite rows={CLOUD} scale={6} className="cloud absolute top-2 left-[8%] hidden md:block" />
-        <Sprite rows={CLOUD} scale={4} className="cloud cloud-slow absolute top-16 right-[10%] hidden md:block" />
-        <motion.div style={{ y: farY }} className="absolute inset-x-0 bottom-10">
-          <Hills rows={HILLS_FAR} edge="#8b8a85" fill="#c9c7bd" />
-        </motion.div>
-        <motion.div style={{ y: castleY }} className="absolute bottom-12 left-1/2 -translate-x-1/2">
-          <span className="relative block">
-            <Sprite rows={CASTLE} scale={p} label="Veil's castle" />
-            <span className="absolute" style={{ left: 8 * p, top: 0 }}><Flicker frames={PENNANT} scale={p} /></span>
-            <span className="absolute" style={{ left: (CASTLE_W - 9) * p, top: 0 }}><Flicker frames={PENNANT} scale={p} late /></span>
-            <span className="absolute" style={{ left: 25 * p, top: (CASTLE_TOP + 35) * p }}><Flicker frames={TORCH} scale={p} /></span>
-            <span className="absolute" style={{ left: 48 * p, top: (CASTLE_TOP + 35) * p }}><Flicker frames={TORCH} scale={p} late /></span>
-          </span>
-        </motion.div>
-        <motion.div style={{ y: nearY }} className="absolute inset-x-0 -bottom-24">
-          <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#dcdad1" />
-        </motion.div>
-      </div>
-      <div className="relative z-10 flex justify-center bg-mist pt-2 pb-8">
-        <a href="#journey" className="scroll-cue flex items-center gap-2 bg-paper px-3 py-2 px-frame-thin">
-          <Icon name="down" />
-          <span className="px-label">Follow a document</span>
-        </a>
-      </div>
+      <HeroScene p={p} farY={farY} castleY={castleY} nearY={nearY} onPlayed={setPlayed} />
     </section>
   );
 }
@@ -152,7 +104,7 @@ function Learn() {
       <div className="mx-auto mt-10 grid max-w-6xl items-end gap-10 lg:grid-cols-[auto_minmax(0,1fr)]">
         <div className="relative hidden lg:block" aria-hidden>
           <Sprite rows={GATEHOUSE} scale={4} />
-          <span className="absolute bottom-0 left-[92px]">
+          <span className="absolute bottom-0 left-[92px]" data-cursor="Your fixes train the guard">
             <Sprite rows={KNIGHT_SMALL} scale={4} className="bob" />
           </span>
         </div>
@@ -263,9 +215,7 @@ function Numbers() {
 function FinalCta() {
   return (
     <section className="final bg-ink text-bone">
-      <div className="bg-bone">
-        <Hills rows={HILLS_NEAR} edge="#0d0d0d" fill="#0d0d0d" />
-      </div>
+      <Hills rows={HILLS_FAR} edge="#0d0d0d" fill="#0d0d0d" cell={6} className="bg-bone" />
       <div className="mx-auto grid max-w-6xl items-end gap-10 px-4 pt-12 sm:px-8 lg:grid-cols-[1fr_auto]">
         <div className="min-w-0 pb-16">
           <h2 className="max-w-[18ch] font-pixel text-[clamp(32px,4vw,56px)] leading-[1.05] font-bold">Protect your first document</h2>
@@ -302,7 +252,7 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-2 text-[13px]">
           <span className="font-pixel text-[20px] font-bold text-bone">Veil</span>
           <span>Pseudonymised, not anonymised: placeholders map back to real values only on your side.</span>
-          <span>Demo documents are synthetic. Built at Night Shift, London, on Mubit.</span>
+          <span data-cursor="Mubit trains Veil's guard">Demo documents are synthetic. Built at Night Shift, London, on Mubit.</span>
         </div>
       </footer>
     </div>

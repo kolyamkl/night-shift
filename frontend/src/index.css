@@ -721,3 +721,58 @@ body {
     transition-delay: 0s !important;
   }
 }
+
+/* The sword cursor. ui/cursor.tsx sets the --cursor-* sprites and the class, on fine pointers only; without them
+   every rule here falls back to the native cursor. Same specificity throughout, so the later rule wins. */
+@layer components {
+  :root.has-sword-cursor,
+  :root.has-sword-cursor body {
+    cursor: var(--cursor-sword);
+  }
+  :root.has-sword-cursor :where(a[href], button, [role="button"], [role="tab"], summary, label[for], select, .px-btn, .sample-card, .val.is-live) {
+    cursor: var(--cursor-hot);
+  }
+  :root.has-sword-cursor :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"]), textarea, [contenteditable="true"], .cursor-quill, .cursor-quill *) {
+    cursor: var(--cursor-quill);
+  }
+  :root.has-sword-cursor :where(.cursor-quill .val.is-live) {
+    cursor: var(--cursor-hot);
+  }
+  :root.has-sword-cursor :where(:disabled, [aria-disabled="true"]) {
+    cursor: var(--cursor-shield);
+  }
+  :root.has-sword-cursor :where([aria-busy="true"], .sample-card:disabled) {
+    cursor: wait;
+  }
+  .cursor-quill {
+    cursor: text;
+  }
+
+  .sword-fx {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 60;
+  }
+  .cursor-tag {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 61;
+    pointer-events: none;
+    white-space: nowrap;
+    border-image-source: var(--px-red);
+    opacity: 0;
+    scale: 0.85;
+    transform-origin: 0 0;
+    transition:
+      opacity 120ms var(--ease-out-soft),
+      scale 200ms var(--ease-out-expo);
+  }
+  .cursor-tag.is-on {
+    opacity: 1;
+    scale: 1;
+  }
+}

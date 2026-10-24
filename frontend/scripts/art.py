@@ -237,17 +237,32 @@ PIGEON = [
      "kk.....kkkkkkkwk", "kwkkkkkwwwwggggr", ".kwwwwwkwwwggkk.", "..kkkkkwggkkk...", "......kwgk......", ".......kk......."],
 ]
 
-def hills(width, height, base, amp, seed, ch):
-    """A stepped, deterministic hill silhouette, filled below the ridge."""
-    import math
+def hills(width, height, ridge, ch):
+    """A hill strip that tiles: ridge(x) gives the ridge row for each column and must wrap at `width`.
+    The outline is continuous (steep steps are joined), and everything below it is filled."""
+    tops = [max(0, min(height - 1, round(ridge(x)))) for x in range(width)]
     g = blank(width, height)
     for x in range(width):
-        y = base - amp * (0.55 * math.sin(x / 13.0 + seed) + 0.3 * math.sin(x / 5.3 + seed * 2.1) + 0.15 * math.sin(x / 2.7 + seed * 3.7))
-        top = max(0, min(height - 1, round(y)))
-        for yy in range(top, height):
-            put(g, x, yy, ch)
-        put(g, x, top, "k")
+        lower = max(tops[x], tops[(x - 1) % width] - 1, tops[(x + 1) % width] - 1)
+        for y in range(tops[x], height):
+            put(g, x, y, "k" if y <= lower else ch)
     return g
+
+
+def far_ridge(x, width=160):
+    import math
+    t = 2 * math.pi * x / width
+    return 12 - 7 * (0.6 * math.sin(2 * t + 1.3) + 0.28 * math.sin(5 * t + 2.6) + 0.12 * math.sin(9 * t + 4.1))
+
+
+def near_ridge(x, width=160):
+    """Low and calm across the middle half, where the hero castle stands; rolling hills on both sides."""
+    import math
+    d = abs(x - width / 2) / (width / 2)  # 0 at the centre, 1 at the tile edges
+    rise = min(1.0, max(0.0, (d - 0.5) / 0.3))
+    rise = rise * rise * (3 - 2 * rise)
+    t = 2 * math.pi * x / width
+    return 16 - rise * (10 + 2.5 * math.sin(3 * t + 0.7) + 0.8 * math.sin(7 * t))
 
 
 def write_ts(path):
@@ -266,7 +281,7 @@ def write_ts(path):
         "",
     ]
     for name, grid in [("GATEHOUSE", gatehouse()), ("PORTCULLIS", portcullis()), ("AI_TOWER", ai_tower()), ("WALL_SIDE", wall_side()),
-                       ("HILLS_FAR", hills(240, 40, 22, 9, 1.3, "h")), ("HILLS_NEAR", hills(240, 30, 14, 6, 4.1, "m"))]:
+                       ("HILLS_FAR", hills(160, 40, far_ridge, "h")), ("HILLS_NEAR", hills(160, 20, near_ridge, "m"))]:
         out.append(f"export const {name} = {rows(''.join(r) for r in grid)};")
         out.append("")
     for name, value in [("LOCK", LOCK), ("LOCK_OPEN", LOCK_OPEN), ("TORCH", TORCH), ("PENNANT", PENNANT),
@@ -303,7 +318,7 @@ def write_preview(path):
                 if ch != ".":
                     html.append(f'<i style="position:absolute;left:{x*scale}px;top:{y*scale}px;width:{scale}px;height:{scale}px;background:{COL[ch]}"></i>')
         html.append("</div>")
-    hl = ["".join(r) for r in hills(240, 40, 22, 9, 1.3, "h")]
+    hl = ["".join(r) for r in hills(160, 40, far_ridge, "h")] * 1
     html.append('<div style="position:relative;width:960px;height:160px;margin:20px">')
     for y, r in enumerate(hl):
         for x, ch in enumerate(r):
