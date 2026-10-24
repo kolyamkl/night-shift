@@ -3,9 +3,9 @@
 </p>
 
 <p align="center">
-  <a href="https://web-production-dc019.up.railway.app/app"><img src="docs/readme/button-app.svg" height="52" alt="Protect a document"></a>
+  <a href="https://muguard.up.railway.app/app"><img src="docs/readme/button-app.svg" height="52" alt="Protect a document"></a>
   &nbsp;
-  <a href="https://web-production-dc019.up.railway.app/app?sample=01_tenancy_agreement.pdf"><img src="docs/readme/button-sample.svg" height="52" alt="Try a sample"></a>
+  <a href="https://muguard.up.railway.app/app?sample=01_tenancy_agreement.pdf"><img src="docs/readme/button-sample.svg" height="52" alt="Try a sample"></a>
 </p>
 
 <p align="center">

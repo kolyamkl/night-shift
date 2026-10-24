@@ -2,7 +2,7 @@
 
 [Documentation index](README.md) · [Architecture](ARCHITECTURE.md) · [Security](SECURITY.md)
 
-Live app: <https://web-production-dc019.up.railway.app/app>
+Live app: <https://muguard.up.railway.app/app>
 Railway project: `night-shift` (environment `production`).
 
 | Service | Built from | Public | Role |
@@ -66,8 +66,8 @@ If a deployment hangs in DEPLOYING with no logs, `railway redeploy --service <na
 
 ```sh
 railway deployment list --service backend --environment production --limit 1
-curl --fail --silent --show-error https://web-production-dc019.up.railway.app/api/health
-curl --fail --silent --show-error -o /dev/null -w '%{http_code}\n' https://web-production-dc019.up.railway.app/app
+curl --fail --silent --show-error https://muguard.up.railway.app/api/health
+curl --fail --silent --show-error -o /dev/null -w '%{http_code}\n' https://muguard.up.railway.app/app
 ```
 
 Wait for deployment status `SUCCESS`. Health checks verify the API/database and
