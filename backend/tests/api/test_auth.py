@@ -4,14 +4,15 @@ import pytest
 from argon2 import PasswordHasher
 from fastapi.testclient import TestClient
 
-from app.auth import COOKIE, token_hash
+from app.core.security import token_hash
 from app.main import app
+from app.modules.auth.dependencies import COOKIE
 
 
 @pytest.fixture
 def browser(postgres_store, monkeypatch):
-    monkeypatch.setattr(app.state, "t1_factory", None)
-    monkeypatch.setattr(app.state, "t2", None)
+    monkeypatch.setattr(app.state.models, "t1_factory", None)
+    monkeypatch.setattr(app.state.models, "t2", None)
     with TestClient(app, headers={"X-Veil-Request": "1"},
                     client=(postgres_store.test_suffix, 50000)) as client:
         yield client
@@ -60,8 +61,8 @@ def test_duplicate_email_normalization_and_wrong_password(browser, postgres_stor
     assert browser.post("/api/auth/login", json=duplicate).status_code == 200
 
 
-def test_expiry_and_secure_cookie(browser, postgres_store, monkeypatch):
-    monkeypatch.setenv("VEIL_COOKIE_SECURE", "true")
+def test_expiry_and_secure_cookie(browser, postgres_store, settings):
+    settings(cookie_secure=True)
     response = browser.post("/api/auth/register", json=credentials(postgres_store))
     assert "Secure" in response.headers["set-cookie"]
     # Secure cookies are not sent over HTTP. Expiry is also enforced server side.

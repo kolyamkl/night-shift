@@ -1,17 +1,16 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
-import os
-from pathlib import Path
 from threading import Barrier
 import uuid
 
 import pytest
 from cryptography.fernet import Fernet
-from evalkit.redact import restore
+from app.redaction.vault import restore
 
-from app.extract import extract_pdf, extract_text
-from app.pipeline import T1Result, rebuild, run_pipeline
-from app.storage import MissingDocument, PostgresStore, StaleRevision
+from app.redaction.document import extract_pdf, extract_text
+from app.redaction.pipeline import T1Result, rebuild, run_pipeline
+from app.core.db import MIGRATIONS_DIR, Database
+from app.modules.documents.repository import DocumentNotFound, DocumentRepository, StaleRevision
 
 
 def detector(_text):
@@ -25,10 +24,9 @@ def test_reconnect_preserves_pdf_vault_layout_and_review_edits(postgres_store, t
     result = rebuild(doc, result, hide={"950 pounds": "CUSTOM"}, unhide={"20-45-77"})
     assert postgres_store.save_result(doc.doc_id, result, 0) == 1
     # A new object opens fresh database connections and loads everything from disk.
-    fresh = PostgresStore(postgres_store._url, os.environ.get("VEIL_STORAGE_KEY")
-                          or "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
-    fresh.initialize()
-    saved = fresh.get(doc.doc_id, owner_id=postgres_store.test_owner)
+    fresh_db = Database(postgres_store.db.url, postgres_store.test_key)
+    fresh_db.initialize()
+    saved = DocumentRepository(fresh_db).get(doc.doc_id, owner_id=postgres_store.test_owner)
     assert asdict(saved.document) == asdict(doc)
     assert asdict(saved.result) == asdict(result)
     assert restore("Tenant [PERSON_1]", saved.result.vault)[0] == "Tenant Raj Patel"
@@ -49,7 +47,7 @@ def test_database_payloads_do_not_contain_original_text_or_vault(postgres_store)
 
 
 def test_wrong_key_fails_before_any_write(postgres_store):
-    wrong = PostgresStore(postgres_store._url, Fernet.generate_key().decode())
+    wrong = Database(postgres_store.db.url, Fernet.generate_key().decode())
     with pytest.raises(RuntimeError, match="does not match"):
         wrong.initialize()
 
@@ -86,32 +84,31 @@ def test_delete_cascades_and_late_scan_cannot_resurrect_document(postgres_store)
     postgres_store.delete(doc.doc_id)
     with postgres_store.connect() as conn:
         assert conn.execute("SELECT 1 FROM veil_redactions WHERE doc_id = %s", (doc.doc_id,)).fetchone() is None
-    with pytest.raises(MissingDocument):
+    with pytest.raises(DocumentNotFound):
         postgres_store.get(doc.doc_id)
-    with pytest.raises(MissingDocument):
+    with pytest.raises(DocumentNotFound):
         postgres_store.save_result(doc.doc_id, result, 1)
 
 
 def test_migrations_are_idempotent(postgres_store):
-    postgres_store.initialize()
-    postgres_store.initialize()
+    postgres_store.db.initialize()
+    postgres_store.db.initialize()
     with postgres_store.connect() as conn:
         assert conn.execute("SELECT count(*) FROM veil_schema_migrations").fetchone()[0] == 3
 
 
 def test_configuration_fails_closed():
     with pytest.raises(RuntimeError, match="Set DATABASE_URL"):
-        PostgresStore("", "")
+        Database("", "")
     with pytest.raises(RuntimeError, match="Fernet key"):
-        PostgresStore("postgresql://example", "bad")
+        Database("postgresql://example", "bad")
 
 
 def test_scan_reservations_supersede_across_store_instances(postgres_store):
     doc = extract_text("Raj Patel")
     postgres_store.create(doc)
     owner = postgres_store.test_owner
-    second = PostgresStore(postgres_store._url, os.environ.get("VEIL_STORAGE_KEY")
-                           or "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+    second = DocumentRepository(Database(postgres_store.db.url, postgres_store.test_key))
     old = postgres_store.begin_scan(doc.doc_id, owner_id=owner)
     new = second.begin_scan(doc.doc_id, owner_id=owner)
     assert new.revision > old.revision
@@ -188,7 +185,7 @@ def test_listing_stops_at_200_documents(postgres_store):
 
 
 def test_migration_003_is_additive_on_a_database_with_rows(postgres_store):
-    migrations = Path(__file__).resolve().parents[1] / "migrations"
+    migrations = MIGRATIONS_DIR
     schema = f"migration_test_{postgres_store.test_suffix}"
     with postgres_store.connect() as conn:
         try:

@@ -7,9 +7,11 @@ from contextlib import ExitStack
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main
+from app.llm.t1 import T1_CHUNK_CHARS
 from app.main import app
-from app.pipeline import T1Result
+from app.modules.scan import service as scan_service
+from app.modules.scan import stream as scan_stream
+from app.redaction.pipeline import T1Result
 
 TEXT = ("Tenant: Raj Patel, sort code 20-45-77.\n\n" + "Clause text. " * 30 + "\n\n"
         + "Landlord: Jo Smith.\n\n" + "More clause text. " * 30 + "\n\nSigned: Raj Patel")
@@ -41,14 +43,14 @@ def finds(*values):
 @pytest.fixture
 def setup(monkeypatch, postgres_store):
     """A client, and a way to swap the T1 factory and the chunk size (the evalkit default is 4000)."""
-    monkeypatch.setitem(main.T1_CHUNK_CHARS, "evalkit", 400)
-    monkeypatch.setattr(app.state, "t1_prompt", "evalkit")
-    monkeypatch.setattr(app.state, "t1_model", "gpt-6-luna")
+    monkeypatch.setitem(T1_CHUNK_CHARS, "evalkit", 400)
+    monkeypatch.setattr(app.state.models, "t1_prompt", "evalkit")
+    monkeypatch.setattr(app.state.models, "t1_model", "gpt-6-luna")
 
     stack = ExitStack()
 
     def with_t1(factory):
-        monkeypatch.setattr(app.state, "t1_factory", factory)
+        monkeypatch.setattr(app.state.models, "t1_factory", factory)
         client = stack.enter_context(TestClient(app, headers={"X-Veil-Request": "1"},
                                   client=(postgres_store.test_suffix, 50000)))
         response = client.post("/api/auth/register", json={
@@ -190,7 +192,7 @@ def test_chunks_arrive_in_the_order_they_finish(setup):
 
 
 def test_pings_keep_a_slow_stream_open(setup, monkeypatch):
-    monkeypatch.setattr(main, "PING_SECONDS", 0.05)
+    monkeypatch.setattr(scan_stream, "PING_SECONDS", 0.05)
 
     def factory(doc_id):
         def t1(chunk):
@@ -208,7 +210,7 @@ def test_an_unexpected_failure_sends_an_error_event_and_ends(setup, monkeypatch)
         emit("start", {"chunks": []})
         raise KeyError("Raj Patel")
 
-    monkeypatch.setattr(main, "run_pipeline", broken)
+    monkeypatch.setattr(scan_service, "run_pipeline", broken)
     _, res = stream(setup(finds()))
     events, _ = parse(res.text)
     assert [n for n, _ in events] == ["start", "error"]
@@ -216,9 +218,9 @@ def test_an_unexpected_failure_sends_an_error_event_and_ends(setup, monkeypatch)
 
 
 def test_rewrite_prompt_uses_short_chunks(setup, monkeypatch):
-    monkeypatch.setattr(app.state, "t1_prompt", "rewrite")
-    monkeypatch.setattr(app.state, "t1_model", "claude-haiku-4-5")
-    monkeypatch.setitem(main.T1_CHUNK_CHARS, "rewrite", 1400)
+    monkeypatch.setattr(app.state.models, "t1_prompt", "rewrite")
+    monkeypatch.setattr(app.state.models, "t1_model", "claude-haiku-4-5")
+    monkeypatch.setitem(T1_CHUNK_CHARS, "rewrite", 1400)
     _, res = stream(setup(finds()), "word " * 1000)
     start = parse(res.text)[0][0][1]
     assert start["t1_prompt"] == "rewrite" and start["t1_model"] == "claude-haiku-4-5"
@@ -296,8 +298,8 @@ def test_retry_without_an_earlier_run_or_with_another_plan_runs_every_chunk(setu
     n_chunks = len(events[0][1]["chunks"])
     assert len(calls) == n_chunks
     calls.clear()
-    monkeypatch.setattr(app.state, "t1_prompt", "rewrite")  # same ranges, another prompt
-    monkeypatch.setitem(main.T1_CHUNK_CHARS, "rewrite", 400)
+    monkeypatch.setattr(app.state.models, "t1_prompt", "rewrite")  # same ranges, another prompt
+    monkeypatch.setitem(T1_CHUNK_CHARS, "rewrite", 400)
     client.post(f"/api/documents/{doc['doc_id']}/redact?retry=failed")
     assert len(calls) == n_chunks
 
@@ -306,7 +308,7 @@ def test_retry_after_a_run_without_a_key_calls_every_chunk(setup, monkeypatch):
     client = setup(None)
     doc, _ = stream(client)
     factory, calls, _ = flaky_on("nothing fails")
-    monkeypatch.setattr(app.state, "t1_factory", factory)
+    monkeypatch.setattr(app.state.models, "t1_factory", factory)
     events, _ = parse(client.post(f"/api/documents/{doc['doc_id']}/redact/stream?retry=failed").text)
     assert len(calls) == len(events[0][1]["chunks"]) and all(d["status"] == "ok" for n, d in events if n == "chunk")
 
@@ -349,7 +351,7 @@ def test_only_the_newest_scan_stores_its_result_and_sends_done(setup):
 
     events, _ = parse(old["res"].text)
     assert [n for n, _ in events] == ["start", "regex", "error"]
-    assert events[-1][1] == {"message": main.SUPERSEDED}
+    assert events[-1][1] == {"message": scan_service.SUPERSEDED}
     assert newer["redacted_text"] == "Raj Patel and [PERSON_1]."
     assert client.get(f"/api/documents/{did}").json()["result"]["chunks"][0]["mreq_id"] == "mreq_new"  # the older run did not overwrite it
 
@@ -375,4 +377,4 @@ def test_an_older_redact_call_gets_409(setup):
     assert client.post(f"/api/documents/{did}/redact").status_code == 200
     release.set()
     worker.join(5)
-    assert old["res"].status_code == 409 and old["res"].json() == {"detail": main.SUPERSEDED}
+    assert old["res"].status_code == 409 and old["res"].json() == {"detail": scan_service.SUPERSEDED}

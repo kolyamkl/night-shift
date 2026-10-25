@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.pipeline import T1Result
+from app.redaction.pipeline import T1Result
 
 
 @pytest.fixture
@@ -21,14 +21,14 @@ def client(postgres_store):
         assert "Raj Patel" not in redacted_text and "Jo Smith" not in redacted_text
         return "The tenant is [PERSON_1].", "mreq_answer"
 
-    app.state.t1_factory = t1_factory
-    app.state.t2 = t2
+    app.state.models.t1_factory = t1_factory
+    app.state.models.t2 = t2
     with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as test_client:
         response = test_client.post("/api/auth/register", json={"email": f"api-{postgres_store.test_suffix}@example.test", "password": "test-password"})
         assert response.status_code == 201
         yield test_client
-    app.state.t1_factory = None
-    app.state.t2 = None
+    app.state.models.t1_factory = None
+    app.state.models.t2 = None
 
 
 def test_pasted_text_is_redacted(client):
@@ -123,7 +123,7 @@ def test_manual_corrections_survive_rescan_and_download(client, route, retry, ki
 
 
 def test_health_reports_whether_the_model_is_on(client):
-    app.state.t1_factory = None
+    app.state.models.t1_factory = None
     assert client.get("/api/health").json()["model"] == "off"
 
 
@@ -156,15 +156,15 @@ def test_database_errors_are_sanitized(client, postgres_store, monkeypatch):
     def fail():
         raise psycopg.OperationalError("secret connection string")
 
-    monkeypatch.setattr(postgres_store, "healthy", fail)
+    monkeypatch.setattr(postgres_store.db, "healthy", fail)
     response = client.get("/api/health")
     assert response.status_code == 503
     assert "secret" not in response.text
 
 
-def test_samples_are_listed_and_open_as_documents(client, tenancy_pdf, tmp_path, monkeypatch):
+def test_samples_are_listed_and_open_as_documents(client, tenancy_pdf, tmp_path, settings):
     (tmp_path / "01_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
-    monkeypatch.setenv("VEIL_SAMPLES_DIR", str(tmp_path))
+    settings(samples_dir=tmp_path)
     names = client.get("/api/samples").json()
     assert names == [{"name": "01_tenancy_agreement.pdf", "label": "Tenancy agreement", "title": "Tenancy agreement",
                       "kind": "tenancy_agreement", "pages": 2, "values": None, "types": {}}]
@@ -173,20 +173,20 @@ def test_samples_are_listed_and_open_as_documents(client, tenancy_pdf, tmp_path,
     assert client.post("/api/samples/../../etc/passwd").status_code == 404
 
 
-def test_sample_cards_use_the_gold_file_for_title_and_value_counts(client, tenancy_pdf, tmp_path, monkeypatch):
+def test_sample_cards_use_the_gold_file_for_title_and_value_counts(client, tenancy_pdf, tmp_path, settings):
     (tmp_path / "02_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
     gold = {"doc_type": "tenancy_agreement", "text": "Periodic Tenancy Agreement\nTenant: Raj Patel",
             "entities": [{"type": "PERSON"}, {"type": "PERSON"}, {"type": "SORT_CODE"}]}
     (tmp_path / "02_tenancy_agreement.gold.json").write_text(json.dumps(gold))
-    monkeypatch.setenv("VEIL_SAMPLES_DIR", str(tmp_path))
+    settings(samples_dir=tmp_path)
     card = client.get("/api/samples").json()[0]
     assert card["title"] == "Periodic Tenancy Agreement"
     assert card["values"] == 3 and card["types"] == {"PERSON": 2, "SORT_CODE": 1}
 
 
-def test_sample_thumbnail_is_a_small_png_of_page_one(client, tenancy_pdf, tmp_path, monkeypatch):
+def test_sample_thumbnail_is_a_small_png_of_page_one(client, tenancy_pdf, tmp_path, settings):
     (tmp_path / "01_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
-    monkeypatch.setenv("VEIL_SAMPLES_DIR", str(tmp_path))
+    settings(samples_dir=tmp_path)
     png = client.get("/api/samples/01_tenancy_agreement.pdf/thumb.png")
     assert png.headers["content-type"] == "image/png"
     assert pymupdf.Pixmap(png.content).width == 120
@@ -194,7 +194,7 @@ def test_sample_thumbnail_is_a_small_png_of_page_one(client, tenancy_pdf, tmp_pa
 
 
 def test_sample_labels_keep_acronyms_upper_case():
-    from app.main import _label
+    from app.modules.samples.service import label as _label
 
     assert _label("05_nda.pdf") == "NDA"
     assert _label("27_cv.pdf") == "CV"
@@ -203,10 +203,10 @@ def test_sample_labels_keep_acronyms_upper_case():
 
 
 def test_health_names_the_prompt_and_where_the_key_came_from(client, monkeypatch):
-    monkeypatch.setattr(app.state, "key_source", ".env")
-    monkeypatch.setattr(app.state, "t1_prompt", "rewrite")
-    monkeypatch.setattr(app.state, "t1_model", "claude-haiku-4-5")
-    monkeypatch.setattr(app.state, "t2_model", "claude-haiku-4-5")
+    monkeypatch.setattr(app.state.models, "key_source", ".env")
+    monkeypatch.setattr(app.state.models, "t1_prompt", "rewrite")
+    monkeypatch.setattr(app.state.models, "t1_model", "claude-haiku-4-5")
+    monkeypatch.setattr(app.state.models, "t2_model", "claude-haiku-4-5")
     health = client.get("/api/health").json()
     assert health == {"model": "on", "t1_model": "claude-haiku-4-5", "t1_prompt": "rewrite",
                       "t2_model": "claude-haiku-4-5", "key_source": ".env", "database": "postgresql"}
@@ -326,9 +326,9 @@ def test_chat_turns_are_stored_in_order_and_failed_asks_store_nothing(client):
     def broken(question, redacted_text):
         raise RuntimeError("gateway timeout")
 
-    app.state.t2 = broken
+    app.state.models.t2 = broken
     assert client.post(path + "/ask", json={"question": "Lost question?"}).status_code == 502
-    app.state.t2 = None
+    app.state.models.t2 = None
     assert client.post(path + "/ask", json={"question": "Lost question?"}).status_code == 503
     assert client.get(path).json()["turns"] == turns
     assert [d["turns"] for d in client.get("/api/documents").json() if d["doc_id"] == doc["doc_id"]] == [2]
