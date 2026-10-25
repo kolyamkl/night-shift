@@ -69,8 +69,11 @@ The UI asks the user to review redactions and approve before opening chat.
 Approval/decline status is saved. However:
 
 - Detection has already sent T1 text before this review screen appears.
-- `/ask` checks authentication, ownership and a saved scan, but does not enforce
-  the saved approval status. The download route also requires a scan, not approval.
+- `/ask` checks authentication, ownership, a saved scan and the saved approval
+  status: before approval or after Decline it answers 409 and calls no model.
+  The download route requires a scan, not approval.
+- Approve all is possible while some parts were not checked by the model; names in
+  those parts stay visible, since the rules catch numbers, not names.
 - Status is not bound to a particular result revision; rescans do not invalidate
   an earlier approval.
 - Decline does not erase stored data or recall requests already sent to Mubit.

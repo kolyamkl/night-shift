@@ -13,7 +13,7 @@ MuGuard is a privacy layer for using AI chat with real client documents (Mubit "
 5. **T2** (any AI provider, default `claude-haiku-4-5` through Mubit with recording off) answers questions about the document. It receives the redacted document and a filtered question. MuGuard restores values on the backend; missed or deliberately unhidden values can remain visible.
 6. Reviewer corrections update the stored redaction without a model call. Mubit training feedback is a separate console workflow; the app does not automatically submit corrections.
 
-Current boundary: T1 receives original text with default recording. Review happens afterward. Saved approval controls the UI but is not enforced by `/ask`. Read [Security](SECURITY.md) before making privacy claims; see [Mubit](MUBIT.md) for inference versus training.
+Current boundary: T1 receives original text with default recording. Review happens afterward. `/ask` answers only for an approved document (409 otherwise), but approval is not tied to a result revision and can be given while some parts were not checked. Read [Security](SECURITY.md) before making privacy claims; see [Mubit](MUBIT.md) for inference versus training.
 
 ## 2. Repo map
 
@@ -283,8 +283,8 @@ Not verified:
 
 ## 12. Next steps
 
-Privacy priorities: enforce approval against the current result revision before
-Q&A; add a pre-send disclosure/consent flow for T1 and recording; verify detector
+Privacy priorities: bind approval to the current result revision and refuse it
+while parts are unchecked; add a pre-send disclosure/consent flow for T1 and recording; verify detector
 routing/fallback policy; extend question coverage and add inference quotas.
 See [Security](SECURITY.md) for the current limits. Automatic in-app correction
 feedback needs an explicit, verified Mubit integration.

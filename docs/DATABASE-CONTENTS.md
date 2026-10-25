@@ -45,8 +45,8 @@ they are inaccessible through the owner-scoped API until explicitly assigned.
 - A per-turn copy of the whole redacted document sent to T2. The saved turn
   contains the question sent, but the UI's document preview uses the current result.
 
-Approval/decline **is saved**; it is not the same as backend enforcement of
-approval or consent for training. Chat questions and answers **are saved**.
+Approval/decline **is saved**, and `/ask` requires `approved`; approval is not
+consent for training. Chat questions and answers **are saved**.
 
 ## Retention and recovery
 

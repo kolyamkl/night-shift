@@ -69,3 +69,12 @@ class DocumentService:
         if saved.result is None:
             raise ConflictError("Scan the document first.")
         return Scanned(saved.document, saved.result, saved.revision)
+
+    def get_approved(self, doc_id: str, *, owner_id: str) -> Scanned:
+        """The scanned document once its owner approved the redaction; 409 before that, or after Decline."""
+        saved = self.repo.get(doc_id, owner_id=owner_id)
+        if saved.result is None:
+            raise ConflictError("Scan the document first.")
+        if saved.status != "approved":
+            raise ConflictError("Approve the redactions first. Only an approved document goes to the AI.")
+        return Scanned(saved.document, saved.result, saved.revision)
