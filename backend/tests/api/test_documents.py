@@ -68,10 +68,34 @@ def test_text_document_downloads_as_redacted_text(client):
 def test_ask_sends_only_redacted_text_and_restores_the_answer(client):
     doc = client.post("/api/documents", data={"text": "Tenant: Raj Patel. Rent 950."}).json()
     client.post(f"/api/documents/{doc['doc_id']}/redact")
+    client.patch(f"/api/documents/{doc['doc_id']}", json={"status": "approved"})
     ans = client.post(f"/api/documents/{doc['doc_id']}/ask", json={"question": "Who is the tenant?"}).json()
     assert ans["answer"] == "The tenant is Raj Patel."
     assert ans["answer_with_placeholders"] == "The tenant is [PERSON_1]."
     assert "[PERSON_1]" in ans["sent_text"] and "Raj Patel" not in ans["sent_text"]
+
+
+def test_ask_waits_for_approval(client):
+    """Only an approved document goes to the model: in review or declined, ask is refused before any call."""
+    calls = []
+
+    def t2(question, redacted_text):
+        calls.append(question)
+        return "The tenant is [PERSON_1].", "mreq_answer"
+
+    app.state.models.t2 = t2
+    doc = client.post("/api/documents", data={"text": "Tenant: Raj Patel. Rent 950."}).json()
+    path = f"/api/documents/{doc['doc_id']}"
+    client.post(path + "/redact")
+    for status in ("review", "declined"):
+        assert client.patch(path, json={"status": status}).status_code == 200
+        refused = client.post(path + "/ask", json={"question": "Who is the tenant?"})
+        assert refused.status_code == 409
+        assert refused.json()["detail"] == "Approve the redactions first. Only an approved document goes to the AI."
+    assert calls == [] and client.get(path).json()["turns"] == []
+    client.patch(path, json={"status": "approved"})
+    assert client.post(path + "/ask", json={"question": "Who is the tenant?"}).status_code == 200
+    assert calls == ["Who is the tenant?"]
 
 
 def test_corrections_hide_and_unhide(client):
@@ -142,6 +166,7 @@ def test_document_and_corrections_survive_app_restart(client):
     assert client.get(path).json()["result"] is None
     client.post(path + "/redact")
     client.post(path + "/corrections", json={"action": "hide", "text": "CL-20931"})
+    client.patch(path, json={"status": "approved"})
     # Run a fresh application lifespan (no process-local document/result dictionaries).
     with TestClient(app, headers={"X-Veil-Request": "1"}, cookies=client.cookies) as restarted:
         saved = restarted.get(path).json()
@@ -270,6 +295,7 @@ def test_document_list_holds_only_the_callers_documents_newest_first(client, pos
     pdf = client.post("/api/documents", files={"file": ("synthetic-lease.pdf", tenancy_pdf, "application/pdf")}).json()
     pasted = client.post("/api/documents", data={"text": "Tenant: Raj Patel, sort code 20-45-77."}).json()
     scanned = client.post(f"/api/documents/{pasted['doc_id']}/redact").json()
+    client.patch(f"/api/documents/{pasted['doc_id']}", json={"status": "approved"})
     client.post(f"/api/documents/{pasted['doc_id']}/ask", json={"question": "Who is the tenant?"})
     client.post(f"/api/documents/{pasted['doc_id']}/ask", json={"question": "What is the sort code?"})
 
@@ -290,7 +316,7 @@ def test_document_list_holds_only_the_callers_documents_newest_first(client, pos
         "changes",
         "turns",
     }
-    assert (first["filename"], first["kind"], first["pages"], first["status"]) == ("pasted.txt", "text", 0, "review")
+    assert (first["filename"], first["kind"], first["pages"], first["status"]) == ("pasted.txt", "text", 0, "approved")
     assert (first["has_result"], first["changes"], first["turns"]) == (True, len(scanned["entities"]), 2)
     assert first["changes"] == 2
     assert {k: listed[1][k] for k in ("filename", "kind", "pages", "status", "has_result", "changes", "turns")} == {
@@ -359,6 +385,7 @@ def test_chat_turns_are_stored_in_order_and_failed_asks_store_nothing(client):
     path = f"/api/documents/{doc['doc_id']}"
     assert client.post(path + "/ask", json={"question": "Too early?"}).status_code == 409
     client.post(path + "/redact")
+    client.patch(path, json={"status": "approved"})
     answers = [client.post(path + "/ask", json={"question": q}).json() for q in ("Who is the tenant?", "And again?")]
     for answer in answers:
         assert isinstance(answer["turn_id"], int) and re.match(ISO_UTC, answer["created_at"])

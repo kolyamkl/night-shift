@@ -22,7 +22,8 @@
 //                       like the backend's), so the document comes back as "new" with Scan
 //
 // Saved list, status and chat: the mock keeps them in memory for the documents created through it (or
-// opened through it), per signed-in account; nothing is written to disk, so a restart forgets them. A
+// opened through it), per signed-in account; nothing is written to disk, so a restart forgets them. A new
+// status is also sent on to the backend, since its /ask answers only for an approved document. A
 // document's result is hidden (null) until the mock's own scan of it finishes, as on the backend. When the
 // backend has no chat model (no key, /ask answers 503), the mock answers itself with the document's
 // placeholders and puts the values back; it never calls an AI.
@@ -215,6 +216,9 @@ async function setStatus(id, req, res) {
   const r = await backend("GET", `/api/documents/${id}`, undefined, req.headers).catch(() => null);
   if (!r) return unreachable(res);
   if (r.status !== 200) return json(res, r.status, r.json);
+  const saved = await backend("PATCH", `/api/documents/${id}`, { status: body.status }, req.headers).catch(() => null);
+  if (!saved) return unreachable(res);
+  if (saved.status !== 200) return json(res, saved.status, saved.json);
   const doc = docs.get(id) ?? adopt(id, r.json, req);
   doc.status = body.status;
   doc.updated_at = now();

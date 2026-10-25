@@ -100,6 +100,7 @@ def client(postgres_store):
 def test_the_ai_never_sees_a_name_typed_in_the_question(client):
     doc = client.post("/api/documents", data={"text": "Tenant: Raj Patel. Rent 950."}).json()
     client.post(f"/api/documents/{doc['doc_id']}/redact")
+    client.patch(f"/api/documents/{doc['doc_id']}", json={"status": "approved"})
     ans = client.post(f"/api/documents/{doc['doc_id']}/ask", json={"question": "When can Raj Patel leave?"}).json()
     question, text = client.seen[-1]
     assert question == "When can [PERSON_1] leave?" and "Patel" not in question + text

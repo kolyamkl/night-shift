@@ -107,9 +107,9 @@ For example, an illustrative document `Tenant: Raj Patel. Rent: £950.` becomes
 in the T2 request. New free-form names or addresses in questions can still be
 missed: question protection uses known values and rules, not another T1 scan.
 
-Approval is saved and controls the UI, but `/ask` currently requires an owned,
-scanned document rather than checking `status == approved`. This sequence shows
-the intended UI path; it is not a server-enforced consent barrier.
+Approval is saved, and `/ask` answers only when the status is `approved` (409
+otherwise). Approval is not bound to a result revision: a correction or rescan
+after approval keeps it, and Approve all works while some parts were not checked.
 
 ## Streaming, retries and persistence
 

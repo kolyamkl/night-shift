@@ -1,6 +1,6 @@
-"""Ask a question about a scanned document. The model (T2) sees only the redacted text and the
-question pseudonymised with the document's vault (redaction.question); its answer is restored with
-that vault and stored, encrypted, as a chat turn. A failed call stores nothing."""
+"""Ask a question about a scanned document its owner approved. The model (T2) sees only the redacted
+text and the question pseudonymised with the document's vault (redaction.question); its answer is
+restored with that vault and stored, encrypted, as a chat turn. A failed call stores nothing."""
 
 from app.core.errors import BadGatewayError, ServiceUnavailableError
 from app.llm.t2 import T2
@@ -18,7 +18,7 @@ class AskService:
         self.t2 = t2
 
     def ask(self, doc_id: str, question: str, *, owner_id: str) -> Answer:
-        res = self.documents.get_scanned(doc_id, owner_id=owner_id).result
+        res = self.documents.get_approved(doc_id, owner_id=owner_id).result
         if not self.t2:
             raise ServiceUnavailableError("The chat model is off. Start the backend with MUBIT_API_KEY set.")
         sent_question, vault = pseudonymise(question, res.vault)  # the question is pseudonymised too
