@@ -532,8 +532,8 @@ QUEST = [
     ("done", "Rated", "365 replies scored against our answer key: 231 good, the rest bad."),
     ("done", "Trained", "Adapter v1 on Qwen3-4B-Instruct-2507, from the kept examples."),
     ("done", "Examined", "Held-out test: v1 91.7%, the base model with the same prompt 66.7%."),
-    ("now", "Silent test", "v1 shadows 100% of calls; waiting for Mubit to route the task to it."),
-    ("todo", "Live", "v1 answers real detection calls, and every fix trains v2."),
+    ("now", "Silent test", "v1 shadows 100% of calls; live needs 20 judged test cases, v1 had 12."),
+    ("todo", "Live", "v1 answers real detection calls; the calls we rate train v2."),
 ]
 
 
@@ -572,7 +572,7 @@ def mubit():
             b.append(bar(bx, y + 11, 150, 9, 66.7, STONE, 0.7) + text("base 66.7%", bx + 160, y + 20, 11, "label", INK))
     write("mubit.svg", svg(W, H, "".join(b), "The guard's training in Mubit",
                            "Recorded, rated, trained and examined: adapter v1 scored 91.7% against 66.7% for the base model. "
-                           "Its silent test is running while Mubit routes the task to it; going live is the next step."))
+                           "Its silent test is running; Mubit puts a version live once it has 20 judged test cases."))
 
 
 # ---------- the training race and the five quests (scenes from the demo video) ----------
