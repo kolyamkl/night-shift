@@ -65,8 +65,8 @@ review capacity and adapter status still require console verification.
 ## Generate and test
 
 ```bash
-python3.11 -B scripts/review_dataset/build_text_dataset.py
-python3.11 -B -m pytest tests/review_dataset -q
+python3.11 -B training/review_redaction/build_text_dataset.py
+python3.11 -B -m pytest training/review_redaction/tests -q
 ```
 
 Generation converts all 576 old records and checks that local resolution of each
@@ -78,7 +78,7 @@ The sender defaults to the current exact-text task and requires a separate outpu
 directory. Dry run a five-record training selection:
 
 ```bash
-python3.11 -B scripts/review_dataset/send_review_batch.py \
+python3.11 -B training/review_redaction/send_review_batch.py \
   --task-version review-redaction-v2.4 --limit 5 --max-new 5 \
   --out-dir data/results/review-redaction-v2.4-next-check --no-record
 ```

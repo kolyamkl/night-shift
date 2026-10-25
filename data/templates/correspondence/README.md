@@ -9,7 +9,7 @@ One file per source: `R1.txt` to `R5.txt` (Enron email threads) and `R6.txt` to 
 Slot keys are roles, never real names. `[[opt:...]]` and `[[alt:a||b]]` blocks are added
 text variations, not source text; they may be nested.
 
-The full slot syntax is in the docstring of `scripts/sources/correspondence/build.py`,
+The full slot syntax is in the docstring of `training/sources/correspondence/build.py`,
 which renders 5 fills per template into `data/docs/correspondence.jsonl` and writes the
 answer key from the slots. Provenance and checksums of the raw sources are in
 `data/sources/correspondence/manifest.json`.
