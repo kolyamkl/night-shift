@@ -20,8 +20,8 @@ live model routing and training status must be checked in Mubit.
 ## Component guides
 
 - [Ingestion and OCR](../backend/app/ingest/README.md), [OCR evaluation](../scripts/ocr/README.md).
-- [Synthetic document generator](../datagen/README.md), [external dataset converters](../dataconv/README.md), [evaluation toolkit](../evalkit/README.md).
-- Source builders: [contracts](../scripts/sources/contracts/README.md), [financial and insurance](../scripts/sources/financial_insurance/README.md), [correspondence templates](../data/templates/correspondence/README.md).
+- [Training tooling overview](../training/README.md): [synthetic document generator](../training/datagen/README.md), [external dataset converters](../training/dataconv/README.md), [review-redaction datasets](../data/review_redaction_v2_4/README.md), [evaluation toolkit](../evalkit/README.md).
+- Source builders: [contracts](../training/sources/contracts/README.md), [financial and insurance](../training/sources/financial_insurance/README.md), [correspondence templates](../data/templates/correspondence/README.md).
 
 ## Research and earlier plans
 
@@ -35,6 +35,12 @@ Research snapshots retain their dates and sources:
 - [Mubit research](research/2026-10-23-mubit-audit/report.md).
 - [PII datasets and experiments](research/2026-10-24-pii-dataset/README.md).
 - [Market and privacy research](research/2026-10-24-veil-numbers/README.md).
+
+## Repository layout
+
+[Repository structure](architecture/repo-structure.md) explains where each folder
+lives and why, with the moves made on 25 October 2026. Dated research notes keep
+the paths of their day; the move table there maps old paths to new ones.
 
 ## Keeping these docs accurate
 

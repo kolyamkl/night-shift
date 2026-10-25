@@ -253,6 +253,30 @@ by the UI rather than the `/ask` endpoint. Question filtering can miss unfamilia
 free-form values. Read the [security guide](docs/SECURITY.md) before making
 privacy claims about a deployment.
 
+## Repository layout
+
+```text
+backend/              FastAPI API: ingest, detection pipeline, vault, Q&A, true PDF redaction
+frontend/             React + Vite app (/app) and landing page (/), unit and Playwright tests
+evalkit/              Redaction helpers the backend imports, plus scoring and the Mubit sender
+training/             Tooling that builds, sends and scores data for the T1 model
+├── sources/          public templates filled with invented values (rewrite approach)
+├── datagen/          synthetic UK documents with gold spans
+├── dataconv/         converters for open PII datasets
+└── review_redaction/ the separate review-redaction task, v2.1 to v2.4
+data/                 Datasets, answer keys, recorded Mubit results, the app's sample PDFs
+scripts/              T1 dataset pipeline, local database, OCR evaluation, README numbers
+tests/                Dataset pipeline and document ingestion tests
+demo/                 Records, voices and edits the submission video
+docs/                 Architecture, Mubit, data protection, deployment, research
+DESIGN.md, PRODUCT.md Design system and product context, read by the design tooling
+Makefile              dev, test, lint and more: `make help`
+```
+
+Why each folder sits where it does, and what moved on 25 October, is in
+[repository structure](docs/architecture/repo-structure.md). The three training
+approaches and their results are compared in the [training guide](training/README.md).
+
 ## Run locally
 
 Prerequisites: Python 3.12 or 3.13, uv, Node compatible with the frontend lockfile,
@@ -281,6 +305,9 @@ npm --prefix frontend ci
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173
 ```
 
+The same with `make`: `make setup` once, `make db`, then `make dev` runs both
+servers in one terminal.
+
 Open <http://127.0.0.1:5173/app>. Without a Mubit key, rule-based detection still
 works and Q&A is unavailable. Photos, scans and mixed PDFs needing OCR require
 Apple Vision on macOS; that path is unavailable on the Linux Railway deployment.
@@ -297,6 +324,10 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ```
 
+`make test` runs the test suites above plus the training tooling tests, `make build`
+builds the frontend, and `make lint` type-checks the frontend and checks Python for
+syntax errors and undefined names.
+
 Backend integration tests need a separate `TEST_DATABASE_URL`, created by the
 local setup script. Without it, those tests skip; do not interpret skips as a
 passed database check. Model calls are mocked in backend tests. Dataset checks
@@ -312,6 +343,7 @@ fonts by [`frontend/scripts/readme_art.py`](frontend/scripts/readme_art.py).
 - [Data protection](docs/SECURITY.md): trust boundaries, controls and gaps.
 - [Saved data](docs/DATABASE-CONTENTS.md) and [database operations](docs/DATABASE.md).
 - [Developer handoff](docs/HANDOFF.md), [deployment](docs/DEPLOY.md), [design system](DESIGN.md).
+- [Repository structure](docs/architecture/repo-structure.md) and [training tooling](training/README.md).
 - [All documentation](docs/README.md), including datasets and historical research.
 
 ## License
@@ -320,7 +352,7 @@ fonts by [`frontend/scripts/readme_art.py`](frontend/scripts/readme_art.py).
 study, research, hobby projects and noncommercial organisations such as
 charities, schools and public bodies. Any commercial use needs a separate licence
 from the copyright holder. Sample documents contain invented people only; external
-datasets keep their own licences (see [dataconv](dataconv/README.md)).
+datasets keep their own licences (see [dataconv](training/dataconv/README.md)).
 
 <p align="center">
   <img src="docs/readme/footer.svg" width="100%" alt="MuGuard. Pseudonymised, not anonymised: placeholders map back to real values only on your side. Built at Night Shift, London, on Mubit.">

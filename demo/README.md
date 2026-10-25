@@ -15,10 +15,10 @@ src/             Remotion composition        -> out/muguard-demo.mp4
 
 ## Run
 
-1. Start the servers. They are in `.claude/launch.json`, or run them yourself:
-   - `veil-backend-demo` on 8002
-   - `veil-mock` on 8010
-   - `veil-frontend-demo` on 5174
+1. Start the servers with `make demo-servers` from the repository root, or run them yourself:
+   - backend on 8002: `cd backend && uv run --env-file ../.env uvicorn app.main:app --port 8002`
+   - mock stream on 8010: `MOCK_ERROR=none MOCK_BACKEND=http://127.0.0.1:8002 node frontend/scripts/mock-stream.mjs`
+   - frontend on 5174: `cd frontend && VEIL_API=http://127.0.0.1:8010 npx vite --port 5174 --strictPort`
 2. Then, from `demo/`:
 
 ```bash
