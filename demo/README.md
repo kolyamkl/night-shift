@@ -67,7 +67,7 @@ All of it lives in `src/pixel.tsx`, `src/sprites.tsx` and `src/scenes/`, and use
 - the answer says "Mock answer, no AI was asked".
 
 **For the video we submit:**
-1. Put `MUBIT_API_KEY` in `.env` and restart `veil-backend-demo`. `/api/health` should show the model on.
+1. Put `MUBIT_API_KEY` in `.env` and restart the backend on 8002 (`make demo-backend`, or rerun `make demo-servers`). `/api/health` should show the model on.
    - With the key, the mock still fakes the scan but passes the question to Claude through Mubit, so the answer is real.
 2. To show the real detector and real request ids as well, run the demo frontend against the backend directly:
 

@@ -1,13 +1,14 @@
 # MuGuard documentation
 
 Start with the [project overview](../README.md), then follow the path that fits
-what you need. These guides describe the code checked on **24 October 2026**;
+what you need. These guides describe the code checked on **25 October 2026**;
 live model routing and training status must be checked in Mubit.
 
 | Question | Guide |
 | --- | --- |
 | What does the app do, and how do I run it? | [Project README](../README.md) |
 | How does a document move through the system? | [Architecture and diagrams](ARCHITECTURE.md) |
+| How is the backend code organised, and why? | [Backend architecture](../backend/docs/architecture.md) and [backend README](../backend/README.md) |
 | Where do we use Mubit, and how does training work? | [Mubit integration](MUBIT.md) |
 | Who can see sensitive data, and what protection exists? | [Data protection and limits](SECURITY.md) |
 | What is stored in PostgreSQL? | [Saved data](DATABASE-CONTENTS.md) |
@@ -49,5 +50,8 @@ recording, auth, approval, storage, deletion or training feedback. Link the code
 that implements a claim. Label historical measurements with their dataset and
 date; a unit-test count or a console label is not a privacy guarantee.
 
-Diagrams use Mermaid and render on GitHub. Their adjacent prose and tables carry
-the same explanation for readers whose Markdown viewer does not render Mermaid.
+Diagrams use Mermaid and render on GitHub, themed in the landing page's colours
+(the `%%{init}%%` line at the top of each block; Mubit in red). Their adjacent prose
+and tables carry the same explanation for readers whose Markdown viewer does not
+render Mermaid. Pixel pictures such as the backend layers come from
+`frontend/scripts/readme_art.py`, like the main README's.

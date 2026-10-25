@@ -217,7 +217,7 @@ modules; they are now gone.
 
 ```bash
 cd backend
-uv run --env-file ../.env pytest -q     # needs TEST_DATABASE_URL (scripts/local_db.py sets it)
+uv run --env-file ../.env pytest -q     # PostgreSQL tests skip without TEST_DATABASE_URL (../scripts/local_db.py sets it)
 uv run ruff check app tests && uv run ruff format --check app tests
 uv run mypy
 ```

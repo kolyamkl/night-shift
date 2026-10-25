@@ -1,6 +1,6 @@
 # Financial and insurance documents (dataset-finance)
 
-[Mubit workflow](../../../docs/MUBIT.md) · [Documentation index](../../../docs/README.md). Run commands from the repository root.
+[Mubit workflow](../../../docs/MUBIT.md) · [Documentation index](../../../docs/README.md). Run commands from this folder (`training/sources/financial_insurance`).
 
 Builds `data/docs/financial.jsonl` and `data/docs/insurance.jsonl` in the documents schema shared with the other dataset builders. Current schema: [dataset guide](../../../data/README.md). The original design was on the historical `docs/dataset-design` branch.
 

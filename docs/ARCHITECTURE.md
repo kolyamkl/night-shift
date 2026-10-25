@@ -129,11 +129,19 @@ does not attest that a person reviewed every later version of the result.
 
 ## Code map
 
+![The backend in four layers: entry, feature modules, domain packages and core](readme/backend.svg)
+
+The backend is split into layers: routers speak HTTP, services hold the rules,
+repositories hold the SQL, and the domain packages never import FastAPI. The
+[backend architecture](../backend/docs/architecture.md) page explains why.
+
 | Responsibility | Implementation |
 | --- | --- |
-| API, ownership and stream orchestration | [main.py](../backend/app/main.py) |
+| App setup and middleware | [main.py](../backend/app/main.py), [core/](../backend/app/core/) |
+| API routes and ownership | [api.py](../backend/app/api.py), [modules/](../backend/app/modules/) |
+| Scan, supersession and stream | [scan/service.py](../backend/app/modules/scan/service.py), [scan/stream.py](../backend/app/modules/scan/stream.py) |
 | Chunking, merging, corrections and PDF boxes | [redaction/pipeline.py](../backend/app/redaction/pipeline.py) |
-| Mubit requests and rewrite alignment | [llm/t1.py](../backend/app/llm/t1.py), [prompts.py](../backend/app/llm/prompts.py) |
+| Mubit requests and rewrite alignment | [llm/t1.py](../backend/app/llm/t1.py), [llm/t2.py](../backend/app/llm/t2.py), [llm/providers.py](../backend/app/llm/providers.py), [llm/rewrite.py](../backend/app/llm/rewrite.py), [llm/prompts.py](../backend/app/llm/prompts.py) |
 | Question protection | [redaction/question.py](../backend/app/redaction/question.py) |
 | PDF export | [redaction/pdf.py](../backend/app/redaction/pdf.py) |
 | Encryption, revisions and saved chat | [documents/repository.py](../backend/app/modules/documents/repository.py) |

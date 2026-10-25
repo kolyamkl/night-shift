@@ -4,9 +4,11 @@ Small toolkit for Veil's redaction task T1: the frozen prompt, placeholder redac
 
 [Documentation index](../../docs/README.md) · [Current Mubit integration](../../docs/MUBIT.md)
 
-The app imports the vault, matching and regex helpers from this package. Its
-optional `VEIL_T1_PROMPT=evalkit` mode uses the JSON-list prompt here; the default
-app detector uses the rewrite prompt in `backend/app/prompts.py`. These can be
+The app no longer imports this package: `backend/app/redaction/` and
+`backend/app/llm/` hold copies of the vault, matching and regex helpers. Its
+optional `VEIL_T1_PROMPT=evalkit` mode sends a byte-for-byte copy of the JSON-list
+prompt here, kept in `backend/app/llm/prompts.py`; the default app detector uses
+the rewrite prompt in the same file. These can be
 different Mubit tasks. Do not assume a successful historical evalkit training
 run is the adapter serving the current rewrite task.
 
@@ -54,6 +56,6 @@ uv run python -m evalkit.score --gold ../../data/rounds/eval_synthetic.jsonl --p
 ```
 
 Notes:
-- `send_batch` does not send `temperature` unless you pass `--temperature` (some models reject it).
+- `send_batch` never sends `temperature` (some models reject it).
 - Each result line has the Mubit request id (`mreq_...`): use it to find the call in the console and to link corrections.
 - Never send `data/external/eval_local_only.jsonl` (real people). `send_batch` refuses records marked `mubit_ok: false`.

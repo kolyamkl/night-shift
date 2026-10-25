@@ -31,8 +31,8 @@ How a page is read:
   EXIF orientation is applied; a page whose text leans more than 0.5 degrees, or lies on its
   side, is straightened and read again; an unreadable page is also tried at 90, 180 and 270.
 - **After OCR:** deterministic repairs of look-alike characters inside UK postcodes, sort
-  codes, GB IBANs (checked with mod 97), NI numbers and mostly-digit runs, plus Cyrillic or
-  Greek look-alikes inside English words (`fixes.py`). Ordinary words are never touched.
+  codes, GB IBANs (checked with mod 97), NI numbers and mostly-digit runs, a stray character or space next to the @ in an
+  email address, plus Cyrillic or Greek look-alikes inside English words (`fixes.py`). Ordinary words are never touched.
 
 Raises `UnsupportedDocument` for other formats and for damaged or password-protected PDFs,
 and `OcrError` when Apple Vision is unavailable (not macOS).

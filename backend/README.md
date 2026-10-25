@@ -12,7 +12,7 @@ uv run --directory backend --env-file ../.env uvicorn app.main:app --port 8000
 ```
 
 Settings come from the environment, then `backend/.env`, then the root `.env` (see
-`app/core/config.py` and `.env.example`). Without a Mubit key the app runs on the regex layer only.
+`app/core/config.py` and `../.env.example`). Without a Mubit key the app runs on the regex layer only.
 
 ## Check
 

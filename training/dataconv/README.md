@@ -9,9 +9,10 @@ Run from this package directory. Conversion does not authorize sending real
 personal data or restricted datasets to Mubit. Keep `eval_local_only.jsonl`
 local and review provenance/licences before using any converted records.
 
-Paths resolve from the repository root: `ROOT` in [common.py](src/dataconv/common.py),
-`RAW` in [dl_hf.py](scripts/dl_hf.py) and `OUT` in [dl_openpii.py](scripts/dl_openpii.py)
-all point at `data/external/` of the checkout this package sits in.
+Paths resolve from the repository root: `ROOT` in [common.py](src/dataconv/common.py) is
+that root, and `EXT` there, `RAW` in [dl_hf.py](scripts/dl_hf.py) and `OUT` in
+[dl_openpii.py](scripts/dl_openpii.py) point at `data/external/` of the checkout this
+package sits in.
 
 ```bash
 cd training/dataconv  # from the repository root
