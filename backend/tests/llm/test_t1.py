@@ -69,10 +69,10 @@ def test_rewrite_request_has_exactly_the_send_batch_fields(monkeypatch):
 
 
 def test_rewrite_request_is_the_same_as_send_batch_py(monkeypatch):
-    """Same body and the same Mubit-relevant headers as scripts/dataset/send_batch.py, so the calls
+    """Same body and the same Mubit-relevant headers as training/rewrite/send_batch.py, so the calls
     land in Nick's Mubit task "Redact personal data"."""
-    monkeypatch.syspath_prepend(str(REPO / "scripts" / "dataset"))
-    spec = importlib.util.spec_from_file_location("dataset_send_batch", REPO / "scripts" / "dataset" / "send_batch.py")
+    monkeypatch.syspath_prepend(str(REPO / "training" / "rewrite"))
+    spec = importlib.util.spec_from_file_location("dataset_send_batch", REPO / "training" / "rewrite" / "send_batch.py")
     send_batch = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(send_batch)
 

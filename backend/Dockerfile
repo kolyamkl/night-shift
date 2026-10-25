@@ -1,4 +1,4 @@
-# MuGuard backend for Railway. Build context is the repo root (for the sample PDFs):
+# MuGuard backend for Railway. Build context is the repo root, like the web service:
 #   docker build -f backend/Dockerfile .
 FROM python:3.13-slim
 
@@ -11,7 +11,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/app ./app
 COPY backend/migrations ./migrations
-COPY data/synthetic/pdfs /app/data/synthetic/pdfs
+COPY backend/samples ./samples
 
 # Only reachable over Railway's private network (through the web service), so forwarded
 # headers come from our Caddy, which sets X-Forwarded-For from Railway's X-Real-IP.

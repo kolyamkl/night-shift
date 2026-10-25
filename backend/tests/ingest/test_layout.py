@@ -18,8 +18,14 @@ def test_rows_read_top_to_bottom_whatever_the_input_order():
 
 def test_a_large_gap_starts_a_new_paragraph():
     # Rows 0.02 high: 0.01 between rows inside a paragraph, 0.05 before the next paragraph.
-    text = assemble([line("Dear Ann,", 0.1, 0.10), line("Thanks for", 0.1, 0.13), line("your letter.", 0.1, 0.16),
-                     line("Kind regards,", 0.1, 0.23)])
+    text = assemble(
+        [
+            line("Dear Ann,", 0.1, 0.10),
+            line("Thanks for", 0.1, 0.13),
+            line("your letter.", 0.1, 0.16),
+            line("Kind regards,", 0.1, 0.23),
+        ]
+    )
     assert text == "Dear Ann,\nThanks for\nyour letter.\n\nKind regards,"
 
 

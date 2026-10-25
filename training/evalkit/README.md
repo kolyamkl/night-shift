@@ -2,7 +2,7 @@
 
 Small toolkit for Veil's redaction task T1: the frozen prompt, placeholder redaction and restore, a regex baseline, scoring, the Mubit round builder and the Mubit batch sender.
 
-[Documentation index](../docs/README.md) · [Current Mubit integration](../docs/MUBIT.md)
+[Documentation index](../../docs/README.md) · [Current Mubit integration](../../docs/MUBIT.md)
 
 The app imports the vault, matching and regex helpers from this package. Its
 optional `VEIL_T1_PROMPT=evalkit` mode uses the JSON-list prompt here; the default
@@ -11,7 +11,7 @@ different Mubit tasks. Do not assume a successful historical evalkit training
 run is the adapter serving the current rewrite task.
 
 ```bash
-cd evalkit  # from the repository root
+cd training/evalkit  # from the repository root
 uv sync
 uv run pytest -q            # toolkit tests
 ```
@@ -34,23 +34,23 @@ uv run pytest -q            # toolkit tests
 
 ```bash
 # 1. Build round files (already built once; rerun after regenerating data)
-uv run python -m evalkit.build_rounds --data ../data
+uv run python -m evalkit.build_rounds --data ../../data
 
 # 2. Dry run: counts, doc types, cost estimate, first request
-uv run python -m evalkit.send_batch --chunks ../data/rounds/r1_core.jsonl --out runs/r1_core.jsonl
+uv run python -m evalkit.send_batch --chunks ../../data/rounds/r1_core.jsonl --out runs/r1_core.jsonl
 
 # 3. Teacher pilot (real inference, recording off requested), once per candidate model
 export MUBIT_API_KEY=mbt_...   # never commit it
-uv run python -m evalkit.send_batch --chunks ../data/rounds/r0_pilot.jsonl --out runs/pilot_luna.jsonl \
+uv run python -m evalkit.send_batch --chunks ../../data/rounds/r0_pilot.jsonl --out runs/pilot_luna.jsonl \
   --model gpt-6-luna --record off --live
-uv run python -m evalkit.score --gold ../data/rounds/r0_pilot.jsonl --pred runs/pilot_luna.jsonl --name "pilot gpt-6-luna"
+uv run python -m evalkit.score --gold ../../data/rounds/r0_pilot.jsonl --pred runs/pilot_luna.jsonl --name "pilot gpt-6-luna"
 
 # 4. Training traffic (recorded): round 1
-uv run python -m evalkit.send_batch --chunks ../data/rounds/r1_core.jsonl --out runs/r1_core.jsonl --model <chosen> --live
+uv run python -m evalkit.send_batch --chunks ../../data/rounds/r1_core.jsonl --out runs/r1_core.jsonl --model <chosen> --live
 
 # 5. Baseline numbers
-uv run python -m evalkit.baseline --gold ../data/rounds/eval_synthetic.jsonl --out runs/regex_eval.jsonl
-uv run python -m evalkit.score --gold ../data/rounds/eval_synthetic.jsonl --pred runs/regex_eval.jsonl --name regex
+uv run python -m evalkit.baseline --gold ../../data/rounds/eval_synthetic.jsonl --out runs/regex_eval.jsonl
+uv run python -m evalkit.score --gold ../../data/rounds/eval_synthetic.jsonl --pred runs/regex_eval.jsonl --name regex
 ```
 
 Notes:

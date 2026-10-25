@@ -38,7 +38,7 @@ echo "Key accepted."
 say() { echo "$(date -u +%H:%M) UTC  $*" | tee -a "$LOG"; }
 
 left_to_send() {
-  uv run python -m evalkit.send_batch --chunks "../data/rounds/$1.jsonl" --out "runs/$1.jsonl" --model "$MODEL" \
+  uv run python -m evalkit.send_batch --chunks "../../data/rounds/$1.jsonl" --out "runs/$1.jsonl" --model "$MODEL" \
     | sed -n 's/.*already done, \([0-9]*\) to send.*/\1/p'
 }
 
@@ -50,7 +50,7 @@ send_round() {
   for pass in $(seq 1 $PASSES); do
     [ "$left" = 0 ] && { say "$r: all sent"; return 0; }
     say "$r: pass $pass, $left to send"
-    uv run python -m evalkit.send_batch --chunks "../data/rounds/$r.jsonl" --out "runs/$r.jsonl" \
+    uv run python -m evalkit.send_batch --chunks "../../data/rounds/$r.jsonl" --out "runs/$r.jsonl" \
       --model "$MODEL" --live 2>&1 | tee -a "$LOG"
     before=$left
     left=$(left_to_send "$r")
@@ -68,9 +68,9 @@ say "start: $NOW_ROUNDS now, $AFTER_RESET_ROUNDS after $RESET_AT, model $MODEL"
 for r in $NOW_ROUNDS; do
   send_round "$r" || exit 1
   if [ "$r" = corrections ]; then
-    uv run python -m evalkit.mistakes --gold ../data/rounds/corrections.jsonl --results runs/corrections.jsonl \
+    uv run python -m evalkit.mistakes --gold ../../data/rounds/corrections.jsonl --results runs/corrections.jsonl \
       --out runs/corrections_todo.md --top 40 >> "$LOG" 2>&1
-    say "corrections to-do written: evalkit/runs/corrections_todo.md (fix these in the console)"
+    say "corrections to-do written: training/evalkit/runs/corrections_todo.md (fix these in the console)"
   fi
 done
 

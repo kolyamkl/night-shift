@@ -1,6 +1,6 @@
 import re
 
-from app import prompts
+from app.llm import prompts
 from dataset_common import ENTITY_TYPES
 
 

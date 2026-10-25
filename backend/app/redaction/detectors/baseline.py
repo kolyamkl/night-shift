@@ -2,7 +2,7 @@
 
 High-risk numbers (card, account, sort code, IBAN, NI) are labelled from the regex plus a context
 word even when the checksum fails: a typo in a real number is still personal data. Copied from
-evalkit/regex_baseline.py so the backend does not depend on the evaluation kit.
+training/evalkit/regex_baseline.py so the backend does not depend on the evaluation kit.
 """
 
 import re

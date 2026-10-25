@@ -150,7 +150,7 @@ def check_entities(text, entities):
     return errs
 
 
-# Two rules of scripts/dataset/validate_docs.py, mirrored here so check.py and the builders
+# Two rules of training/rewrite/validate_docs.py, mirrored here so check.py and the builders
 # reject what that validator rejects: every email address lies inside an EMAIL entity, and
 # the text has no token the scorer would read as a placeholder ([PERSON], [Address 2]).
 VALIDATOR_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+'-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")

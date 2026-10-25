@@ -10,7 +10,7 @@ regex sweep (phone numbers, IBANs, postcodes and similar outside any entity)
 and small schema oddities. Review them; they are not proof of a bug.
 
 Usage:
-    python scripts/dataset/validate_docs.py [--docs-dir data/docs]
+    python training/rewrite/validate_docs.py [--docs-dir data/docs]
 """
 
 from __future__ import annotations

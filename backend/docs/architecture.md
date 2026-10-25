@@ -119,9 +119,9 @@ backend/
       providers.py       one HTTP call per provider route
       models.py          Models: the calls and names the services use, built from Settings
     ingest/              domain: Apple Vision OCR and PDF text layers (unchanged)
-    prompts.py extract.py addresses.py pipeline.py    deprecated adapters, see section 5
   migrations/            immutable SQL, applied in order at startup
-  tests/                 mirrors app/: api/, core/, llm/, redaction/, modules/, plus test_contract.py
+  samples/               the synthetic sample PDFs and their answer keys (VEIL_SAMPLES_DIR)
+  tests/                 mirrors app/: api/, core/, llm/, redaction/, modules/, ingest/, plus test_contract.py
 ```
 
 Before, for comparison: `app/` held `main.py`, `auth.py`, `storage.py`, `llm.py`, `prompts.py`,
@@ -193,13 +193,12 @@ What the backend used from evalkit is now in the backend, with its tests:
 `send_batch.parse_entities` -> `llm/t1.py`; `prompts.T1_SYSTEM_PROMPT` ->
 `llm/prompts.LIST_T1_SYSTEM_PROMPT`. Copied byte for byte where it matters: every regex was compared
 with the original, and both frozen T1 prompts are pinned by SHA-256 in `tests/llm/test_prompts.py`,
-because Mubit fingerprints a task by its prompt. `evalkit/` itself is untouched.
+because Mubit fingerprints a task by its prompt. `training/evalkit/` itself is untouched.
 
-Code outside `backend/` still imports the old paths (`scripts/dataset/send_batch.py` and
-`tests/dataset/` use `app.prompts`; `scripts/readme_numbers.py` uses `app.addresses`, `app.pipeline`
-and `app.llm.rewrite_values`; `scripts/samples/make_tenancy.py` uses `app.extract`). Following the
-deprecation skill, each old path is a small adapter that re-exports from the new place and names
-the caller that keeps it alive. Delete an adapter once its caller imports the new module.
+The old import paths (`app.prompts`, `app.extract`, `app.addresses`, `app.pipeline` and
+`app.llm.rewrite_values`) were kept as small adapters until their callers outside `backend/`
+(`training/rewrite/`, `scripts/readme_numbers.py`, `scripts/samples/make_tenancy.py`) moved to the new
+modules; they are now gone.
 
 ## The API contract
 
@@ -226,9 +225,6 @@ it stores something), and one line in `app/api.py`.
 
 ## Left for later
 
-- Point `scripts/` and `tests/dataset/` at the new import paths, then delete the adapters
-  (`app/prompts.py`, `app/extract.py`, `app/addresses.py`, `app/pipeline.py`, the re-export in
-  `app/llm/__init__.py`).
 - `POST /api/documents/{id}/ask` returns the provider's exception text in its 502 detail (kept to
   avoid changing the contract); replace it with a fixed message.
 - mypy `--strict` reports 28 more findings, mostly in the OCR modules (`ingest/`, `redaction/ocr.py`).

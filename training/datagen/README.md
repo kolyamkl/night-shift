@@ -42,7 +42,7 @@ take well under a minute (selection, PDFs and stats add about a minute).
 Other entry points:
 
 ```bash
-uv run python -m datagen.pdf --out ../../data/synthetic/pdfs --n 30 --seed 42   # PDFs only
+uv run python -m datagen.pdf --out ../../backend/samples --n 30 --seed 42   # PDFs only
 uv run python -m datagen.stats --out ../../data/synthetic                       # stats.md (+ copy to research notes)
 uv run python -m datagen.audit --docs ../../data/synthetic/docs.jsonl --limit 20000   # label leak audit
 uv run python -m datagen.samples --data ../../data/synthetic --out samples        # committed-safe sample

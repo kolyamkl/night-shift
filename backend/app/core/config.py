@@ -102,7 +102,7 @@ class Settings(BaseSettings):
         ["http://localhost:5173", "http://127.0.0.1:5173"], validation_alias="VEIL_CORS"
     )
     cookie_secure: bool = Field(False, validation_alias="VEIL_COOKIE_SECURE")  # True when served over HTTPS
-    samples_dir: Path = Field(REPO_DIR / "data" / "synthetic" / "pdfs", validation_alias="VEIL_SAMPLES_DIR")
+    samples_dir: Path = Field(BACKEND_DIR / "samples", validation_alias="VEIL_SAMPLES_DIR")
 
     # Where each value came from: setting name -> "env", "backend/.env" or ".env". Absent means default.
     sources: dict[str, str] = Field(default_factory=dict, exclude=True)

@@ -19,8 +19,8 @@ the browser or store model weights in PostgreSQL.
 | Local result | Detected values, chunk status, timing, Mubit request ID | Restored answer, sent question, Mubit request ID |
 | Purpose | Detection and eligible recorded examples for console review | Answering, without adding this call to task training |
 
-These are the requests built by [llm.py](../backend/app/llm.py) and
-[providers.py](../evalkit/src/evalkit/providers.py). A requested model name does
+These are the requests built by [llm/t1.py](../backend/app/llm/t1.py) and
+[llm/providers.py](../backend/app/llm/providers.py). A requested model name does
 not establish which adapter, if any, served a particular call.
 
 Mubit records request/reply content by default. Its documentation describes
@@ -35,7 +35,7 @@ MuGuard itself saves chat history encrypted in its own database.
 
 ## The default detection request
 
-The app freezes the instruction text in [prompts.py](../backend/app/prompts.py)
+The app freezes the instruction text in [prompts.py](../backend/app/llm/prompts.py)
 and sends one chunk per call. The essential shape is:
 
 ```python
@@ -108,14 +108,14 @@ Do not combine results from different task IDs or prompt designs.
 | [training/datagen](../training/datagen/README.md) | Generated UK documents, spans, hard cases and synthetic sample PDFs |
 | [training/dataconv](../training/dataconv/README.md) | External dataset conversion with provenance and usage restrictions |
 | [review-redaction datasets](../data/review_redaction_v2_4/README.md) | Separate exact-text detection task (v2.1 to v2.4), built and sent by `training/review_redaction/` |
-| [evalkit](../evalkit/README.md) | Scoring, baseline, older list-output experiments and batch tools |
+| [evalkit](../training/evalkit/README.md) | Scoring, baseline, older list-output experiments and batch tools |
 
 From the repository root, with the root Python requirements installed:
 
 ```sh
-python scripts/dataset/validate_docs.py
-python scripts/dataset/build_chunks.py
-python scripts/dataset/send_batch.py --split train --limit 10
+python training/rewrite/validate_docs.py
+python training/rewrite/build_chunks.py
+python training/rewrite/send_batch.py --split train --limit 10
 ```
 
 The final command is a **dry run**. Adding `--send` makes real recorded calls.

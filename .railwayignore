@@ -8,10 +8,7 @@
 **/.venv/
 frontend/dist/
 **/__pycache__/
-data/*
-!data/synthetic/
-data/synthetic/*
-!data/synthetic/pdfs/
-evalkit/runs/
+data/
+training/
 collaboration/
 state/

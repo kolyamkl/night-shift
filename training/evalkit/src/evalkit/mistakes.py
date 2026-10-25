@@ -1,7 +1,7 @@
 """List the teacher's or adapter's mistakes per chunk, with the Mubit request id and the corrected
 answer ready to paste into the console (the organisers' PagerPal flow: correct the reply on its request).
 
-  uv run python -m evalkit.mistakes --gold ../data/rounds/corrections.jsonl --results runs/corrections.jsonl \
+  uv run python -m evalkit.mistakes --gold ../../data/rounds/corrections.jsonl --results runs/corrections.jsonl \
       --out runs/corrections_todo.md --top 40
 """
 

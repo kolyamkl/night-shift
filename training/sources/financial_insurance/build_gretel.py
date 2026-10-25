@@ -347,7 +347,7 @@ def convert(text, raw_spans, label_map):
         entities.append(dict(start=s, end=e, type=t, value=text[s:e], entity_id=eid))
     if check_entities(text, entities):
         return None, "invalid_after_processing", notes
-    # The documents validator (scripts/dataset/validate_docs.py) rejects these two; drop them here.
+    # The documents validator (training/rewrite/validate_docs.py) rejects these two; drop them here.
     if email_misses(text, entities):
         return None, "email_not_covered", notes
     if placeholder_tokens(text, strict=True):

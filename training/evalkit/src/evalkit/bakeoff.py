@@ -23,7 +23,7 @@ DEFAULT_ARMS = "list:gpt-6-luna,list:claude-haiku-4-5,list:gemini-3.8-flash,rewr
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--chunks", default="../data/rounds/bakeoff.jsonl")
+    ap.add_argument("--chunks", default="../../data/rounds/bakeoff.jsonl")
     ap.add_argument("--arms", default=DEFAULT_ARMS, help="comma-separated design:model pairs")
     ap.add_argument("--outdir", default="runs/bakeoff")
     ap.add_argument("--live", action="store_true")

@@ -67,7 +67,7 @@ def to_chunks(doc: dict) -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--repo", default="..")
+    ap.add_argument("--repo", default="../..")
     ap.add_argument("--seed", type=int, default=11)
     a = ap.parse_args()
     repo = Path(a.repo)

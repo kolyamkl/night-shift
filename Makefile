@@ -5,12 +5,12 @@
 
 # Pass the root .env to the backend when it exists (`make setup` creates it from .env.example).
 ENV_FILE := $(if $(wildcard .env),--env-file ../.env,)
-# Python for the root scripts/, tests/ and training/ tools that share requirements.txt.
+# Python for the root scripts/ and the training/ tools that share requirements.txt.
 PYTHON ?= 3.12
 PY := uv run --no-project --python $(PYTHON) --with-requirements requirements.txt python
 
 .PHONY: help setup db dev backend frontend demo-servers demo-backend demo-mock demo-frontend \
-        test test-app test-backend test-ingest test-frontend test-training lint build
+        test test-app test-backend test-frontend test-training lint build
 
 help: ## List the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-15s %s\n", $$1, $$2}'
@@ -46,21 +46,18 @@ demo-frontend:
 
 test: test-app test-training ## Run every test suite
 
-test-app: test-backend test-ingest test-frontend ## Tests of the running app
+test-app: test-backend test-frontend ## Tests of the running app
 
-test-backend: ## Backend tests (database tests skip without TEST_DATABASE_URL)
+test-backend: ## Backend tests, ingestion and OCR included (database tests skip without TEST_DATABASE_URL)
 	cd backend && uv run $(ENV_FILE) pytest -q
-
-test-ingest: ## Document ingestion and OCR repair tests
-	cd backend && uv run --with reportlab python -m pytest -q ../tests/ingest
 
 test-frontend: ## Frontend unit tests (Vitest)
 	npm --prefix frontend test
 
-# tests/dataset and the review tests run separately: both import helpers from a module named conftest.
+# The rewrite and review tests run separately: both import helpers from a module named conftest.
 test-training: ## Dataset and evaluation tooling tests (no network, no model calls)
-	cd evalkit && uv run pytest -q
-	$(PY) -m pytest -q tests/dataset
+	cd training/evalkit && uv run pytest -q
+	$(PY) -m pytest -q training/rewrite/tests
 	$(PY) -m pytest -q training/review_redaction/tests
 	cd training/datagen && uv run pytest -q
 	cd training/dataconv && uv run pytest -q

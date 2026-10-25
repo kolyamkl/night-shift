@@ -2,7 +2,7 @@
 training a Mubit task. VEIL_T1_PROMPT picks one of two designs (each is its own Mubit task):
 
 - "rewrite" (default): prompts.T1_SYSTEM_PROMPT on prompts.MODEL_ID (claude-haiku-4-5) through
-  https://api.mubit.ai/anthropic, sent with the anthropic SDK exactly as scripts/dataset/send_batch.py
+  https://api.mubit.ai/anthropic, sent with the anthropic SDK exactly as training/rewrite/send_batch.py
   sends it, so the calls land in the same Mubit task ("Redact personal data"). The answer is the chunk
   rewritten with placeholders; rewrite.rewrite_values turns it back into values. Chunks are at most
   1400 characters: Mubit's reviewer reads only about the first 1,530.
@@ -27,7 +27,7 @@ EVALKIT, REWRITE = T1_PROMPTS
 T1_CHUNK_CHARS = {EVALKIT: MAX_CHARS, REWRITE: 1400}
 DEFAULT_EVALKIT_MODEL = "gpt-6-luna"
 
-# The rewrite request, field for field as scripts/dataset/send_batch.py sends it.
+# The rewrite request, field for field as training/rewrite/send_batch.py sends it.
 MUBIT_ANTHROPIC = "https://api.mubit.ai/anthropic"
 REWRITE_MAX_TOKENS = 2048
 RETRY_STATUSES = (429, 503, 529)
@@ -38,7 +38,7 @@ _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$")
 
 
 def parse_entities(content: str | None) -> tuple[list[Entity], bool]:
-    """Values from a list-prompt answer, and whether the answer was unreadable (evalkit/send_batch.py)."""
+    """Values from a list-prompt answer, and whether the answer was unreadable (training/evalkit/send_batch.py)."""
     try:
         data = json.loads(_FENCE.sub("", (content or "").strip()))
         ents = data.get("entities", [])
