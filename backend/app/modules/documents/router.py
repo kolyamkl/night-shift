@@ -36,11 +36,13 @@ def delete_document(doc_id: str, user: CurrentUser, documents: DocumentServiceDe
 
 
 @router.post("")
-async def create_document(
+def create_document(
     user: CurrentUser,
     documents: DocumentServiceDep,
     text: Annotated[str | None, Form()] = None,
     file: Annotated[UploadFile | None, File()] = None,
 ) -> DocumentOut:
-    doc = uploads.from_pasted(text) if file is None else uploads.from_file(await file.read(), file.filename)
+    # A plain def runs in the threadpool: PDF parsing, OCR and the database write would otherwise
+    # block the event loop, and with it every other request and scan stream.
+    doc = uploads.from_pasted(text) if file is None else uploads.from_file(file.file.read(), file.filename)
     return documents.create(doc, owner_id=user.id)

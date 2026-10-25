@@ -171,7 +171,11 @@ only `core` (logging, settings names) and each other. `modules` import the domai
   repository call opens its own short connection, so the scan thread never shares the request's
   connection (the Dispatch rule). A new test applies every migration to an empty schema.
 - **Sync endpoints.** psycopg is used synchronously, so routes are `def` and run in FastAPI's
-  threadpool; the SSE scan runs in its own thread so it finishes even if the browser leaves.
+  threadpool; the SSE scan runs in its own thread so it finishes even if the browser leaves. The one
+  `async def` route, the upload (`main.py:259-285`), parsed the PDF, ran OCR and wrote to the
+  database on the event loop, stalling every other request and scan stream for the length of an
+  OCR; it is now a plain `def` too. This is the only behaviour change a client could notice, and
+  only as better concurrency.
 - **Security** (`core/security.py`, `modules/auth`). Unchanged behaviour, now in one place:
   `X-Veil-Request: 1` on every state-changing `/api` call, `Cache-Control: no-store` on auth and
   document responses, HttpOnly SameSite=Lax session cookies holding a 256-bit token whose SHA-256
