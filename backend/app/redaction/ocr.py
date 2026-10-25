@@ -12,7 +12,7 @@ pdfium renders them, with /Rotate and the CropBox applied), turned counterclockw
 Page.rotation degrees with the canvas grown to fit (PIL rotate with expand=True). Page.rotation
 covers both a deskew of a few degrees and a page read on its side or upside down (90, 180, 270).
 Word.bbox is in PDF points in PyMuPDF's unrotated page frame, the frame page.get_text("words") and
-add_redact_annot use, as in extract.py. Text-layer pages of a mixed PDF (some pages scanned) have
+add_redact_annot use, as in document.py. Text-layer pages of a mixed PDF (some pages scanned) have
 boxes in another frame; see _from_text_layer.
 """
 
@@ -31,12 +31,12 @@ import pymupdf
 import pypdfium2 as pdfium
 from PIL import ExifTags, Image, ImageOps
 
-from . import ingest
-from .extract import Document, Word, extract_text
-from .ingest.extract import page_frames
-from .ingest.layout import assemble, group_rows
+from app import ingest
+from app.ingest.extract import page_frames
+from app.ingest.layout import assemble, group_rows
+from app.redaction.document import Document, Word, extract_text
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("veil.ocr")
 
 PAD_CHARS = 1.5  # word boxes grow by this many average character widths each side, within the line box
 PHOTO_SIDE = 842.0  # points (A4's long side): the page size of a photo, whose dpi says nothing about paper

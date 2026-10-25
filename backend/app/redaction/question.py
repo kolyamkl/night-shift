@@ -20,10 +20,9 @@ Answers are shown as plain text, so Markdown emphasis and headings are taken out
 import copy
 import re
 
-from evalkit.redact import Vault
-from evalkit.spans import Span
-
-from .pipeline import _merge, _regex
+from app.redaction import detectors
+from app.redaction.spans import Span, merge
+from app.redaction.vault import Vault
 
 TITLES = {"mr", "mrs", "ms", "miss", "mx", "dr", "prof", "sir", "dame", "rev", "lord", "lady"}
 NAME_PART = re.compile(r"[^\W\d_][\w'’-]*")
@@ -33,7 +32,7 @@ _HEADING = re.compile(r"^[ \t]*#{1,6}[ \t]+", re.M)
 _BULLET = re.compile(r"^([ \t]*)[*+][ \t]+", re.M)
 
 
-def _pattern(value: str) -> re.Pattern | None:
+def _pattern(value: str) -> re.Pattern[str] | None:
     """Any case, any run of spaces or commas between the words, not inside a longer word or number."""
     parts = [re.escape(p) for p in re.split(r"[\s,]+", value) if p]
     if not parts:
@@ -70,11 +69,11 @@ def pseudonymise(question: str, vault: Vault) -> tuple[str, Vault]:
     hits = _known(question, local)
     # Longer hits win: "Daryna Shevchenko" over "Daryna"; then the regex layer fills the gaps.
     spans = [Span(s, e, ph, question[s:e]) for s, e, ph in hits]
-    for sp in _regex(question):
+    for sp in detectors.detect(question):
         if not any(sp.start < e and s < sp.end for s, e, _ in hits):
             spans.append(Span(sp.start, sp.end, "NEW:" + sp.type, sp.text))
     out, pos = [], 0
-    for sp in _merge(spans, question):
+    for sp in merge(spans, question):
         out.append(question[pos:sp.start])
         if sp.type.startswith("NEW:"):
             out.append(local.placeholder_for(sp.text, sp.type[4:]))

@@ -1,9 +1,9 @@
 import pytest
-from evalkit.spans import Span
+from app.redaction.spans import Span
 
-from app.addresses import expand
-from app.extract import extract_text
-from app.pipeline import T1Result, run_pipeline
+from app.redaction.addresses import expand
+from app.redaction.document import extract_text
+from app.redaction.pipeline import T1Result, run_pipeline
 
 
 def widened(text: str, *parts: tuple[str, str]) -> list[tuple[str, str]]:

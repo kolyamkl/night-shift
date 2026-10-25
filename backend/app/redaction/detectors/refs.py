@@ -14,7 +14,7 @@ evalkit regex baseline.
 
 import re
 
-from evalkit.spans import Span
+from app.redaction.spans import Span
 
 _NO = r"(?:no\.?|nos\.?|number|num\.?|id|code|serial|ref(?:erence)?\.?)"
 LABEL = re.compile(

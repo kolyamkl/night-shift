@@ -12,17 +12,14 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "cryptography>=44",
     "argon2-cffi>=25.1",
-    "evalkit",
     # app/ingest (OCR for scans and photos, from the ocr/ingest branch)
     "pypdfium2>=5.14",
     "pillow>=13.0",
     "pillow-heif>=1.8",
     "pyobjc-framework-Vision>=12.2; sys_platform == \"darwin\"",
     "anthropic==2.2.0",
+    "pydantic-settings>=2.12,<3",
 ]
-
-[tool.uv.sources]
-evalkit = { path = "../evalkit", editable = true }
 
 [dependency-groups]
 dev = ["pytest>=8"]

@@ -4,9 +4,9 @@ import pymupdf
 import pytest
 from PIL import Image, ImageCms
 
-from app.extract import extract_pdf
-from app.pdfout import _jpeg_without_metadata, redact_pdf
-from app.pipeline import Box, T1Result, run_pipeline
+from app.redaction.document import extract_pdf
+from app.redaction.pdf import _jpeg_without_metadata, redact_pdf
+from app.redaction.pipeline import Box, T1Result, run_pipeline
 
 
 def test_redacted_pdf_has_the_values_removed_not_just_covered(tenancy_pdf):

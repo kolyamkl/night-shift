@@ -1,92 +1,17 @@
 import importlib.util
 import json
-import os
 from pathlib import Path
 
 import httpx2
 import pytest
 
-from app import llm, prompts
-from app.extract import extract_text
-from app.pipeline import run_pipeline
+from app.llm import prompts, t1
+from app.llm.rewrite import align_rewrite, rewrite_values
+from app.llm.t1 import REWRITE, make_t1_factory
+from app.redaction.document import extract_text
+from app.redaction.pipeline import run_pipeline
 
-REPO = Path(__file__).resolve().parents[2]
-
-
-@pytest.fixture
-def key_files(tmp_path, monkeypatch):
-    """backend/.env and the root .env in a temp tree, with no MUBIT_API_KEY in the environment."""
-    monkeypatch.delenv("MUBIT_API_KEY", raising=False)
-    (tmp_path / "backend").mkdir()
-    return (("backend/.env", tmp_path / "backend" / ".env"), (".env", tmp_path / ".env"))
-
-
-def test_key_lookup_order_is_env_then_backend_env_then_root_env(key_files, monkeypatch):
-    backend_env, root_env = key_files[0][1], key_files[1][1]
-    root_env.write_text("# root\nOTHER=1\nMUBIT_API_KEY=mbt_root\n")
-    assert llm.find_key(key_files) == ("mbt_root", ".env")
-    backend_env.write_text("export MUBIT_API_KEY='mbt_backend'\n")
-    assert llm.find_key(key_files) == ("mbt_backend", "backend/.env")
-    monkeypatch.setenv("MUBIT_API_KEY", "mbt_env")
-    assert llm.find_key(key_files) == ("mbt_env", "env")
-
-
-def test_only_mubit_keys_count(key_files, monkeypatch):
-    monkeypatch.setenv("MUBIT_API_KEY", "sk-ant-not-a-mubit-key")
-    key_files[0][1].write_text("MUBIT_API_KEY=\n")
-    key_files[1][1].write_text('MUBIT_API_KEY="mbt_root"\n')
-    assert llm.find_key(key_files) == ("mbt_root", ".env")
-
-
-def test_no_key_anywhere_means_off(key_files):
-    assert llm.find_key(key_files) == (None, None)
-    assert llm.make_t1_factory(None) is None and llm.make_t2(None) is None
-
-
-@pytest.fixture
-def no_veil_env(monkeypatch):
-    for name in ("VEIL_T1_PROMPT", "VEIL_T1_MODEL", "VEIL_T2_MODEL"):
-        monkeypatch.delenv(name, raising=False)
-
-
-def test_settings_come_from_the_same_files_as_the_key_in_the_same_order(key_files, no_veil_env, monkeypatch):
-    backend_env, root_env = key_files[0][1], key_files[1][1]
-    assert llm.load_settings(key_files).t1_prompt == "rewrite"  # the default
-    root_env.write_text("MUBIT_API_KEY=mbt_root\nVEIL_T1_PROMPT=rewrite\nVEIL_T2_MODEL=claude-sonnet-x\n")
-    got = llm.load_settings(key_files)
-    assert (got.t1_prompt, got.t1_model, got.t2_model) == ("rewrite", "claude-haiku-4-5", "claude-sonnet-x")
-    assert got.sources == {"VEIL_T1_PROMPT": ".env", "VEIL_T1_MODEL": "default", "VEIL_T2_MODEL": ".env"}
-    backend_env.write_text("VEIL_T1_PROMPT=evalkit\nVEIL_T1_MODEL=gpt-other\n")
-    got = llm.load_settings(key_files)
-    assert (got.t1_prompt, got.t1_model, got.sources["VEIL_T1_PROMPT"]) == ("evalkit", "gpt-other", "backend/.env")
-    monkeypatch.setenv("VEIL_T1_PROMPT", "Rewrite")  # a real environment variable wins
-    got = llm.load_settings(key_files)
-    assert (got.t1_prompt, got.sources["VEIL_T1_PROMPT"]) == ("rewrite", "env")
-
-
-def test_only_the_named_settings_are_read_and_nothing_goes_into_the_environment(key_files, no_veil_env, monkeypatch):
-    monkeypatch.delenv("SOME_OTHER_SECRET", raising=False)
-    key_files[1][1].write_text("SOME_OTHER_SECRET=1\nMUBIT_API_KEY=mbt_root\nVEIL_T1_PROMPT=rewrite\n")
-    llm.load_settings(key_files)
-    llm.find_key(key_files)
-    assert "SOME_OTHER_SECRET" not in os.environ and "VEIL_T1_PROMPT" not in os.environ
-    assert "MUBIT_API_KEY" not in os.environ
-
-
-def test_a_bad_prompt_setting_names_where_it_came_from(key_files, no_veil_env):
-    key_files[1][1].write_text("VEIL_T1_PROMPT=list\n")
-    with pytest.raises(ValueError, match=r"VEIL_T1_PROMPT \(from \.env\) must be one of evalkit, rewrite"):
-        llm.load_settings(key_files)
-
-
-def test_the_startup_line_names_the_prompt_and_its_source(key_files, no_veil_env):
-    key_files[1][1].write_text("VEIL_T1_PROMPT=rewrite\n")
-    settings = llm.load_settings(key_files)
-    assert llm.describe(settings, ".env") == (
-        "T1 on: prompt rewrite (VEIL_T1_PROMPT from .env), model claude-haiku-4-5, 1400-character chunks, "
-        "Mubit key from .env")
-    key_files[1][1].write_text("")
-    assert llm.describe(llm.load_settings(key_files), None).endswith("regex layer only; prompt rewrite (default)")
+REPO = Path(__file__).resolve().parents[3]
 
 
 def message(text: str, stop_reason: str = "end_turn") -> dict:
@@ -115,7 +40,7 @@ def ok(text: str, stop_reason: str = "end_turn", mreq: str = "mreq_1") -> httpx2
 
 
 def rewrite_t1(fake: FakeMubit, doc_id: str = "d1"):
-    return llm.make_t1_factory("mbt_test", prompt=llm.REWRITE, http_client=fake.client())(doc_id)
+    return make_t1_factory("mbt_test", prompt=REWRITE, http_client=fake.client())(doc_id)
 
 
 def test_rewrite_request_has_exactly_the_send_batch_fields(monkeypatch):
@@ -173,14 +98,14 @@ def test_a_rewritten_answer_becomes_the_right_spans():
 def test_neighbouring_placeholders_split_where_the_value_types_fit():
     chunk = "Write to Jo Smith at 4 Elm Street Bath BA1 1AA or call 07700 900123 today."
     answer = "Write to [PERSON_1] at [ADDRESS_1] [POSTCODE_1] or call [PHONE_1] today."
-    assert llm.rewrite_values(chunk, answer) == [
+    assert rewrite_values(chunk, answer) == [
         {"text": "Jo Smith", "type": "PERSON"}, {"text": "4 Elm Street Bath", "type": "ADDRESS"},
         {"text": "BA1 1AA", "type": "POSTCODE"}, {"text": "07700 900123", "type": "PHONE"}]
 
 
 def test_a_line_the_model_changed_falls_back_to_the_diff_and_counts_the_change():
     chunk = "Dear Ann Lee,\nThe colour of the van is red.\n"
-    spans, changed = llm.align_rewrite(chunk, "Dear [PERSON_1],\nThe color of the van is red.")
+    spans, changed = align_rewrite(chunk, "Dear [PERSON_1],\nThe color of the van is red.")
     assert [(s.text, s.type) for s in spans] == [("Ann Lee", "PERSON")] and changed == 1
 
 
@@ -197,7 +122,7 @@ def test_an_answer_that_does_not_line_up_is_unreadable():
 
 def test_busy_answers_are_retried_after_retry_after(monkeypatch):
     waits = []
-    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    monkeypatch.setattr(t1.time, "sleep", waits.append)
     busy = httpx2.Response(429, json={"type": "error", "error": {"type": "rate_limit_error", "message": "busy"}},
                            headers={"retry-after": "3"})
     fake = FakeMubit(busy, ok("Tenant: [PERSON_1]."))
@@ -215,15 +140,6 @@ def test_other_http_errors_are_not_retried():
     assert result.error.startswith("http 400") and result.mreq_id == "mreq_bad"
 
 
-def test_each_prompt_has_its_own_model_and_chunk_size(key_files, no_veil_env, monkeypatch):
-    monkeypatch.setenv("VEIL_T1_MODEL", "gpt-other")
-    monkeypatch.setenv("VEIL_T1_PROMPT", "rewrite")
-    assert llm.load_settings(key_files).t1_model == prompts.MODEL_ID == "claude-haiku-4-5"
-    monkeypatch.setenv("VEIL_T1_PROMPT", "evalkit")
-    assert llm.load_settings(key_files).t1_model == "gpt-other"
-    assert llm.T1_CHUNK_CHARS == {llm.EVALKIT: 4000, llm.REWRITE: 1400}
-
-
 def test_rewrite_chunks_are_sent_stripped_like_the_training_data():
     text = "  Tenant: Raj Patel.\n\nRent is due.\n"
     fake = FakeMubit(ok("Tenant: [PERSON_1]."), ok("Rent is due."))
@@ -236,20 +152,20 @@ def test_rewrite_chunks_are_sent_stripped_like_the_training_data():
 
 def test_stripped_alignment_keeps_offsets_into_the_chunk():
     chunk = "\n  Tenant: Raj Patel.\n\n"
-    [span], changed = llm.align_rewrite(chunk, "Tenant: [PERSON_1].")
+    [span], changed = align_rewrite(chunk, "Tenant: [PERSON_1].")
     assert chunk[span.start:span.end] == span.text == "Raj Patel" and changed == 0
 
 
 def test_tiny_values_and_bare_titles_are_dropped():
     chunk = "From: J. Smith (Mr), ref A\nDear Dr,"
     answer = "From: [PERSON_1]. [PERSON_2] ([PERSON_3]), ref [CUSTOM_1]\nDear [PERSON_4],"
-    assert llm.rewrite_values(chunk, answer) == [{"text": "Smith", "type": "PERSON"}]
+    assert rewrite_values(chunk, answer) == [{"text": "Smith", "type": "PERSON"}]
 
 
 def test_a_letterhead_misread_by_the_diff_does_not_hide_mr_everywhere():
     """The extra blank line sends this answer to evalkit's diff, which reads "Mr" as a PERSON value."""
     chunk = "Tenant: Mr Raj Patel\n12 Oak Road, Leeds LS6 2AB\nRent 950 pounds. Signed: Raj Patel.\n\n"
     answer = "Tenant: [PERSON_1]\n\n[ADDRESS_1] [POSTCODE_1]\nRent 950 pounds. Signed: [PERSON_1]."
-    assert "Mr" in [sp.text for sp in llm.align_rewrite(chunk, answer)[0]]
-    values = llm.rewrite_values(chunk, answer)
+    assert "Mr" in [sp.text for sp in align_rewrite(chunk, answer)[0]]
+    values = rewrite_values(chunk, answer)
     assert "Mr" not in [v["text"] for v in values] and {"text": "Raj Patel", "type": "PERSON"} in values

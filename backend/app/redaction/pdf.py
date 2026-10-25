@@ -4,7 +4,7 @@ content that can name people is taken out (see _strip)."""
 
 import pymupdf
 
-from .pipeline import Box
+from app.redaction.pipeline import Box
 
 PAD = 1.0  # points around each word box, so glyph edges do not peek out
 HIDDEN_KEYS = ("Metadata", "PieceInfo", "Thumb")  # XMP on pages and images, app data, page thumbnails

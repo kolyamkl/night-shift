@@ -18,7 +18,7 @@ office: London EC1A 1BB" keeps "London". A company name ("Energy Marketing, Inc.
 
 import re
 
-from evalkit.spans import Span
+from app.redaction.spans import Span
 
 MAX_SEGMENTS = 3
 UNIT = re.compile(

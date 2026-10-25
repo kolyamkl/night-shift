@@ -1,8 +1,7 @@
 """Find personal data in a Document and turn it into placeholders and page rectangles.
 
-1. Regex layer over the whole text (cards, accounts, sort codes, IBAN, NI, postcodes, phones, emails,
-   client, policy, claim and case references after their label: refs.py; IP addresses and UUIDs:
-   identifiers.py).
+1. Regex layer over the whole text (detectors/: cards, accounts, sort codes, IBAN, NI, postcodes,
+   phones, emails, client, policy, claim and case references after their label, IP addresses, UUIDs).
 2. T1 (the Mubit-trained model) per chunk; every value it returns is then located across the WHOLE
    document, so a name found in chunk 2 is hidden in chunk 5 too.
 3. Overlapping spans are merged into one, so a regex hit is never uncovered by a shorter model span.
@@ -21,25 +20,28 @@ from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
-from evalkit import regex_baseline
-from evalkit.redact import Vault, apply
-from evalkit.spans import Span, locate
-
-from . import addresses, identifiers, refs
-from .extract import Document
+from app.core.logging import log_event
+from app.redaction import addresses, detectors
+from app.redaction.document import Document, Word
+from app.redaction.spans import Entity, Span, locate, merge
+from app.redaction.vault import Vault, apply
 
 MAX_CHARS = 4000  # about 1,000 tokens per T1 call
 
 log = logging.getLogger("veil.pipeline")
-Emit = Callable[[str, dict], None]
+Emit = Callable[[str, dict[str, Any]], None]
 
 
 @dataclass
 class T1Result:
-    entities: list[dict]
+    entities: list[Entity]
     mreq_id: str | None
     error: str | None
+
+
+T1 = Callable[[str], T1Result]  # one T1 call: a chunk in, the values it holds out
 
 
 @dataclass
@@ -78,7 +80,7 @@ class PipelineResult:
     model_values: dict[str, str] = field(default_factory=dict)  # what T1 returned: value -> type
     hidden: dict[str, str] = field(default_factory=dict)  # reviewer: value -> type to hide
     unhidden: set[str] = field(default_factory=set)  # reviewer: values to show
-    chunk_values: list[list[dict]] = field(default_factory=list)  # what T1 returned per chunk, by index
+    chunk_values: list[list[Entity]] = field(default_factory=list)  # what T1 returned per chunk, by index
     plan: str = ""  # what set the chunk plan (the T1 prompt); a retry reuses chunks only under the same plan
 
 
@@ -100,25 +102,11 @@ def chunk_ranges(text: str, max_chars: int = MAX_CHARS) -> list[tuple[int, int]]
     return ranges or [(0, 0)]
 
 
-def _merge(spans: list[Span], text: str) -> list[Span]:
-    """Union overlapping spans; the type comes from the longest original span in each group."""
-    out: list[Span] = []
-    for sp in sorted(spans, key=lambda s: (s.start, -(s.end - s.start))):
-        if out and sp.start < out[-1].end:
-            last = out[-1]
-            longest = max((last, sp), key=lambda s: s.end - s.start)
-            s, e = last.start, max(last.end, sp.end)
-            out[-1] = Span(s, e, longest.type, text[s:e])
-        else:
-            out.append(sp)
-    return out
-
-
 def _boxes(doc: Document, spans: list[Span], vault: Vault) -> list[Box]:
     boxes: list[Box] = []
     for i, sp in enumerate(spans):
         ph = vault.placeholder_for(sp.text, sp.type)
-        by_line: dict[tuple, list] = {}
+        by_line: dict[tuple[int, int, int], list[Word]] = {}
         for w in doc.words:
             if w.start < sp.end and sp.start < w.end:
                 by_line.setdefault(w.line, []).append(w)
@@ -132,7 +120,7 @@ def _boxes(doc: Document, spans: list[Span], vault: Vault) -> list[Box]:
     return boxes
 
 
-def _entity(sp: Span, source: str, offset: int = 0) -> dict:
+def _entity(sp: Span, source: str, offset: int = 0) -> dict[str, Any]:
     return {"start": sp.start + offset, "end": sp.end + offset, "text": sp.text, "type": sp.type, "source": source}
 
 
@@ -140,7 +128,7 @@ REUSABLE = ("ok", "empty")
 
 
 def _reusable(prev: PipelineResult | None, plan: str, ranges: list[tuple[int, int]]
-              ) -> dict[int, tuple[ChunkInfo, list[dict]]]:
+              ) -> dict[int, tuple[ChunkInfo, list[Entity]]]:
     """Chunks of an earlier run that need no new T1 call: same plan and ranges, status ok or empty."""
     if (prev is None or prev.plan != plan or len(prev.chunk_values) != len(prev.chunks)
             or [(c.start, c.end) for c in prev.chunks] != ranges):
@@ -148,12 +136,7 @@ def _reusable(prev: PipelineResult | None, plan: str, ranges: list[tuple[int, in
     return {c.index: (c, prev.chunk_values[c.index]) for c in prev.chunks if c.status in REUSABLE}
 
 
-def _regex(text: str) -> list[Span]:
-    """The regex layer. The evalkit baseline comes first, so on a tie its type wins over CUSTOM."""
-    return regex_baseline.detect(text) + refs.detect(text) + identifiers.detect(text)
-
-
-def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars: int = MAX_CHARS,
+def run_pipeline(doc: Document, t1: T1 | None, max_chars: int = MAX_CHARS,
                  workers: int = 6, emit: Emit | None = None, plan: str = "",
                  reuse: PipelineResult | None = None, stop: Callable[[], bool] | None = None,
                  corrections: PipelineResult | None = None) -> PipelineResult:
@@ -167,9 +150,9 @@ def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars:
     if emit:
         emit("start", {"chunks": [{"index": i, "chunk_id": ids[i], "start": s, "end": e}
                                   for i, (s, e) in enumerate(ranges)]})
-        emit("regex", {"entities": [_entity(sp, "regex") for sp in _regex(text)]})
+        emit("regex", {"entities": [_entity(sp, "regex") for sp in detectors.detect(text)]})
 
-    def run_chunk(i: int) -> tuple[ChunkInfo, list[dict]]:
+    def run_chunk(i: int) -> tuple[ChunkInfo, list[Entity]]:
         s, e = ranges[i]
         if t1 is None:
             return ChunkInfo(i, ids[i], s, e, "off", "model off"), []
@@ -188,13 +171,13 @@ def run_pipeline(doc: Document, t1: Callable[[str], T1Result] | None, max_chars:
             return ChunkInfo(i, ids[i], s, e, "error", r.error, r.mreq_id, ms), []
         return ChunkInfo(i, ids[i], s, e, "ok", None, r.mreq_id, ms, found=len(r.entities)), r.entities
 
-    finished: dict[int, tuple[ChunkInfo, list[dict]]] = {}
+    finished: dict[int, tuple[ChunkInfo, list[Entity]]] = {}
 
-    def report(info: ChunkInfo, ents: list[dict], reused: bool) -> None:
+    def report(info: ChunkInfo, ents: list[Entity], reused: bool) -> None:
         finished[info.index] = (info, ents)
         # Metadata only: never the chunk text or the values.
-        log.info("t1 chunk doc=%s index=%d status=%s latency_ms=%s mreq=%s found=%d reused=%s",
-                 doc.doc_id, info.index, info.status, info.latency_ms, info.mreq_id, info.found, reused)
+        log_event(log, "t1_chunk", doc=doc.doc_id, index=info.index, status=info.status,
+                  latency_ms=info.latency_ms, mreq=info.mreq_id, found=info.found, reused=reused)
         if emit:
             hits = locate(text[info.start:info.end], ents)
             emit("chunk", {**asdict(info), "entities": [_entity(sp, "model", info.start) for sp in hits]})
@@ -229,11 +212,11 @@ def rebuild(doc: Document, prev: PipelineResult, hide: dict[str, str] | None = N
 
 
 def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidden: dict[str, str],
-           unhidden: set[str], chunk_values: list[list[dict]], plan: str) -> PipelineResult:
+           unhidden: set[str], chunk_values: list[list[Entity]], plan: str) -> PipelineResult:
     text = doc.text
     wanted = {**values, **hidden}
     model_spans = locate(text, [{"text": v, "type": t} for v, t in wanted.items()])
-    spans = addresses.expand(text, _merge(_regex(text) + model_spans, text))
+    spans = addresses.expand(text, merge(detectors.detect(text) + model_spans, text))
     if unhidden:
         spans = [s for s in spans if s.text not in unhidden]
 

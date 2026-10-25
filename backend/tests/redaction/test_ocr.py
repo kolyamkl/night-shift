@@ -1,4 +1,4 @@
-"""Photos and scans become PDF documents with a box for every word (app/ocrdoc.py).
+"""Photos and scans become PDF documents with a box for every word (app/redaction/ocr.py).
 
 Apple Vision only runs on macOS, so a fake reader stands in for it. Each test page carries three
 colour marks; from them the fake works out how the image it is given was turned and scaled, and it
@@ -17,16 +17,17 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-from app import ingest, ocrdoc
-from app.extract import Document, extract_pdf
+from app import ingest
+from app.redaction import ocr as ocrdoc
+from app.redaction.document import Document, extract_pdf
 from app.ingest import vision
 from app.ingest.fixes import fix_identifiers
 from app.ingest.layout import assemble
 from app.ingest.types import ExtractedDocument, Line, Page
 from app.main import app
-from app.ocrdoc import document_from_ocr
-from app.pdfout import redact_pdf
-from app.pipeline import Box, T1Result
+from app.redaction.ocr import document_from_ocr
+from app.redaction.pdf import redact_pdf
+from app.redaction.pipeline import Box, T1Result
 
 FONT = ImageFont.load_default(size=30)
 _MEASURE = ImageDraw.Draw(Image.new("L", (1, 1)))
@@ -269,7 +270,7 @@ def test_a_line_missing_from_the_text_is_skipped_and_counted(monkeypatch, caplog
              _line("Kind regards", 0.1, 0.20, 0.5, 0.24)]
     page = Page(number=1, source="ocr", text="Dear Ann\nKind regards", lines=lines)
     monkeypatch.setattr(ingest, "extract", lambda data: ExtractedDocument(kind="image", pages=[page]))
-    with caplog.at_level(logging.WARNING, logger="app.ocrdoc"):
+    with caplog.at_level(logging.WARNING, logger="veil.ocr"):
         doc = document_from_ocr(png(Image.new("RGB", (800, 600), "white")), "photo.png")
     assert_offsets(doc, "Dear Ann\nKind regards")
     assert [w.text for w in doc.words] == ["Dear", "Ann", "Kind", "regards"]
@@ -539,13 +540,13 @@ def client(letter_vision, postgres_store):
             return T1Result([{"text": "Raj Patel", "type": "PERSON"}] if "Raj Patel" in chunk else [], "mreq_test", None)
         return t1
 
-    app.state.t1_factory = t1_factory
+    app.state.models.t1_factory = t1_factory
     with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as browser:
         registered = browser.post("/api/auth/register", json={
             "email": f"ocr-{postgres_store.test_suffix}@example.test", "password": "test-password"})
         assert registered.status_code == 201
         yield browser
-    app.state.t1_factory = None
+    app.state.models.t1_factory = None
 
 
 # The fake T1 finds Raj Patel; the regex layer finds the account and the postcode, and the address

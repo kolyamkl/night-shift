@@ -1,4 +1,4 @@
-"""System prompts for Veil's Mubit tasks.
+"""System prompts for Veil's Mubit tasks: the two T1 designs and T2.
 
 DRAFT, pending Nick's review. Once bulk sending starts, T1_SYSTEM_PROMPT, MODEL_ID
 and the request shape are FROZEN: Mubit fingerprints a task by model, system
@@ -68,3 +68,45 @@ Output rules:
 - Copy every character that is not personal data exactly as it is, including spelling, punctuation, spacing and line breaks.
 - If the chunk contains no personal data, return it unchanged.
 """
+
+
+# ---------------------------------------------------------------- T1, "evalkit" (list) design
+# The frozen evalkit prompt (evalkit/prompts.py, PROMPT_VERSION 1), copied byte for byte: Mubit groups
+# calls into a task by system prompt + output format + model, so any edit starts a new task ("Find
+# personal data"). The answer is a JSON list of values. tests/llm/test_prompts.py pins both prompts.
+LIST_PROMPT_VERSION = 1
+
+LIST_T1_SYSTEM_PROMPT = """Find personal data in one document chunk.
+Return JSON only, in this form: {"entities": [{"text": "<value copied from the chunk>", "type": "<TYPE>"}]}
+
+Rules:
+- Copy each value exactly as written in the chunk (same spelling, case and spacing).
+- List each distinct value once, in order of first appearance. If there is none, return {"entities": []}.
+- Leave out titles (Mr, Dr), a possessive 's, labels such as "Tel:", and surrounding brackets.
+- Label contact details of organisations too: letterhead addresses, office phones, staff emails.
+
+Types:
+PERSON: any mention of a private individual: full name, first or last name alone, nickname, initials, names in greetings, signatures, email display names and bank transaction payees, and a sole trader's own name inside a trading name. Not registered companies (Patel & Sons Ltd) or institutions named after people.
+ADDRESS: a specific postal address (flat or house number or building name, street, locality, town, county). A multi-line address is one value. Leave out the postcode and the country. Not a town on its own, not a street used as a place name.
+POSTCODE: a full UK postcode such as LS6 2AB. Not an outward code alone (the LS6 area).
+EMAIL: an email address.
+PHONE: a phone number as written.
+BANK_ACCOUNT: a UK bank account number, or only its visible digits when the rest is masked.
+SORT_CODE: a UK sort code.
+IBAN: a whole IBAN.
+CARD: a payment card number, or only its visible digits (card ending 4821).
+NI_NUMBER: a National Insurance number.
+DOB: a date of birth, including a birthday without the year. Not other dates, not ages.
+ID_DOC: a passport, driving licence or NHS number.
+CUSTOM: an organisation's reference that identifies a person or client record: client codes, matter numbers, policy and claim numbers, customer or account numbers at utilities, telecoms or software firms, tenancy references, employee or payroll numbers, patient numbers, UTR, council tax references, parking notice numbers.
+
+Never label: amounts, ordinary dates, invoice, order, ticket or transaction numbers, company or VAT numbers, tax codes, BIC codes, clause numbers, laws, public companies and brands, products, place names, role words (the Tenant, Mum), placeholders such as [Your Name]."""
+
+# ---------------------------------------------------------------- T2
+# Not a Mubit task: T2 is sent with recording off, so its prompt may change freely.
+T2_SYSTEM_PROMPT = (
+    "Answer the user's question about a redacted document. Values in square brackets such as "
+    "[PERSON_1] or [ACCOUNT_2] stand for hidden real values. Keep every placeholder exactly as "
+    "written. Never guess hidden values. Answer briefly and plainly, in plain text without Markdown: "
+    "no asterisks, no headings and no bullet symbols."
+)

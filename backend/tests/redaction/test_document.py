@@ -1,4 +1,4 @@
-from app.extract import extract_pdf, extract_text
+from app.redaction.document import extract_pdf, extract_text
 
 
 def test_plain_text_becomes_a_document_without_boxes():

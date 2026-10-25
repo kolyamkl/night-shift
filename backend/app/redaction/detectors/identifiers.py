@@ -12,7 +12,7 @@ before it or at least two parts of two or more digits.
 import ipaddress
 import re
 
-from evalkit.spans import Span
+from app.redaction.spans import Span
 
 _OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
 IPV4 = re.compile(rf"(?<![\w.]){_OCTET}(?:\.{_OCTET}){{3}}(?![\w]|\.\d)")
