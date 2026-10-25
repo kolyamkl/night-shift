@@ -1,4 +1,0 @@
-# dataset-finance builders (scripts/sources/financial_insurance)
-Faker>=40.0
-datasets>=2.19
-huggingface_hub>=0.23

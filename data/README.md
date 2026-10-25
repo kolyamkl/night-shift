@@ -6,7 +6,7 @@ branch; this page documents the schema and scripts available in this checkout.
 All personal data in these files is fake. The answer key is written by code from
 the documents' entity offsets, never by an LLM.
 
-[Documentation index](../docs/README.md) · [Synthetic generator](../datagen/README.md) · [External converters](../dataconv/README.md)
+[Documentation index](../docs/README.md) · [Training tooling](../training/README.md) · [Synthetic generator](../training/datagen/README.md) · [External converters](../training/dataconv/README.md)
 
 ```mermaid
 flowchart LR
@@ -29,12 +29,17 @@ Evaluation data stays separate from training traffic.
 
 | Path | What | Written by |
 |---|---|---|
-| `data/docs/<group>.jsonl` | Input documents with entity offsets (the key) | dataset-contracts, dataset-correspondence, dataset-finance sessions |
+| `data/docs/<group>.jsonl` | Input documents with entity offsets (the key) | `training/sources/` (dataset-contracts, dataset-correspondence, dataset-finance sessions) |
+| `data/templates/`, `data/sources/` | Public templates with fill slots, and the fetch manifests (URL, licence, revision) | `training/sources/` |
 | `data/chunks/{train,fresh,eval}.jsonl` | Chunks with the expected redaction | `scripts/dataset/build_chunks.py` |
 | `data/results/<split>.jsonl` | Teacher answers from Mubit | `scripts/dataset/send_batch.py` |
 | `data/results/score-<split>.{json,md}` | Scores against the key | `scripts/dataset/score.py` |
 | `data/fixtures/` | Tiny hand-made documents and fake teacher answers for the tests | `data/fixtures/make_fixtures.py` |
+| `data/review_redaction_v2*/` | Separate review-redaction task: inputs, labels, prompts per version (v2.4 is current) | `training/review_redaction/` |
+| `data/results/review-redaction-*/` | Frozen requests, Mubit replies and summaries of the review-redaction batches | `training/review_redaction/send_review_batch.py` |
+| `data/synthetic/pdfs/` | The app's sample PDFs with gold labels (read by the backend at runtime) | `training/datagen/` (`datagen.pdf`), `scripts/samples/make_tenancy.py` |
 | `data/raw/` | Raw downloads. Git-ignored: never commit files with real people's data | by hand |
+| `data/external/`, `data/rounds/`, rest of `data/synthetic/` | Converted open datasets, evaluation rounds, the 100k synthetic run. Git-ignored (size, licences) | `training/dataconv/`, `evalkit/`, `training/datagen/` |
 
 The T1 system prompt, model and prompt version live in `backend/app/prompts.py`.
 

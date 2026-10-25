@@ -3,7 +3,7 @@
 //   node record.mjs                      # needs the servers below and public/media/vo/durations.json (uv run voice.py)
 //   DEMO_URL=http://localhost:5174 HEADED=1 node record.mjs
 //
-// Servers (.claude/launch.json): veil-backend-demo (8002), veil-mock (8010), veil-frontend-demo (5174).
+// Servers (`make demo-servers`, see README): backend (8002), mock stream (8010), frontend (5174).
 // Each scene starts when the previous one ends and lasts at least LEAD + its voice clip + PAD, so the voice can
 // never run behind the picture. Writes rec/take.webm, public/media/take.mp4 (30 fps H.264) and
 // public/media/timeline.json: scene start/end times and the click and zoom events, in seconds from the first frame.

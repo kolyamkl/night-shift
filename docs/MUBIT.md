@@ -105,8 +105,9 @@ Do not combine results from different task IDs or prompt designs.
 | Path | Purpose |
 | --- | --- |
 | [data/docs and dataset scripts](../data/README.md) | Public templates filled with invented values; rewrite answer keys built from labelled offsets |
-| [datagen](../datagen/README.md) | Generated UK documents, spans, hard cases and synthetic sample PDFs |
-| [dataconv](../dataconv/README.md) | External dataset conversion with provenance and usage restrictions |
+| [training/datagen](../training/datagen/README.md) | Generated UK documents, spans, hard cases and synthetic sample PDFs |
+| [training/dataconv](../training/dataconv/README.md) | External dataset conversion with provenance and usage restrictions |
+| [review-redaction datasets](../data/review_redaction_v2_4/README.md) | Separate exact-text detection task (v2.1 to v2.4), built and sent by `training/review_redaction/` |
 | [evalkit](../evalkit/README.md) | Scoring, baseline, older list-output experiments and batch tools |
 
 From the repository root, with the root Python requirements installed:

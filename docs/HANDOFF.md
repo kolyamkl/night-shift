@@ -35,13 +35,14 @@ Current boundary: T1 receives original text with default recording. Review happe
 | `backend/app/prompts.py` | Mykola | The app's default T1 prompt (rewrite design, `claude-haiku-4-5`). See section 8 | Default since 24 Oct |
 | `backend/tests/` | Dmytro | API, extract, llm, ocrdoc, pdfout, pipeline, refs, stream tests | Pass (24 Oct) |
 | `evalkit/` | Dmytro | Optional JSON-list T1 prompt (`evalkit/src/evalkit/prompts.py`), scorer, regex baseline, vault/restore, round builder, Mubit sender, `autosend.sh` | Used by backend (path dependency) |
-| `datagen/` | Dmytro | Synthetic UK documents with gold spans (100k run, seed 42) and demo PDFs | Outputs in `data/synthetic/` (gitignored except `pdfs/`) |
-| `dataconv/` | Dmytro | Converters for open PII datasets (TAB, Gretel, Nemotron, OpenPII, bitext, ...) into our format | Outputs in `data/external/` (gitignored, licences vary) |
+| `training/datagen/` | Dmytro | Synthetic UK documents with gold spans (100k run, seed 42) and demo PDFs | Outputs in `data/synthetic/` (gitignored except `pdfs/`) |
+| `training/dataconv/` | Dmytro | Converters for open PII datasets (TAB, Gretel, Nemotron, OpenPII, bitext, ...) into our format | Outputs in `data/external/` (gitignored, licences vary) |
 | `data/synthetic/pdfs/` | Dmytro | 31 synthetic sample PDFs + `*.gold.json` labels; the app's "Try a sample" cards. `31_assured_periodic_tenancy` (Mykola) is a 20-page e-signed tenancy in the layout of a real agency contract, with an InkProof signature log (IP addresses, UUID signature references), overseas addresses, a guarantor, bank details, meter serials and initials on every page; 59 invented values, built by `scripts/samples/make_tenancy.py` | Committed (fake data only) |
 | `data/docs`, `data/templates`, `data/sources`, `data/fixtures` | Mykola | His T1 dataset: real public templates filled with fake values, answer keys | Committed |
 | `scripts/dataset/` | Mykola | His pipeline: validate, chunk, send (`send_batch.py`), score | Committed |
 | `scripts/ocr/`, `tests/ingest/` | Mykola | OCR evaluation (render docs in 4 fonts x 6 qualities) and ingest tests | Committed |
-| `scripts/sources/`, `tests/dataset/` | Mykola | Source fetchers and dataset tests | Committed |
+| `training/sources/`, `tests/dataset/` | Mykola | Source fetchers and builders for `data/docs`, and dataset tests | Committed |
+| `training/review_redaction/`, `data/review_redaction_v2*/`, `data/results/review-redaction-*/` | Glib | Separate review-redaction task (exact-text detection, v2.1 to v2.4): generator, sender, tests, datasets and batch results | Committed; v2.4 current |
 | `requirements.txt`, `.env.example` (root) | Mykola | Deps for `scripts/` and `tests/`; key template for `scripts/dataset/send_batch.py` | Committed |
 | `docs/APP-SPEC.md` | Dmytro | What the web app must do (Mubit needs, flow, API, build order) | Historical specification; current behavior is documented here |
 | `docs/design/2026-10-24-redesign-notes.md` | Dmytro | Redesign audit, library research, decisions | Done |
@@ -49,10 +50,10 @@ Current boundary: T1 receives original text with default recording. Review happe
 | `docs/research/2026-10-24-veil-numbers/` | Dmytro | About 170 verified market numbers with sources (AI data leakage, rules and fines, market and deals) | Reference; investor page built from it |
 | `docs/research/2026-10-23-mubit-audit/` | Team | Mubit company and product audit | Reference |
 | `docs/project-brief.md`, `docs/NIGHT-SHIFT-TEAM-PACK.md` | Team | Event rules, judging, Mubit mechanics | Reference |
-| `DESIGN.md`, `.impeccable/design.json` | Dmytro | Design system v2 (tokens, type, components, motion) | Current |
-| `PRODUCT.md`, `.impeccable/surfaces/*.md` | Dmytro | Product context and per-surface briefs (app = Operate, landing = Persuade) | Current |
-| `.impeccable/mocks/`, `.impeccable/questions/` | Dmytro | Early UI variant mocks and decision pages | Historical |
-| `.claude/launch.json` | Dmytro | Dev servers: `veil-backend` (port 8000), `veil-frontend` (port 5173) | Current |
+| `DESIGN.md` | Dmytro | Design system v2 (tokens, type, components, motion) | Current |
+| `PRODUCT.md` | Dmytro | Product context (app = Operate, landing = Persuade) | Current |
+| `Makefile` | Dmytro | `make dev`, `make test`, `make lint`; see `make help` | Current |
+| `.impeccable/`, `.claude/` | Dmytro | Design-tool sidecar (mocks, surface briefs, question logs) and local agent launch config | Local only since 25 Oct (git-ignored); history keeps the old versions |
 
 ## 3. Architecture and data flow
 

@@ -77,7 +77,7 @@
         "Renewal Reminder"
       ]
     },
-    "label_map": "scripts/sources/financial_insurance/label_map.md",
+    "label_map": "training/sources/financial_insurance/label_map.md",
     "counts": {
       "rows_seen": 28910,
       "english": 28910,

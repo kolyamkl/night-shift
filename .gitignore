@@ -1,47 +1,53 @@
-# Local AI collaboration instructions and messages
-/AGENTS.md
-/CLAUDE.md
-/GEMINI.md
-/COLLABORATION.md
-/collaboration/
-
-# Secrets, raw source downloads, Python tooling
+# Secrets: only the template is committed
 .env
 .env.*
 *.env
 !.env.example
-data/raw/
+
+# Python
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-.local/
+.ruff_cache/
+.mypy_cache/
+.coverage
 
-# Large local datasets and build output (not committed; regenerate with datagen/dataconv/evalkit)
+# Node and frontend build output
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Playwright output, test accounts and local QA runs
+frontend/test-results/
+frontend/playwright-report/
+frontend/e2e/.auth/
+/qa-out/
+
+# Datasets that stay local: raw downloads (may hold real people's data), external
+# datasets (their own licences), bulk synthetic output and evaluation rounds.
+# Regenerate them with the tools in training/ and evalkit/.
+data/raw/
 /data/synthetic/*
 !/data/synthetic/pdfs/
 /data/external/
 /data/rounds/
 /evalkit/runs/
-
 # Runtime locks for the committed training-call journals
 /data/results/**/.sender.lock
 
-# Frontend build output
-node_modules/
-frontend/dist/
-*.tsbuildinfo
+# Local tool state and editors
+.local/
+.DS_Store
+.idea/
+.vscode/
 
-# Local Claude Code permissions
-.claude/settings.local.json
-
-# Brainstorm mockups (local only)
+# AI agent and design tool state: personal settings, session logs, mockups
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/COLLABORATION.md
+/collaboration/
+.claude/
+.impeccable/
 .superpowers/
-
-# Playwright output and local QA runs
-frontend/test-results/
-frontend/playwright-report/
-/qa-out/
-
-# Playwright accounts for local runs
-frontend/e2e/.auth/

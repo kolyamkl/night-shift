@@ -27,7 +27,7 @@ redacted preview to [provider]." The action starts unchecked. It is not a promis
 that the model found every sensitive detail. Editing input, redactions or destination
 requires a new confirmation; even clean text requires confirmation.
 
-The reference implementation is in `scripts/review_dataset/contract.py`. It exposes
+The reference implementation is in `training/review_redaction/contract.py`. It exposes
 no network calls. A production application still needs an authenticated review UI,
 server-owned session state, protected local storage with a retention policy, and a
 transport that sends exactly the approved payload. Never take approval from model
@@ -130,8 +130,8 @@ authentication service or a complete deployed send guard.wh
 From the repository root, using Python 3.11+:
 
 ```bash
-python3.11 -B scripts/review_dataset/build.py
-python3.11 -B -m pytest tests/review_dataset -q
+python3.11 -B training/review_redaction/build.py
+python3.11 -B -m pytest training/review_redaction/tests -q
 ```
 
 Generation is deterministic. Use `--out-dir /tmp/veil-review-dataset` to generate a
@@ -149,7 +149,7 @@ interruption. It sends no fresh or evaluation records. Default invocation is a
 dry run; sending requires `--send` and a Mubit key in the environment or `.env`.
 
 ```bash
-python3.11 -B scripts/review_dataset/send_review_batch.py --task-version review-redaction-v2.1 --limit 40
+python3.11 -B training/review_redaction/send_review_batch.py --task-version review-redaction-v2.1 --limit 40
 ```
 
 Results are separate in `data/results/review-redaction-v2.1-40/`. Local validation
@@ -165,7 +165,7 @@ calls after interruption. For example, the second batch uses
 first to inspect the selection. Keep the same exclusion arguments when resuming.
 
 The candidate prompt is `system_prompt.txt`, generated from
-`scripts/review_dataset/prompt.py`, task version `review-redaction-v2.1`. This is a
+`training/review_redaction/prompt.py`, task version `review-redaction-v2.1`. This is a
 new task. Do not silently replace the original prompt or combine its scores with
 the earlier plain-text rewriting pilot.
 
