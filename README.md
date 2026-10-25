@@ -18,17 +18,65 @@
 
 **Review sensitive information before sharing a document with an answering AI.**
 
-MuGuard finds personal values in documents, lets you correct the redactions, and
-replaces those values with placeholders for document Q&A. It restores names and
-other values in the answer so the result remains useful to you. Built for the
-Mubit Night Shift hackathon in London, 23–25 October 2026, with FastAPI,
-PostgreSQL, React and Mubit.
+71% of UK workers have used AI tools their employer never approved, and two in
+three ChatGPT writing requests rework text people paste in: contracts, payslips,
+client letters. Every name in them rides out to the model provider
+([sources](docs/research/2026-10-24-veil-numbers/README.md)).
+
+MuGuard keeps them inside the walls. It finds personal values in documents, lets
+you correct the redactions, and replaces those values with placeholders before an
+AI answers questions about the document. It restores names and other values in
+the answer so the result remains useful to you, and its detection task is trained
+through Mubit. Built for the Mubit Night Shift hackathon in London, 23–25 October
+2026, with FastAPI, PostgreSQL, React and Mubit.
 
 > **Current privacy boundary:** detection sends original document chunks through
 > Mubit, with recording enabled by default. Q&A receives the redacted document
 > and a filtered question. MuGuard does not yet guarantee that original personal
 > data never reaches an external AI provider. Use synthetic documents for demos;
 > see [implemented protections and limits](docs/SECURITY.md).
+
+## What the demo shows
+
+<p align="center">
+  <img src="docs/readme/quests.svg" width="100%" alt="The five quests of the demo: drop a document, review, fix a miss, approve, ask the AI. Only placeholders ever pass the gate.">
+</p>
+
+The two-minute video follows the same story as this README:
+
+| Time | Chapter | What you see |
+| --- | --- | --- |
+| 0:02 | The problem | 71% of UK workers use AI tools their employer never approved, and every name in the text they paste rides out to the model provider. |
+| 0:16 | What MuGuard is | The castle: personal data is hidden before any AI sees it, and the real values come back in the answer. |
+| 0:25 | Three ways to train | One job, three Mubit accounts: 180 realistic documents, 576 synthetic cases, 100,000 generated documents. Only the realistic set cleared Mubit's 85% bar ([details](#three-ways-to-train-one-student)). |
+| 0:56 | Quest 1: drop a document | A tenancy agreement is read part by part, with rules for UK numbers. |
+| 1:03 | Quest 2: review | Every name, address and number is struck out, and each part is its own Mubit call with a request id. |
+| 1:16 | Quest 3: fix a miss | The landlord is our client, so the name is marked and hidden by hand. |
+| 1:25 | Quest 4: approve | Only after approval may the document pass the gate. |
+| 1:30 | Quest 5: ask the AI | When may the landlord raise the rent? The AI sees placeholders; MuGuard puts the true names back. |
+| 1:39 | What the AI received | The exact text the AI got: no names, no addresses, no account numbers. |
+| 1:45 | Results | Rules alone catch no names; the Mubit adapter passed 91.7% of its held-out test against 66.7% for the base model. |
+
+<p align="center">
+  <img src="docs/readme/app-answer.png" width="100%" alt="A real run of the live app on the synthetic tenancy sample: 33 changes approved, every name and address under a black bar with its placeholder, and claude-haiku-4-5's answer with the tenants' names put back by MuGuard.">
+</p>
+<p align="center"><sub>A real run of the app on the synthetic tenancy sample, with claude-haiku-4-5 through Mubit: the approved document and the answer with the names put back.</sub></p>
+
+<details>
+<summary>How the video was made, and what in it is a recording aid</summary>
+
+The video is built from code in [`demo/`](demo/README.md): Playwright records the
+app, a British voice is generated locally with Kokoro, and the edit is rendered in
+pixel art. For a steady take the app scenes run against the mock stream
+(`frontend/scripts/mock-stream.mjs`): the detector returns the sample's answer key,
+request ids read `mreq_mock`, and the answer comes from the mock. The screenshot
+above is the same flow on the real model. Three lines of the narration describe
+where MuGuard is heading rather than this build: detection is answered today by
+claude-haiku-4-5 through Mubit while the trained adapter waits for its rollout; a
+fix in the app is saved for that document but is not yet sent to Mubit as training
+feedback; and the real values are put back by MuGuard's backend.
+
+</details>
 
 ## How it works
 
@@ -165,13 +213,35 @@ every chunk, so each covers the other's gaps. Measured with
 [`scripts/readme_numbers.py`](scripts/readme_numbers.py) on 140 chunks of the
 fresh synthetic round: the `claude-haiku-4-5` rewrite answers already sent
 through Mubit were scored offline against the answer key, with no new model calls.
-A value counts only when every character of it is hidden.
+A value counts only when every character of it is hidden. In the earlier
+baseline the video quotes, 1,459 synthetic UK documents, the pattern rules alone
+hid 38.5% of personal values and no names at all: names need a model.
 
 ## Trained through Mubit
 
 <p align="center">
-  <img src="docs/readme/mubit.svg" width="100%" alt="The guard's training: recorded, rated (140 replies, 94 good, 46 bad), trained (adapter v1 on Qwen3-4B-Instruct-2507), examined (v1 91.7% against 66.7% for the base model). Silent test running; live is next.">
+  <img src="docs/readme/mubit.svg" width="100%" alt="The guard's training: recorded, rated (365 replies scored against our answer key, 231 good), trained (adapter v1 on Qwen3-4B-Instruct-2507), examined (v1 91.7% against 66.7% for the base model). Silent test running; live is next.">
 </p>
+
+### Three ways to train, one student
+
+<p align="center">
+  <img src="docs/readme/training.svg" width="100%" alt="Same student, three teachers: 180 realistic documents scored 91.7% (11 of 12), 576 synthetic cases 83.3% (10 of 12), 100,000 generated documents 60% (6 of 10). Only the realistic set cleared Mubit's 85% target.">
+</p>
+
+Mubit records calls to a big teacher model and trains a small one to copy it. We
+trained the same student, Qwen3-4B-Instruct-2507, three ways, each on its own
+Mubit account: Mykola with 180 realistic documents (public UK templates filled
+with invented values) and a rewrite answer, Glib with 576 synthetic cases in 12
+scenario families and a span answer, and Dmytro with 100,000 generated documents
+and the cheapest teacher. Mubit then tested each adapter on held-out calls it
+never trained on: 91.7% (11 of 12), 83.3% (10 of 12) and 60% (6 of 10), against
+an 85% target. Only the realistic set cleared the bar. Realism beat volume, so
+MuGuard runs on that design: the rewrite prompt is the app's default detector. The
+tests are small and the three set-ups differ in data, answer format and teacher,
+so read the comparison as a signal.
+
+### How Mubit works in MuGuard
 
 Mubit sits between MuGuard and the model providers. MuGuard uses the normal Anthropic
 request format but points it at `https://api.mubit.ai/anthropic` with a Mubit
@@ -184,7 +254,9 @@ review, Mubit trains an adapter on them and can route later T1 calls to it.
 T2 calls are sent with recording off. On 24 October the task's first adapter,
 v1 on Qwen3-4B-Instruct-2507, scored 91.7% on its held-out test against 66.7%
 for the base model with the same prompt. It is on a silent test and goes live
-when Mubit routes the task to it; until then `claude-haiku-4-5` answers T1.
+when Mubit routes the task to it; until then `claude-haiku-4-5` answers T1. On
+25 October we sent a second realistic round for the next version: 225 chunks from
+new fills of the same public templates, rated against the answer key (137 good).
 
 <details>
 <summary><b>Detailed Mubit calls and training loop</b></summary>

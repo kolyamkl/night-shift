@@ -529,7 +529,7 @@ def numbers(data):
 TICK = ["......kk", ".....kk.", "kk..kk..", ".kkkk...", "..kk...."]
 QUEST = [
     ("done", "Recorded", "Every detection call lands in the Mubit task “Redact personal data”."),
-    ("done", "Rated", "140 replies scored against the answer key: 94 good, 46 bad."),
+    ("done", "Rated", "365 replies scored against our answer key: 231 good, the rest bad."),
     ("done", "Trained", "Adapter v1 on Qwen3-4B-Instruct-2507, from the kept examples."),
     ("done", "Examined", "Held-out test: v1 91.7%, the base model with the same prompt 66.7%."),
     ("now", "Silent test", "v1 shadows 100% of calls; waiting for Mubit to route the task to it."),
@@ -575,6 +575,80 @@ def mubit():
                            "Its silent test is running while Mubit routes the task to it; going live is the next step."))
 
 
+# ---------- the training race and the five quests (scenes from the demo video) ----------
+
+TEAM = [
+    ("Mykola", "REALISM", SIGNAL, "180", "realistic documents", "public templates, invented values", "rewrites the text", "Claude Haiku 4.5", 91.7, "11 of 12 test cases"),
+    ("Glib", "MIDDLE ROAD", SIGNAL_SOFT, "576", "synthetic cases", "12 scenario families", "returns sensitive spans", "Claude Haiku 4.5", 83.3, "10 of 12 test cases"),
+    ("Dmytro", "VOLUME", STONE, "100,000", "generated documents", "synthetic UK paperwork", "returns a list of values", "gpt-6-luna, the cheapest", 60.0, "6 of 10 test cases"),
+]
+
+
+def training():
+    reset_glyphs()
+    W, H = 1200, 810
+    b = [f'<rect width="{W}" height="{H}" fill="{BONE}"/>', frame(24, 24, W - 52, H - 52, PAPER, INK, 4, shadow=True)]
+    b.append(chip("ONE JOB · THREE MUBIT ACCOUNTS", 56, 56, 12))
+    b.append(text("Same student, three teachers", 56, 128, 34, "display", INK))
+    b.append(text("Mubit records calls to a big teacher model and trains a small one to copy it. We trained ours three ways.", 56, 162, 18, "pixel", QUIET))
+    cw, gap, y0 = 352, 24, 192
+    for i, (name, road, tint, value, unit, note, answer, teacher, _, _) in enumerate(TEAM):
+        x = 56 + i * (cw + gap)
+        b.append(frame(x, y0, cw, 268, BONE if i else PAPER, INK, 3))
+        b.append(f'<rect x="{x + 3}" y="{y0 + 3}" width="{cw - 6}" height="34" fill="{tint}"/>')
+        b.append(text(road, x + 18, y0 + 26, 13, "label", "#ffffff" if i != 2 else INK))
+        b.append(text(name, x + 18, y0 + 72, 26, "display", INK))
+        b.append(text(value, x + 18, y0 + 124, 40, "label", INK) + text(unit, x + 18, y0 + 150, 17, "pixel", INK))
+        b.append(text(note, x + 18, y0 + 174, 15, "pixel", QUIET))
+        b.append(text("ANSWER", x + 18, y0 + 206, 11, "label", QUIET) + text(answer, x + 92, y0 + 206, 15, "pixel", INK))
+        b.append(text("TEACHER", x + 18, y0 + 234, 11, "label", QUIET) + text(teacher, x + 92, y0 + 234, 15, "pixel", INK))
+    # the race: Mubit's held-out test, with its 85% bar
+    bx, bw, ry = 300, 690, 512
+    b.append(text("STUDENT: QWEN3-4B-INSTRUCT-2507", 56, ry - 6, 12, "label", QUIET))
+    tx = bx + bw * 0.85
+    for i, (name, _, tint, _, _, _, _, _, pct, cases) in enumerate(TEAM):
+        y = ry + 18 + i * 58
+        b.append(text(name, 56, y + 26, 22, "display" if i == 0 else "pixel", INK) + text(cases, 56, y + 46, 12, "label", QUIET))
+        b.append(bar(bx, y + 6, bw, 30, pct, tint, 0.3 + 0.25 * i))
+        b.append(text(f"{pct:.1f}%" if pct % 1 else f"{pct:.0f}%", bx + bw + 132, y + 32, 26, "label", SIGNAL if i == 0 else INK, "end"))
+    b.append(f'<rect x="{tx:.0f}" y="{ry + 12}" width="4" height="{3 * 58 - 4}" fill="{INK}"/>' +
+             text("MUBIT TARGET 85%", tx - 10, ry + 8, 12, "label", INK, "end"))
+    kw = size(ART["KNIGHT_SMALL"])[0] * 3
+    b.append(f'<g>{sprite(ART["KNIGHT_SMALL"], bx + bw * 0.917 - kw / 2, ry - 30, 3)}'
+             f'<animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="1.4s" repeatCount="indefinite"/></g>')
+    b.append(text("Only realism cleared the bar. Realism beat volume, so MuGuard runs on that design.", 56, H - 84, 18, "pixel", INK))
+    b.append(text("Mubit quality: share of the teacher's answers each adapter matched on held-out cases. Small tests: read it as a signal.", 56, H - 58, 14, "pixel", QUIET))
+    write("training.svg", svg(W, H, "".join(b), "Same student, three teachers",
+                              "Three ways to train one 4B student through Mubit: 180 realistic documents scored 91.7%, 576 synthetic cases 83.3%, "
+                              "100,000 generated documents 60%. Only the realistic set cleared Mubit's 85% target."))
+
+
+def quest_list():
+    return [("Drop a document", FILE), ("Review", TICK), ("Fix a miss", ["k.....", "kk....", ".kk...", "..kk..", "...kk.", "....kk", ".....k"]),
+            ("Approve", ["..kkk..", ".k...k.", ".k...k.", "kkkkkkk", "kkk.kkk", "kkk.kkk", "kkkkkkk"]), ("Ask the AI", ARROW)]
+
+
+def quests():
+    reset_glyphs()
+    T = 10
+    W, H = 1200, 300
+    b = [f'<rect width="{W}" height="{H}" fill="{BONE}"/>']
+    cw, gap = 216, 14
+    for i, (label, icon) in enumerate(quest_list()):
+        x = 24 + i * (cw + gap)
+        on = [(i / 5 - 0.001, 0), (i / 5, 1), ((i + 1) / 5 - 0.001, 1), ((i + 1) / 5, 0)] if i else [(0, 1), (0.199, 1), (0.2, 0)]
+        card = lambda fill, ink, sub: (frame(x, 24, cw, 150, fill, INK, 4, shadow=True) + text(f"QUEST {i + 1}/5", x + 18, 56, 12, "label", sub)
+                                       + sprite(icon, x + 18, 76, 4, {"k": ink}) + text(label, x + 18, 152, 21, "display", ink))
+        b.append(card(PAPER, INK, QUIET))
+        b.append(f'<g opacity="{1 if i == 0 else 0}">{card(INK, BONE, SIGNAL_SOFT)}{fade(on, T)}</g>')
+    # the knight's dialog box, as in the video's captions
+    b.append(frame(24, 200, W - 52, 76, INK, INK, 4))
+    b.append(f'<rect x="44" y="188" width="{width("THE KNIGHT", 12, "label") + 20:.0f}" height="24" fill="{SIGNAL}"/>' + text("THE KNIGHT", 54, 205, 12, "label", "#ffffff"))
+    b.append(text("Five quests, and only placeholders ever pass the gate.", 48, 248, 22, "pixel", BONE))
+    write("quests.svg", svg(W, H, "".join(b), "The five quests of the demo",
+                            "Quest 1 drop a document, 2 review, 3 fix a miss, 4 approve, 5 ask the AI; only placeholders ever pass the gate."))
+
+
 # ---------- buttons and footer ----------
 
 ARROW = ["....k....", "....kk...", "kkkkkkk..", "kkkkkkkk.", "kkkkkkk..", "....kk...", "....k...."]
@@ -616,6 +690,8 @@ if __name__ == "__main__":
     what_ai_sees()
     numbers(json.loads(Path(sys.argv[1]).read_text()) if len(sys.argv) > 1 else json.loads((OUT / "numbers.json").read_text()))
     mubit()
+    training()
+    quests()
     button("button-app.svg", "Protect a document", SIGNAL, "#ffffff", ARROW, True)
     button("button-sample.svg", "Try a sample", PAPER, INK, FILE, False)
     button("button-video.svg", "Watch the demo", INK, BONE, PLAY, False)
