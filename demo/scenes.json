@@ -15,7 +15,7 @@
     {
       "id": "sting",
       "kind": "sting",
-      "seconds": 2.5,
+      "seconds": 2.0,
       "tagline": "NIGHT SHIFT · LONDON 2026"
     },
     {
@@ -140,6 +140,13 @@
       "vo": "Seconds later, every name, address and number is struck out, and truly removed from the PDF."
     },
     {
+      "id": "parts",
+      "kind": "clip",
+      "label": "Every part is a Mubit call",
+      "quest": 2,
+      "vo": "Each part is its own Mubit call, with its request id."
+    },
+    {
       "id": "fix",
       "kind": "clip",
       "label": "Quest 3: Fix a miss",
@@ -159,6 +166,13 @@
       "label": "Quest 5: Ask the AI",
       "quest": 5,
       "vo": "Now I ask when the landlord may raise the rent. Claude sees only placeholders, and MuGuard restores the true names on my own machine."
+    },
+    {
+      "id": "sees",
+      "kind": "clip",
+      "label": "What the AI received",
+      "quest": 5,
+      "vo": "This is all the AI ever received. No names. No addresses. No account numbers."
     },
     {
       "id": "numbers",

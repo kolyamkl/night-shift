@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const read = (p) => JSON.parse(readFileSync(join(ROOT, p), "utf8"));
 const FPS = 30;
-const TAIL = 0.7; // seconds after the voice on scenes that are not recorded
+const TAIL = 0.5; // seconds after the voice on scenes that are not recorded
 
 const spec = read("scenes.json");
 const durations = read("public/media/vo/durations.json");

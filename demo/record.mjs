@@ -19,7 +19,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.DEMO_URL ?? "http://localhost:5174";
 const SIZE = { width: 1600, height: 900 };
 const LEAD = 0.25; // seconds of picture before the voice starts (edit.mjs uses the same value)
-const PAD = 0.45; // seconds after the voice ends
+const PAD = 0.35; // seconds after the voice ends
 const QUESTION = "When can the landlord raise the rent?";
 const MISSED = "Evergreen Locksmiths LLP";
 
@@ -235,8 +235,8 @@ const ACTIONS = {
     const panel = page.locator("#routing");
     if (await panel.isVisible()) focus(await panel.boundingBox(), 1.25, 3.2);
     await glide(900, 300, 1400);
-    await at(LEAD + durations.parts.seconds);
-    await click(page.getByRole("button", { name: /^\d+ parts$/ }), 500);
+    await at(LEAD + durations.parts.seconds - 0.3);
+    await click(page.getByRole("button", { name: /^\d+ parts$/ }), 350);
   },
 
   async fix(at) {
@@ -263,7 +263,7 @@ const ACTIONS = {
     await click(byName("button", "Approve all"), 650, "fanfare");
     const done = page.getByRole("dialog", { name: /^Secured by/ }).getByRole("button", { name: "Continue" });
     await done.waitFor({ timeout: 15_000 });
-    await sleep(2600);
+    await sleep(2300);
     await click(done, 700);
     await page.getByPlaceholder("When is the rent due?").waitFor({ timeout: 15_000 });
     await sleep(500);

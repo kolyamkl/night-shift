@@ -1,6 +1,6 @@
 # Demo video pipeline
 
-Makes the submission video from code: a narrated, edited MP4 of MuGuard. It opens on the research numbers and on how the three of us trained the model, then shows the app with a visible sword cursor and zooms on each action, then a closing card. It stays under the 2 minute limit (1:55 now). The approach and the tools we compared are in [docs/research/2026-10-24-demo-video/report.md](../docs/research/2026-10-24-demo-video/report.md).
+Makes the submission video from code: a narrated, edited MP4 of MuGuard. It opens on the research numbers and on how the three of us trained the model, then shows the app with a visible sword cursor and zooms on each action, then a closing card. It stays under the 2 minute limit (1:58 now). The approach and the tools we compared are in [docs/research/2026-10-24-demo-video/report.md](../docs/research/2026-10-24-demo-video/report.md).
 
 Voice comes first, then the recording, then the edit. Each scene in the take lasts at least as long as its narration, so the voice never runs behind the picture.
 
