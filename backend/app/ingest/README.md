@@ -11,10 +11,10 @@ backend. Text-layer PDF extraction remains available there.
 ```python
 from app.ingest import extract, scanned_pages
 
-doc = extract(pdf_or_image_bytes)   # or a path
-doc.text      # T1 format: visual lines joined by "\n", paragraphs and pages separated by a blank line
-doc.pages     # per page: source ("text_layer" or "ocr"), text, lines with boxes and confidence, rotation
-doc.fixes     # identifier repairs made after OCR (kind, before, after)
+doc = extract(pdf_or_image_bytes)  # or a path
+doc.text  # T1 format: visual lines joined by "\n", paragraphs and pages separated by a blank line
+doc.pages  # per page: source ("text_layer" or "ocr"), text, lines with boxes and confidence, rotation
+doc.fixes  # identifier repairs made after OCR (kind, before, after)
 doc.warnings  # empty pages, low-confidence lines, page limit
 
 scanned_pages(pdf_bytes)  # 1-based numbers of the PDF pages extract() would read with OCR

@@ -8,4 +8,14 @@ from .extract import extract, scanned_pages
 from .fixes import fix_identifiers
 from .types import ExtractedDocument, Fix, Line, OcrError, Page, UnsupportedDocument
 
-__all__ = ["extract", "scanned_pages", "fix_identifiers", "ExtractedDocument", "Fix", "Line", "OcrError", "Page", "UnsupportedDocument"]
+__all__ = [
+    "ExtractedDocument",
+    "Fix",
+    "Line",
+    "OcrError",
+    "Page",
+    "UnsupportedDocument",
+    "extract",
+    "fix_identifiers",
+    "scanned_pages",
+]
