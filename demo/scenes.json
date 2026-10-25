@@ -1,14 +1,27 @@
 {
   "voice": {
     "kokoro": "bm_george",
-    "speed": 1.12,
-    "pronounce": { "MuGuard": "mjˈuːɡɑːd", "Mubit": "mjˈuːbɪt" }
+    "speed": 1.22,
+    "pronounce": {
+      "MuGuard": "mjˈuːɡɑːd",
+      "Mubit": "mjˈuːbɪt",
+      "Mykola": "mɪkˈɒlə",
+      "Glib": "ɡlˈiːb",
+      "Dmytro": "dmˈɪtɹQ",
+      "Qwen": "kwˈɛn"
+    }
   },
   "scenes": [
     {
+      "id": "sting",
+      "kind": "sting",
+      "seconds": 2.0,
+      "tagline": "NIGHT SHIFT · LONDON 2026"
+    },
+    {
       "id": "hook",
       "kind": "stats",
-      "vo": "Seventy one percent of British workers use AI their employer never approved. Two in three requests ask it to rework text people paste in: contracts, payslips, client letters. And every name in them rides out of the castle, to the model provider.",
+      "vo": "Seventy one percent of British workers use AI their employer never approved. Two in three requests rework text people paste in: contracts, payslips, client letters. Every name in them rides out to the model provider.",
       "stats": [
         {
           "value": 71,
@@ -16,7 +29,10 @@
           "source": "Microsoft UK and Censuswide, Oct 2025, 2,003 employees"
         },
         {
-          "of": [2, 3],
+          "of": [
+            2,
+            3
+          ],
           "cue": "Two",
           "label": "ChatGPT writing requests rework text the user pastes in",
           "source": "OpenAI and NBER, \"How People Use ChatGPT\", Sept 2025"
@@ -27,22 +43,101 @@
     {
       "id": "landing",
       "kind": "clip",
-      "label": "MuGuard",
-      "vo": "MuGuard keeps them inside the walls. It hides the personal data before any AI sees it, then puts the real values back in the answer."
+      "label": "What is MuGuard",
+      "vo": "MuGuard keeps them inside the walls. It hides personal data before any AI sees it, and the hiding is done by a small model we trained on Mubit."
+    },
+    {
+      "id": "team",
+      "kind": "team",
+      "title": "Three developers, three ways to train",
+      "kicker": "ONE JOB · THREE MUBIT ACCOUNTS",
+      "vo": "Mubit records our calls to a big teacher model, and trains a small one to copy it. We trained ours three ways. Mykola used a hundred and eighty realistic documents. Glib, five hundred and seventy six synthetic cases. Dmytro, a hundred thousand generated ones, with the cheapest teacher.",
+      "people": [
+        {
+          "name": "Mykola",
+          "road": "REALISM",
+          "tint": "#e2231a",
+          "data": {
+            "value": 180,
+            "unit": "realistic documents",
+            "note": "filled into public templates"
+          },
+          "answer": "rewrites the text",
+          "sample": "[PERSON_1]",
+          "teacher": "Claude Haiku 4.5"
+        },
+        {
+          "name": "Glib",
+          "road": "MIDDLE ROAD",
+          "tint": "#ff6b61",
+          "data": {
+            "value": 576,
+            "unit": "synthetic cases",
+            "note": "12 scenario families"
+          },
+          "answer": "returns sensitive spans",
+          "sample": "{\"spans\": ...}",
+          "teacher": "Claude Haiku 4.5"
+        },
+        {
+          "name": "Dmytro",
+          "road": "VOLUME",
+          "tint": "#8b8a85",
+          "data": {
+            "value": 100000,
+            "unit": "generated documents",
+            "note": "synthetic UK paperwork"
+          },
+          "answer": "returns a list of values",
+          "sample": "[\"Jane Smith\", ...]",
+          "teacher": "gpt-6-luna, the cheapest"
+        }
+      ],
+      "source": "data/docs, data/review_redaction_v2, datagen; teachers from each account's run logs"
+    },
+    {
+      "id": "race",
+      "kind": "race",
+      "title": "Same student, three teachers",
+      "student": "Qwen3-4B-Instruct-2507 · 4B",
+      "target": 85,
+      "vo": "Mubit then tests each one on calls it never trained on. Only Mykola's cleared the eighty five percent bar, at ninety one point seven. Realism beat volume, so MuGuard runs on his design.",
+      "runners": [
+        {
+          "name": "Mykola",
+          "tint": "#e2231a",
+          "value": 91.7,
+          "cases": "11 of 12 test cases"
+        },
+        {
+          "name": "Glib",
+          "tint": "#ff6b61",
+          "value": 83.3,
+          "cases": "10 of 12 test cases"
+        },
+        {
+          "name": "Dmytro",
+          "tint": "#8b8a85",
+          "value": 60,
+          "cases": "6 of 10 test cases"
+        }
+      ],
+      "note": "Mubit quality: the share of its own teacher's answers each adapter matched on held-out test cases. Data, format and teacher all differ and the tests are small, so read it as a signal.",
+      "source": "Mubit console, 24 to 25 Oct 2026"
     },
     {
       "id": "scan",
       "kind": "clip",
       "label": "Quest 1: Drop a document",
       "quest": 1,
-      "vo": "Take a tenancy agreement. Our knight, a detector model trained and served through Mubit, reads it part by part, with rules for UK numbers."
+      "vo": "Now the demo. I drop in a tenancy agreement, and the knight reads it part by part, with rules for UK numbers."
     },
     {
       "id": "pages",
       "kind": "clip",
       "label": "Quest 2: Review",
       "quest": 2,
-      "vo": "In seconds, every name, address and number is struck out. In the PDF you download, the text beneath each box is truly gone."
+      "vo": "Seconds later, every name, address and number is struck out, and truly removed from the PDF."
     },
     {
       "id": "parts",
@@ -83,15 +178,23 @@
       "id": "numbers",
       "kind": "chart",
       "label": "Results",
-      "vo": "Rules alone hide thirty eight percent of personal values, and not a single name. Our Mubit adapter passed ninety two percent of its held out test, against sixty seven for the base model.",
       "rules": {
         "title": "Rules alone",
         "note": "1,459 synthetic UK documents, regex layer only",
         "source": "evalkit/runs/regex_eval_synthetic.score.json",
         "stats": [
-          { "label": "of personal values hidden", "value": 38 },
-          { "label": "of names hidden", "value": 0 },
-          { "label": "of addresses hidden", "value": 0 }
+          {
+            "label": "of personal values hidden",
+            "value": 38
+          },
+          {
+            "label": "of names hidden",
+            "value": 0
+          },
+          {
+            "label": "of addresses hidden",
+            "value": 0
+          }
         ]
       },
       "adapter": {
@@ -99,16 +202,26 @@
         "note": "Mubit task \"Redact personal data\", adapter v1 (Qwen3 4B)",
         "source": "docs/HANDOFF.md, open decision 1",
         "bars": [
-          { "label": "Base model", "value": 66.7 },
-          { "label": "MuGuard adapter v1", "value": 91.7, "highlight": true }
+          {
+            "label": "Base model",
+            "value": 66.7
+          },
+          {
+            "label": "MuGuard adapter v1",
+            "value": 91.7,
+            "highlight": true
+          }
         ]
-      }
+      },
+      "vo": "The result: rules alone catch no names at all. Our Mubit adapter passed ninety two percent, against sixty seven for the base model."
     },
     {
       "id": "outro",
       "kind": "title",
-      "lines": ["Your documents stay inside the walls."],
-      "vo": "Every correction makes your own guard stronger, and your clients' data never leaves the castle. MuGuard."
+      "lines": [
+        "Your documents stay inside the walls."
+      ],
+      "vo": "Your clients' data never leaves the castle. MuGuard."
     }
   ]
 }

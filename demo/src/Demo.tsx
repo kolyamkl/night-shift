@@ -4,7 +4,10 @@ import { AbsoluteFill, Sequence, Series, continueRender, delayRender, staticFile
 import { Dialog, PixelWipe, WIPE_CUT, WIPE_FRAMES } from "./pixel";
 import { ChartScene } from "./scenes/ChartScene";
 import { ClipScene } from "./scenes/ClipScene";
+import { RaceScene } from "./scenes/RaceScene";
 import { StatsScene } from "./scenes/StatsScene";
+import { StingScene } from "./scenes/StingScene";
+import { TeamScene } from "./scenes/TeamScene";
 import { TitleScene } from "./scenes/TitleScene";
 import { C, F, FONT_LOADS } from "./theme";
 import type { Edit, Scene } from "./types";
@@ -28,10 +31,12 @@ export const Demo = ({ edit }: { edit: Edit | null }) => {
         {edit.scenes.map((scene, i) => (
           <Series.Sequence key={scene.id} durationInFrames={frames[i]} name={scene.id}>
             <SceneView scene={scene} edit={edit} prev={edit.scenes[i - 1]} next={edit.scenes[i + 1]} />
-            <Sequence from={Math.round(edit.lead * edit.fps)} name={`vo ${scene.id}`}>
-              <Audio src={staticFile(scene.vo)} />
-              <Dialog words={scene.words} />
-            </Sequence>
+            {scene.vo && (
+              <Sequence from={Math.round(edit.lead * edit.fps)} name={`vo ${scene.id}`}>
+                <Audio src={staticFile(scene.vo)} />
+                <Dialog words={scene.words} />
+              </Sequence>
+            )}
           </Series.Sequence>
         ))}
       </Series>
@@ -48,6 +53,9 @@ function SceneView({ scene, edit, prev, next }: { scene: Scene; edit: Edit; prev
   if (scene.kind === "clip") return <ClipScene scene={scene} take={edit.take} enter={prev?.kind !== "clip"} exit={next?.kind !== "clip"} />;
   if (scene.kind === "stats") return <StatsScene scene={scene} lead={edit.lead} />;
   if (scene.kind === "chart") return <ChartScene scene={scene} lead={edit.lead} />;
+  if (scene.kind === "team") return <TeamScene scene={scene} lead={edit.lead} />;
+  if (scene.kind === "race") return <RaceScene scene={scene} lead={edit.lead} />;
+  if (scene.kind === "sting") return <StingScene scene={scene} />;
   return <TitleScene scene={scene} />;
 }
 

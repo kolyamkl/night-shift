@@ -47,6 +47,8 @@ durations = json.loads(durations_file.read_text()) if durations_file.exists() el
 
 pipeline = None
 for scene in spec["scenes"]:
+    if not scene.get("vo"):
+        continue  # a silent card, such as the opening sting
     sid, text = scene["id"], spoken(scene["vo"])
     key = hashlib.sha1(f"{voice}|{speed}|{text}".encode()).hexdigest()[:12]
     wav, words_file = out / f"{sid}.wav", out / f"{sid}.json"
@@ -73,5 +75,5 @@ for scene in spec["scenes"]:
     print(f"{sid}: {durations[sid]['seconds']:.2f}s")
 
 durations_file.write_text(json.dumps(durations, indent=1))
-total = sum(durations[s["id"]]["seconds"] for s in spec["scenes"] if s["id"] in durations)
+total = sum(durations[s["id"]]["seconds"] for s in spec["scenes"] if s.get("vo") and s["id"] in durations)
 print(f"total voice: {total:.1f}s")

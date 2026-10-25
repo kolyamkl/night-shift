@@ -1,6 +1,6 @@
 # Demo video pipeline
 
-Makes the submission video from code: a narrated, edited MP4 of MuGuard. It opens on the research numbers, then shows the app with a visible sword cursor and zooms on each action, then the results slide and a closing card. The approach and the tools we compared are in [docs/research/2026-10-24-demo-video/report.md](../docs/research/2026-10-24-demo-video/report.md).
+Makes the submission video from code: a narrated, edited MP4 of MuGuard. It opens on the research numbers and on how the three of us trained the model, then shows the app with a visible sword cursor and zooms on each action, then a closing card. It stays under the 2 minute limit (1:58 now). The approach and the tools we compared are in [docs/research/2026-10-24-demo-video/report.md](../docs/research/2026-10-24-demo-video/report.md).
 
 Voice comes first, then the recording, then the edit. Each scene in the take lasts at least as long as its narration, so the voice never runs behind the picture.
 
@@ -50,7 +50,8 @@ All of it lives in `src/pixel.tsx`, `src/sprites.tsx` and `src/scenes/`, and use
 | Captions | The knight's RPG dialog box; each word types in while it is spoken. |
 | HUD | A quest counter in the corner. |
 | Zooms | A red reticle locks onto each zoom. |
-| Results | Shown as block meters. |
+| Training | Party-select cards for the three developers, then a race to Mubit's 85% bar. |
+| Results | Block meters (scene kind `chart`); not in the 2-minute cut. |
 | Closing card | The victory knight drops in pixel by pixel. |
 | Sound effects | Placed from the click events in the take: a blip per click, a coin on Hide, a fanfare after Approve, sweeps on the wipes. |
 

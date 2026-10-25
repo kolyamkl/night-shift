@@ -6,7 +6,8 @@ export type TakeEvent =
   | { t: number; type: "click"; x: number; y: number; box: Box; sfx?: string }
   | { t: number; type: "zoom"; box: Box; scale: number; hold: number };
 
-type Base = { id: string; label?: string; quest?: number; vo: string; voSeconds: number; words: Word[]; seconds: number };
+// `vo` is null on a silent card (the opening sting).
+type Base = { id: string; label?: string; quest?: number; vo: string | null; voSeconds: number; words: Word[]; seconds: number };
 
 export type Stat = { value?: number; of?: [number, number]; cue?: string; label: string; source: string };
 
@@ -18,7 +19,27 @@ export type ChartScene = Base & {
   rules: { title: string; note: string; stats: { label: string; value: number }[] };
   adapter: { title: string; note: string; bars: { label: string; value: number; highlight?: boolean }[] };
 };
-export type Scene = StatsScene | TitleScene | ClipScene | ChartScene;
+export type Person = {
+  name: string;
+  road: string;
+  tint: string;
+  data: { value: number; unit: string; note: string };
+  answer: string;
+  sample: string;
+  teacher: string;
+};
+export type TeamScene = Base & { kind: "team"; title: string; kicker: string; people: Person[]; source: string };
+export type RaceScene = Base & {
+  kind: "race";
+  title: string;
+  student: string;
+  target: number;
+  runners: { name: string; tint: string; value: number; cases: string }[];
+  note: string;
+  source: string;
+};
+export type StingScene = Base & { kind: "sting"; tagline: string };
+export type Scene = StatsScene | TitleScene | ClipScene | ChartScene | TeamScene | RaceScene | StingScene;
 
 export type Edit = {
   fps: number;

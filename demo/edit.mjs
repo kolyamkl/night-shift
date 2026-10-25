@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const read = (p) => JSON.parse(readFileSync(join(ROOT, p), "utf8"));
 const FPS = 30;
-const TAIL = 0.9; // seconds after the voice on scenes that are not recorded
+const TAIL = 0.5; // seconds after the voice on scenes that are not recorded
 
 const spec = read("scenes.json");
 const durations = read("public/media/vo/durations.json");
@@ -16,6 +16,7 @@ const timeline = read("public/media/timeline.json");
 const recorded = new Map(timeline.scenes.map((s) => [s.id, s]));
 
 const scenes = spec.scenes.map((scene) => {
+  if (!scene.vo) return { ...scene, vo: null, voSeconds: 0, words: [], seconds: scene.seconds };
   const voice = durations[scene.id];
   if (!voice) throw new Error(`No voice clip for "${scene.id}". Run: uv run voice.py`);
   const words = read(`public/media/vo/${scene.id}.json`);
@@ -24,7 +25,8 @@ const scenes = spec.scenes.map((scene) => {
   const rec = recorded.get(scene.id);
   if (!rec) throw new Error(`Scene "${scene.id}" is not in the take. Run: node record.mjs`);
   const events = timeline.events
-    .filter((e) => e.t >= rec.start - 0.5 && e.t < rec.end)
+    // A zoom may start easing in just before its scene; a click before the scene belongs to no scene.
+    .filter((e) => (e.type === "zoom" ? e.t >= rec.start - 0.5 : e.t >= rec.start) && e.t < rec.end)
     .map((e) => ({ ...e, t: e.t - rec.start }));
   return { ...base, seconds: rec.end - rec.start, recStart: rec.start, events };
 });
