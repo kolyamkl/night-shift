@@ -12,7 +12,7 @@ uv run --directory backend --env-file ../.env uvicorn app.main:app --port 8000
 ```
 
 Settings come from the environment, then `backend/.env`, then the root `.env` (see
-`app/core/config.py` and `.env.example`). Without a Mubit key the app runs on the regex layer only.
+`app/core/config.py` and `../.env.example`). Without a Mubit key the app runs on the regex layer only.
 
 ## Check
 
@@ -26,12 +26,19 @@ uv run mypy
 
 ## Layout
 
+![The backend in four layers: entry, feature modules, domain packages and core](../docs/readme/backend.svg)
+
+<details>
+<summary>As plain text</summary>
+
 ```
 app/main.py      create_app()           app/core/       settings, logging, errors, security, crypto, db
 app/api.py       router registry        app/modules/    auth, documents, scan, corrections, ask, samples, files
 app/redaction/   detection, placeholders, PDF output      app/llm/   T1 and T2 through Mubit
 app/ingest/      OCR (Apple Vision) and PDF text layers   migrations/   immutable SQL
 ```
+
+</details>
 
 [docs/architecture.md](docs/architecture.md) explains the layers, the rules inside a module, the
 decisions behind them, and how the API contract is protected.

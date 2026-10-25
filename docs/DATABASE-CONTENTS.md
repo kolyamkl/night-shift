@@ -25,6 +25,7 @@ is written. The server-held key is separate from the database.
 ## Relationships
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "attributeBackgroundColorOdd": "#f8f7f3", "attributeBackgroundColorEven": "#ecebe5"}}}%%
 erDiagram
     veil_users ||--o{ veil_sessions : owns
     veil_users ||--o{ veil_documents : owns

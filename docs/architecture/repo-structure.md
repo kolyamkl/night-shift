@@ -54,7 +54,7 @@ person in them is invented, the templates are public with their licences recorde
 `data/sources/*/manifest.json`, and the 91.7% adapter was trained on calls built
 from `data/docs`. Keep out of git, as the repo already did: `data/raw/` (may hold real
 people), `data/external/` (third-party licences, rebuilt by `training/dataconv` from
-pinned revisions), the bulk of `data/synthetic/` (the local `data/` folder is about
+pinned revisions), all of `data/synthetic/` (the local `data/` folder is about
 1.5 GB), `data/rounds/` and `training/evalkit/runs/`.
 
 ## Audit of the top level
@@ -69,21 +69,21 @@ commits written by AI agents in teammates' sessions.
 | `.superpowers/` | Brainstorm mockups | never tracked | No | Stays ignored |
 | `backend/` | FastAPI API | Mykola 10, Glib 9, Claude 6, Dmytro 2 | Yes | Untouched (rewritten in a parallel PR) |
 | `frontend/` | React + Vite app, landing page, unit and Playwright tests | Dmytro 8, Claude 7, Glib 5, Mykola 3 | Yes | Untouched |
-| `data/` | Datasets, answer keys, Mubit results, sample PDFs | Mykola 6, Claude 4, Glib 2, Dmytro 2 | Only `data/synthetic/pdfs/` | Stays; its README now lists every subfolder |
+| `data/` | Datasets, answer keys, Mubit results, sample PDFs | Mykola 6, Claude 4, Glib 2, Dmytro 2 | No (the sample PDFs moved to `backend/samples/` in the follow-ups) | Stays; its README now lists every subfolder |
 | `datagen/` | Synthetic UK document generator (uv project) | Glib 1, Dmytro 1 | No | Moved to `training/datagen/` |
 | `dataconv/` | Converters for open PII datasets (uv project) | Glib 1, Dmytro 1 | No | Moved to `training/dataconv/` |
-| `evalkit/` | Redaction helpers, regex baseline, prompt, scorer, Mubit sender | Glib 1, Dmytro 1 | Yes: imported by `backend/app`, copied by `backend/Dockerfile` | Stays this PR; see follow-ups |
+| `evalkit/` | Redaction helpers, regex baseline, prompt, scorer, Mubit sender | Glib 1, Dmytro 1 | No since the backend rebuild (#27), which keeps its own copies | Moved to `training/evalkit/` in the follow-ups |
 | `demo/` | Records, voices and edits the submission video (Remotion, Playwright) | Dmytro 2 | No | Stays: a self-contained deliverable with its own `package.json`, as `examples/` or `benchmarks/` are elsewhere |
 | `docs/` | Architecture, Mubit, security, deployment, research | Claude 10, Mykola 9, Dmytro 9, Glib 8 | No | Stays; this page added |
-| `scripts/` | Mixed: T1 dataset pipeline, review dataset tool, source builders, OCR evaluation, sample builder, local database, README numbers | Mykola 10, Claude 4, Glib 3 | No, but `backend/tests/test_llm.py` loads `scripts/dataset/send_batch.py` | Training tools moved to `training/`; repo-wide helpers and the pinned `dataset/` stay |
-| `tests/` | Dataset pipeline, ingestion and review dataset tests | Mykola 5, Claude 2, Glib 1 | No | Review tests moved next to their tool; the rest stays (follow-ups) |
-| `requirements.txt` | Python deps for the root scripts and tests | Mykola 1, Claude 1 | No (the backend has its own `pyproject.toml`) | Stays; header names who uses it |
+| `scripts/` | Mixed: T1 dataset pipeline, review dataset tool, source builders, OCR evaluation, sample builder, local database, README numbers | Mykola 10, Claude 4, Glib 3 | No | Training tools moved to `training/`, and `dataset/` to `training/rewrite/` in the follow-ups; `ocr/`, `samples/`, `local_db.py` and `readme_numbers.py` stay |
+| `tests/` | Dataset pipeline, ingestion and review dataset tests | Mykola 5, Claude 2, Glib 1 | No | Gone: review tests to `training/review_redaction/tests/`, dataset tests to `training/rewrite/tests/`, ingest tests to `backend/tests/ingest/` |
+| `requirements.txt` | Python deps for `training/rewrite`, `training/review_redaction`, `backend/app/ingest` and `scripts/ocr` | Mykola 1, Claude 1 | No (the backend has its own `pyproject.toml`) | Stays; header names who uses it |
 | `DESIGN.md`, `PRODUCT.md` | Design system and product context | Dmytro 4, Glib 2; Glib 2, Dmytro 1 | No | Stay at the root: the Impeccable design tool reads both there, and the README links the design system |
 | `README.md` | Project overview, run and verify steps | Glib 9, Mykola 5, Dmytro 1 | No | Edited: layout tree, `make` commands, links |
 | `LICENSE` | PolyForm Noncommercial 1.0.0 | Mykola 1, Glib 1 | No | Stays |
 | `.gitignore` | Ignore rules | Dmytro 5, Glib 4, Mykola 1, Claude 1 | No | Grouped by purpose; adds `.claude/`, `.impeccable/`, editor and cache folders; every earlier rule kept |
 | `.env.example` | Template for `.env` | Glib 3, Mykola 2, Claude 1 | No (template only) | Stays |
-| `.dockerignore`, `.railwayignore` | What Docker builds and `railway up` upload | Glib 1 each | Yes, for deploys from the repo root | Unchanged |
+| `.dockerignore`, `.railwayignore` | What Docker builds and `railway up` upload | Glib 1 each | Yes, for deploys from the repo root | Now leave out `data/` and `training/` whole (follow-ups) |
 
 ## Before and after
 
@@ -109,17 +109,20 @@ tests/
 DESIGN.md  LICENSE  PRODUCT.md  README.md  requirements.txt
 ```
 
-After:
+After, with the follow-ups and the backend rebuild:
 
 ```text
 .github/workflows/      frontend.yml: type-check and unit tests
-backend/                the API (unchanged)
+backend/                the API in layers (backend/docs/architecture.md)
+└── samples/            the app's sample PDFs (was data/synthetic/pdfs/)
 frontend/               the web app (unchanged)
-evalkit/                stays until the backend PR lands
 training/               everything that builds, sends and scores T1 data
 ├── README.md           the three approaches, owners and results
 ├── datagen/            synthetic documents (was datagen/)
 ├── dataconv/           open-dataset converters (was dataconv/)
+├── evalkit/            list-output prompt, scorer and sender (was evalkit/)
+├── rewrite/            rewrite dataset pipeline (was scripts/dataset/)
+│   └── tests/          (was tests/dataset/)
 ├── review_redaction/   review-redaction task (was scripts/review_dataset/)
 │   └── tests/          (was tests/review_dataset/)
 └── sources/            template fetchers and builders (was scripts/sources/)
@@ -127,10 +130,8 @@ data/                   datasets (unchanged paths)
 demo/                   submission video
 docs/                   + architecture/repo-structure.md
 scripts/
-├── dataset/  ocr/  samples/
+├── ocr/  samples/
 └── local_db.py  readme_numbers.py
-tests/
-└── dataset/  ingest/
 .dockerignore  .env.example  .gitignore  .railwayignore
 DESIGN.md  LICENSE  Makefile  PRODUCT.md  README.md  requirements.txt
 ```

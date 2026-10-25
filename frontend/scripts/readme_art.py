@@ -649,6 +649,89 @@ def quests():
                             "Quest 1 drop a document, 2 review, 3 fix a miss, 4 approve, 5 ask the AI; only placeholders ever pass the gate."))
 
 
+# ---------- the backend in layers (backend/README.md, backend/docs/architecture.md, docs/ARCHITECTURE.md) ----------
+
+LAYERS = [
+    ("ENTRY", "HTTP in", 92, [("main.py", "create_app()"), ("api.py", "router registry"), ("dependencies.py", "settings, database, models")]),
+    ("MODULES", "one per feature", 132, [("router", "HTTP only"), ("service", "rules and errors"), ("repository", "SQL, scoped by owner")]),
+    ("DOMAIN", "no FastAPI, no database", 92, [("redaction", "detect, placeholders, PDF"), ("llm", "T1 and T2 calls"), ("ingest", "OCR, PDF text layers")]),
+    ("CORE", "imports nothing", 76, [(n, "") for n in ("config", "logging", "errors", "security", "crypto", "db")]),
+]
+FEATURES = ["auth", "documents", "scan", "corrections", "ask", "samples", "files"]
+# what each row talks to, and the colours of that box
+OUTSIDE = [("Browser", "through Caddy, /api", PAPER, INK, QUIET), ("PostgreSQL", "encrypted rows", INK, BONE, HAZE),
+           ("Mubit", "every model call", SIGNAL, "#ffffff", PAPER), ("migrations/", "applied at startup", BONE, INK, QUIET)]
+# one scan, lit up box by box
+SCAN = ["Browser", "api.py", "router", "service", "redaction", "llm", "Mubit", "repository", "PostgreSQL"]
+
+
+def fit(s, px, face, maxw, low=11):
+    while px > low and width(s, px, face) > maxw:
+        px -= 1
+    return px
+
+
+def backend():
+    reset_glyphs()
+    W, H, T = 1200, 700, 9.0
+    b = [f'<rect width="{W}" height="{H}" fill="{BONE}"/>', frame(24, 24, W - 52, H - 52, PAPER, INK, 4, shadow=True)]
+    b.append(chip("BACKEND · FASTAPI", 56, 56, 12))
+    b.append(text("The backend in four layers", 56, 124, 34, "display", INK))
+    sub = "Routers speak HTTP, services hold the rules, repositories hold the SQL, and domain code never imports FastAPI."
+    b.append(text(sub, 56, 156, fit(sub, 18, "pixel", W - 112), "pixel", QUIET))
+    boxes: dict[str, tuple[float, float, float, float]] = {}
+
+    def cell(x, y, w, h, name, note, fill=BONE, ink=INK, quiet=QUIET, px=17):
+        boxes[name] = (x, y, w, h)
+        out = frame(x, y, w, h, fill, INK, 3)
+        if note or h > 60:
+            out += text(name, x + 14, y + (27 if note else h / 2 + 6), fit(name, px, "display", w - 24), "display", ink)
+        else:  # a small name-only box: centred
+            out += text(name, x + w / 2, y + h / 2 + 6, fit(name, px, "display", w - 12), "display", ink, "middle")
+        if note:
+            out += text(note, x + 14, y + 48, fit(note, 13, "pixel", w - 24), "pixel", quiet)
+        return out
+
+    x0, rw, y = 56, 804, 184
+    for (label, note, h, cells), (oname, onote, ofill, oink, oquiet) in zip(LAYERS, OUTSIDE):
+        b.append(frame(x0, y, rw, h, PAPER, INK, 3))
+        b.append(text(label, x0 + 18, y + (30 if h < 90 else 34), 13, "label", INK) + text(note, x0 + 18, y + (52 if h < 90 else 56), 14, "pixel", QUIET))
+        cx, avail = x0 + 210, rw - 210 - 16
+        gap = 24 if label == "MODULES" else 12 if len(cells) > 3 else 16
+        cw = (avail - gap * (len(cells) - 1)) / len(cells)
+        ch = 44 if label == "CORE" else 60
+        px = min(fit(name, 17, "display", cw - (24 if cnote else 12)) for name, cnote in cells)  # one size per row
+        for i, (name, cnote) in enumerate(cells):
+            x = cx + i * (cw + gap)
+            b.append(cell(x, y + 16, cw, ch, name, cnote, px=px))
+            if label == "MODULES" and i:
+                b.append(sprite(ARROW, x - gap / 2 - 9, y + 16 + ch / 2 - 7, 2, {"k": STONE}))
+        if label == "MODULES":
+            fx = cx
+            for f in FEATURES:
+                b.append(chip(f, fx, y + 92, 11))
+                fx += width(f, 11, "label") + 14 + 8
+        # the outside box this layer talks to, joined to the row
+        mid = y + h / 2
+        b.append(f'<rect x="{x0 + rw}" y="{mid - 2:.0f}" width="44" height="4" fill="{SIGNAL if oname == "Mubit" else INK}"/>')
+        b.append(cell(904, mid - 32, 240, 64, oname, onote, ofill, oink, oquiet))
+        y += h + 16
+
+    # the scan's path: each box gets a red outline in turn, the whole path stays lit, then the loop starts again
+    n = len(SCAN)
+    for i, name in enumerate(SCAN):
+        x, yy, w, h = boxes[name]
+        on = [(i / n - 0.001, 0), (i / n, 1), (0.96, 1), (0.961, 0)]
+        b.append(f'<rect x="{x - 4:.0f}" y="{yy - 4:.0f}" width="{w + 8:.0f}" height="{h + 8:.0f}" fill="none" stroke="{SIGNAL}" stroke-width="4" opacity="0">'
+                 f'<animate attributeName="opacity" {keyed(on, T)}/></rect>')
+    cap = "A scan lights up in order: router, service, the redaction pipeline, T1 through Mubit, then the repository saves the result."
+    b.append(text(cap, 56, H - 48, fit(cap, 16, "pixel", W - 112), "pixel", QUIET))
+    write("backend.svg", svg(W, H, "".join(b), "The backend in four layers",
+                             "Entry (main.py, api.py, dependencies.py), feature modules (router, service, repository for auth, documents, scan, "
+                             "corrections, ask, samples and files), domain packages (redaction, llm, ingest) and core. The browser reaches the entry "
+                             "through Caddy, repositories use PostgreSQL, llm calls Mubit, and core applies the SQL migrations at startup."))
+
+
 # ---------- buttons and footer ----------
 
 ARROW = ["....k....", "....kk...", "kkkkkkk..", "kkkkkkkk.", "kkkkkkk..", "....kk...", "....k...."]
@@ -692,6 +775,7 @@ if __name__ == "__main__":
     mubit()
     training()
     quests()
+    backend()
     button("button-app.svg", "Protect a document", SIGNAL, "#ffffff", ARROW, True)
     button("button-sample.svg", "Try a sample", PAPER, INK, FILE, False)
     button("button-video.svg", "Watch the demo", INK, BONE, PLAY, False)

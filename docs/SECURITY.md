@@ -24,6 +24,7 @@ certification or a claim of complete anonymisation.
 | Download recipient | Redacted output; anything not detected or deliberately unhidden remains visible |
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart TD
     A["Original content in backend memory"] --> E["Encrypt with server-held Fernet key"]
     E --> D[("PostgreSQL ciphertext")]
@@ -39,6 +40,10 @@ flowchart TD
     V --> X["Restore answer on backend"]
     B --> X
     X --> U["Owner's browser"]
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    classDef ink fill:#0d0d0d,stroke:#0d0d0d,color:#ecebe5
+    class T,M mubit
+    class D ink
 ```
 
 Encryption at rest protects stored content; it does not change outbound T1
@@ -49,15 +54,15 @@ encryption against the server operator.
 
 | Control | Behavior and evidence |
 | --- | --- |
-| Account isolation | Every document operation checks the signed-in owner; foreign documents return 404. [API](../backend/app/main.py) |
-| Password storage | Argon2id hashes; passwords are not stored in plaintext. [Auth](../backend/app/auth.py) |
-| Login sessions | Random token in HttpOnly, SameSite=Lax cookie; only its SHA-256 hash is stored. Seven-day expiry and server-side logout revocation. Secure cookie on HTTPS or with `VEIL_COOKIE_SECURE=true`. [Auth](../backend/app/auth.py) |
-| Request protection | Mutating API requests require `X-Veil-Request: 1`; CORS is restricted to configured origins. Auth/document responses use `Cache-Control: no-store`. [Middleware](../backend/app/main.py) |
-| Login throttling | Login and registration share a 30-attempt/minute bucket per client address. This is not an inference quota. [Auth](../backend/app/auth.py) |
-| Encrypted storage | Fernet encrypts document payloads, results, vaults, summaries and chat. Payload identity includes document ID and kind; a key probe rejects the wrong database/key pair. [Storage](../backend/app/storage.py) |
-| Correction persistence | Manual hides and unhides survive retries/rescans; stale writes cannot overwrite a newer result. [Pipeline](../backend/app/pipeline.py) |
-| Question protection | Known values and selected name parts plus regex-detected identifiers become placeholders using a vault copy. [Question processing](../backend/app/question.py) |
-| PDF redaction | Covered text/image pixels are removed, then selected document/image metadata and attachments are stripped. [PDF export](../backend/app/pdfout.py) |
+| Account isolation | Every document operation checks the signed-in owner; foreign documents return 404. [Documents](../backend/app/modules/documents/repository.py) |
+| Password storage | Argon2id hashes; passwords are not stored in plaintext. [Auth](../backend/app/modules/auth/) |
+| Login sessions | Random token in HttpOnly, SameSite=Lax cookie; only its SHA-256 hash is stored. Seven-day expiry and server-side logout revocation. Secure cookie on HTTPS or with `VEIL_COOKIE_SECURE=true`. [Auth](../backend/app/modules/auth/) |
+| Request protection | Mutating API requests require `X-Veil-Request: 1`; CORS is restricted to configured origins. Auth/document responses use `Cache-Control: no-store`. [Middleware](../backend/app/core/security.py), [CORS](../backend/app/main.py) |
+| Login throttling | Login and registration share a 30-attempt/minute bucket per client address. This is not an inference quota. [Auth](../backend/app/modules/auth/) |
+| Encrypted storage | Fernet encrypts document payloads, results, vaults, summaries and chat. Payload identity includes document ID and kind; a key probe rejects the wrong database/key pair. [Encryption](../backend/app/core/crypto.py), [Storage](../backend/app/modules/documents/repository.py) |
+| Correction persistence | Manual hides and unhides survive retries/rescans; stale writes cannot overwrite a newer result. [Pipeline](../backend/app/redaction/pipeline.py), [Revisions](../backend/app/modules/documents/repository.py) |
+| Question protection | Known values and selected name parts plus regex-detected identifiers become placeholders using a vault copy. [Question processing](../backend/app/redaction/question.py) |
+| PDF redaction | Covered text/image pixels are removed, then selected document/image metadata and attachments are stripped. [PDF export](../backend/app/redaction/pdf.py) |
 
 Routine chunk logs contain document/request IDs, status, counts and timing, not
 chunk text. This is not a guarantee that every third-party error or operational

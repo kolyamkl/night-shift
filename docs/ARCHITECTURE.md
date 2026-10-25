@@ -10,6 +10,7 @@ gateway for both detection (**T1**) and document questions (**T2**).
 ## System and trust boundaries
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart LR
     U["User's browser"] -->|"HTTPS: upload, review, question"| W["Web: React and Caddy"]
     subgraph V["MuGuard deployment on Railway"]
@@ -23,6 +24,10 @@ flowchart LR
     M -->|"Reply and request ID"| B
     B -->|"Review result, restored answer, download"| W
     W --> U
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    classDef ink fill:#0d0d0d,stroke:#0d0d0d,color:#ecebe5
+    class M mubit
+    class P ink
 ```
 
 The browser connects to the public web service. Caddy forwards API requests to
@@ -34,6 +39,7 @@ this is not browser-only or end-to-end encrypted processing.
 ## A document from upload to download
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart TD
     A["Upload, paste or open a synthetic sample"] --> B["Authenticate owner and extract text"]
     B --> C["Save encrypted source, text and layout"]
@@ -47,6 +53,8 @@ flowchart TD
     E -->|"Save corrections without a model call"| V
     E -->|"Download"| F["Remove covered PDF content or export redacted text"]
     E -->|"Approve in UI"| Q["Open document Q&A"]
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    class T mubit
 ```
 
 1. **Extract.** Text-layer PDFs use PyMuPDF text and word coordinates. Text,
@@ -72,6 +80,7 @@ flowchart TD
 ## Questions and answers
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "actorBkg": "#f8f7f3", "actorBorder": "#0d0d0d", "actorTextColor": "#0d0d0d", "actorLineColor": "#8b8a85", "signalColor": "#8b8a85", "signalTextColor": "#0d0d0d", "noteBkgColor": "#0d0d0d", "noteTextColor": "#ff6b61", "noteBorderColor": "#0d0d0d", "activationBkgColor": "#e2231a"}}}%%
 sequenceDiagram
     actor User
     participant UI as Browser
@@ -120,11 +129,19 @@ does not attest that a person reviewed every later version of the result.
 
 ## Code map
 
+![The backend in four layers: entry, feature modules, domain packages and core](readme/backend.svg)
+
+The backend is split into layers: routers speak HTTP, services hold the rules,
+repositories hold the SQL, and the domain packages never import FastAPI. The
+[backend architecture](../backend/docs/architecture.md) page explains why.
+
 | Responsibility | Implementation |
 | --- | --- |
-| API, ownership and stream orchestration | [main.py](../backend/app/main.py) |
+| App setup and middleware | [main.py](../backend/app/main.py), [core/](../backend/app/core/) |
+| API routes and ownership | [api.py](../backend/app/api.py), [modules/](../backend/app/modules/) |
+| Scan, supersession and stream | [scan/service.py](../backend/app/modules/scan/service.py), [scan/stream.py](../backend/app/modules/scan/stream.py) |
 | Chunking, merging, corrections and PDF boxes | [redaction/pipeline.py](../backend/app/redaction/pipeline.py) |
-| Mubit requests and rewrite alignment | [llm/t1.py](../backend/app/llm/t1.py), [prompts.py](../backend/app/llm/prompts.py) |
+| Mubit requests and rewrite alignment | [llm/t1.py](../backend/app/llm/t1.py), [llm/t2.py](../backend/app/llm/t2.py), [llm/providers.py](../backend/app/llm/providers.py), [llm/rewrite.py](../backend/app/llm/rewrite.py), [llm/prompts.py](../backend/app/llm/prompts.py) |
 | Question protection | [redaction/question.py](../backend/app/redaction/question.py) |
 | PDF export | [redaction/pdf.py](../backend/app/redaction/pdf.py) |
 | Encryption, revisions and saved chat | [documents/repository.py](../backend/app/modules/documents/repository.py) |

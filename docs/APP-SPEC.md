@@ -8,7 +8,7 @@ One page, Quillbot-style: drop or paste anything (text, PDF, image, email), see 
 - **There is no Mubit SDK to integrate for this.** The app calls OpenAI / Anthropic / Gemini exactly as usual, with the base URL set to Mubit and the Mubit key. Context7 only indexes the older memory SDK (`mubit.learn`), which injects lessons into the system prompt. **Do not use it for T1**: a changing system prompt splits the task.
 - **No correction API, and no per-call "served by" signal.** Corrections are made in the console on the request (organisers' PagerPal). Serving shows in the console as "Routed requests" / "Task rules", and the task pipeline is Collecting, First training, Tests, Silent test, Live.
 - So the backend's Mubit duties are small:
-  1. **T1 (redaction):** call it with the frozen prompt (`evalkit/src/evalkit/prompts.py`), one chunk per call, `x-middleware-record` left at full so the calls keep training the adapter.
+  1. **T1 (redaction):** call it with the frozen prompt (`training/evalkit/src/evalkit/prompts.py`; the backend's copy is `backend/app/llm/prompts.py`), one chunk per call, `x-middleware-record` left at full so the calls keep training the adapter.
   2. **Keep the request id** (`x-middleware-request-id`) for every T1 chunk, so a reviewer can find that call in the console and correct it.
   3. **T2 (answer):** send only redacted text with `x-middleware-record: off`. It still goes through Mubit (the rule), but creates no second task and stores no user questions.
 - **Privacy guard:** until the T1 task is Live in the console, T1 calls go to the teacher model. Use synthetic documents in the demo. A "real data" switch stays off until the adapter serves (team pack FR-9).
@@ -30,7 +30,7 @@ One page, Quillbot-style: drop or paste anything (text, PDF, image, email), see 
 5. **Footer metrics:** values hidden, latency, "served by: teacher / adapter" (manual, from the console), regex-only comparison for the same document.
 
 ## 3. Backend (FastAPI, Python)
-Reuse `evalkit` modules: `prompts.py`, `spans.py`, `redact.py`, `regex_baseline.py`, `uk_formats.py`, `providers.py`.
+Reuse `evalkit` modules: `prompts.py`, `spans.py`, `redact.py`, `regex_baseline.py`, `uk_formats.py`, `providers.py`. (Since 25 Oct the backend keeps its own copies of these instead; see [backend/docs/architecture.md](../backend/docs/architecture.md), section 5.)
 
 | Endpoint | Input | Output |
 |---|---|---|
@@ -55,7 +55,7 @@ Reuse `evalkit` modules: `prompts.py`, `spans.py`, `redact.py`, `regex_baseline.
 - **Never send an image or PDF to a model provider.** OCR runs locally; only text goes to T1.
 
 ### 3.2 Redaction
-1. Split the text into chunks of at most about 1,000 tokens on paragraph boundaries (same rule as `datagen/chunker.py`).
+1. Split the text into chunks of at most about 1,000 tokens on paragraph boundaries (same rule as `training/datagen/src/datagen/chunker.py`).
 2. **Regex layer** (`regex_baseline.detect`): cards, accounts, sort codes, IBAN, NI, postcodes, phones, emails. These spans are final: the model may add spans but never remove one.
 3. **T1 through Mubit,** chunks in parallel (up to 6 at a time):
    - `gpt-6-luna` (or the bake-off winner), `response_format: json_object`, `max_completion_tokens` 8000;
