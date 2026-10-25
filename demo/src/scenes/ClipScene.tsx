@@ -29,10 +29,12 @@ export const ClipScene = ({ scene, take, enter, exit }: { scene: Clip; take: { s
 
   const z = zoomAt(scene.events, t);
   const scale = 1 + (z.scale - 1) * z.weight;
-  const ox = Math.min(Math.max(z.cx, 0), take.width);
-  const oy = Math.min(Math.max(z.cy, 0), take.height);
+  // Centre the box, but never pull the take's own edges into view, so a box near an edge stays whole.
+  const pan = (c: number, size: number) => Math.min(0, Math.max(size - size * scale, size / 2 - c * scale));
+  const tx = pan(z.cx, take.width);
+  const ty = pan(z.cy, take.height);
   // The reticle frames the zoomed box in screen space and blinks twice as it locks on.
-  const map = (x: number, y: number) => ({ x: (ox + (x - ox) * scale) * SCALE, y: (oy + (y - oy) * scale) * SCALE });
+  const map = (x: number, y: number) => ({ x: (x * scale + tx) * SCALE, y: (y * scale + ty) * SCALE });
   const lockBlink = z.since >= 0 && z.since < 0.4 ? Math.floor(z.since * 10) % 2 : 1;
   const reticle = z.box && z.weight > 0.85 ? (() => {
     const pad = 14;
@@ -66,7 +68,7 @@ export const ClipScene = ({ scene, take, enter, exit }: { scene: Clip; take: { s
         </div>
         <div style={{ width: w, height: h, overflow: "hidden", position: "relative" }}>
           <div style={{ width: take.width, height: take.height, transform: `scale(${SCALE})`, transformOrigin: "0 0" }}>
-            <div style={{ width: take.width, height: take.height, transform: `scale(${scale})`, transformOrigin: `${ox}px ${oy}px` }}>
+            <div style={{ width: take.width, height: take.height, transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: "0 0" }}>
               <OffthreadVideo src={staticFile(take.src)} trimBefore={Math.round(scene.recStart * fps)} muted />
             </div>
           </div>

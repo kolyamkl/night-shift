@@ -19,7 +19,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.DEMO_URL ?? "http://localhost:5174";
 const SIZE = { width: 1600, height: 900 };
 const LEAD = 0.25; // seconds of picture before the voice starts (edit.mjs uses the same value)
-const PAD = 0.6; // seconds after the voice ends
+const PAD = 0.45; // seconds after the voice ends
 const QUESTION = "When can the landlord raise the rent?";
 const MISSED = "Evergreen Locksmiths LLP";
 
@@ -184,16 +184,24 @@ async function phraseBox(text) {
 
 const byName = (role, name) => page.getByRole(role, { name, exact: true });
 
+// Steps between two scenes. They are in the take but no scene shows them, so the edit cuts straight past.
+const BETWEEN = {
+  async landing() {
+    await click(page.getByRole("link", { name: "Protect a document" }).nth(1), 200);
+    await page.getByText("Or try a sample").waitFor({ timeout: 30_000 });
+    await page.evaluate(() => document.fonts.ready);
+    await sleep(400);
+  },
+};
+
 const ACTIONS = {
   async landing(at) {
     await at(0.3);
     await glide(820, 330, 900);
     await at(3.2);
     await moveTo(page.getByRole("link", { name: "Try a sample" }).first(), 800);
-    await at(LEAD + durations.landing.seconds - 0.4);
-    await click(page.getByRole("link", { name: "Protect a document" }).nth(1));
-    await page.getByText("Or try a sample").waitFor({ timeout: 30_000 });
-    await page.evaluate(() => document.fonts.ready);
+    await at(LEAD + durations.landing.seconds - 1.2);
+    await moveTo(page.getByRole("link", { name: "Protect a document" }).nth(1), 700);
   },
 
   async scan(at) {
@@ -255,7 +263,7 @@ const ACTIONS = {
     await click(byName("button", "Approve all"), 650, "fanfare");
     const done = page.getByRole("dialog", { name: /^Secured by/ }).getByRole("button", { name: "Continue" });
     await done.waitFor({ timeout: 15_000 });
-    await sleep(3200);
+    await sleep(2600);
     await click(done, 700);
     await page.getByPlaceholder("When is the rent due?").waitFor({ timeout: 15_000 });
     await sleep(500);
@@ -295,6 +303,7 @@ try {
     await ACTIONS[scene.id](at);
     await minimum;
     scenes.push({ id: scene.id, start, end: now() });
+    await BETWEEN[scene.id]?.();
   }
 } catch (e) {
   await page.screenshot({ path: join(ROOT, "rec/failed.png") });

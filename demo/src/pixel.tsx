@@ -56,7 +56,8 @@ const join = (ws: Word[]) => ws.reduce((s, w) => (/^[.,!?;:'’]/.test(w.w) || !
 export function chunks(words: Word[]) {
   const units: Word[][] = [];
   for (const w of words) {
-    if (/^[.,!?;:'’]+$/.test(w.w) && units.length) units[units.length - 1].push(w);
+    // Punctuation and clitics ('s, 'll) stay on the word before them.
+    if ((/^[.,!?;:'’]+$/.test(w.w) || /^['’]\w/.test(w.w)) && units.length) units[units.length - 1].push(w);
     else units.push([w]);
   }
   const sentences: Word[][][] = [[]];
