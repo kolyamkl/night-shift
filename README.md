@@ -27,13 +27,14 @@ MuGuard keeps them inside the walls. It finds personal values in documents, lets
 you correct the redactions, and replaces those values with placeholders before an
 AI answers questions about the document. It restores names and other values in
 the answer so the result remains useful to you, and its detection task is trained
-through Mubit. Built for the Mubit Night Shift hackathon in London, 23–25 October
-2026, with FastAPI, PostgreSQL, React and Mubit.
+through Mubit. Built by Mykola, Glib and Dmytro for the Mubit Night Shift
+hackathon in London, 23–25 October 2026, with FastAPI, PostgreSQL, React and Mubit.
 
 > **Current privacy boundary:** the AI that answers your questions only ever sees
 > placeholders. Finding the names takes one pass over the original text through
-> Mubit, which records it to train the knight. MuGuard does not yet guarantee that original personal
-> data never reaches an external AI provider. Use synthetic documents for demos;
+> Mubit, which records it to train the knight, MuGuard's own redaction model.
+> Until Mubit routes that pass to the knight, `claude-haiku-4-5` makes it, so the
+> original text still reaches a model provider. Use synthetic documents for demos;
 > see [implemented protections and limits](docs/SECURITY.md).
 
 ## What the demo shows
@@ -47,7 +48,7 @@ The two-minute video follows the same story as this README:
 | Time | Chapter | What you see |
 | --- | --- | --- |
 | 0:02 | The problem | 71% of UK workers use AI tools their employer never approved, and every name in the text they paste rides out to the model provider. |
-| 0:16 | What MuGuard is | The castle: personal data is hidden before any AI sees it, and the real values come back in the answer. |
+| 0:16 | What MuGuard is | The castle: names are hidden before the answering AI sees them, and the real values come back in the answer. |
 | 0:25 | Three ways to train | One job, three Mubit accounts: 180 realistic documents, 576 synthetic cases, 100,000 generated documents. Only the realistic set cleared Mubit's 85% bar ([details](#three-ways-to-train-one-student)). |
 | 0:56 | Quest 1: drop a document | A tenancy agreement is read part by part, with rules for UK numbers. |
 | 1:03 | Quest 2: review | Every name, address and number is struck out, and each part is its own Mubit call with a request id. |
@@ -55,10 +56,13 @@ The two-minute video follows the same story as this README:
 | 1:25 | Quest 4: approve | Only after approval may the document pass the gate. |
 | 1:30 | Quest 5: ask the AI | When may the landlord raise the rent? The AI sees placeholders; MuGuard puts the true names back. |
 | 1:39 | What the AI received | The exact text the AI got: no names, no addresses, no account numbers. |
-| 1:45 | Results | Rules alone catch no names; the Mubit adapter passed 91.7% of its held-out test against 66.7% for the base model. |
+| 1:45 | Results | Rules alone catch no names; the Mubit adapter matched the teacher on 91.7% of its held-out test (11 of 12 cases), against 66.7% for the base model. |
+
+For a steady take, the app scenes in the video run on a mock stream. The
+screenshot below is the same flow on the real model through Mubit.
 
 <p align="center">
-  <img src="docs/readme/app-answer.png" width="100%" alt="A real run of the live app on the synthetic tenancy sample: 33 changes approved, every name and address under a black bar with its placeholder, and claude-haiku-4-5's answer with the tenants' names put back by MuGuard.">
+  <img src="docs/readme/app-answer.png" width="100%" alt="A real run of the live app on the synthetic tenancy sample: 33 changes approved, every tenant name and address under a black bar with its placeholder, and claude-haiku-4-5's answer with the tenants' names put back by MuGuard.">
 </p>
 <p align="center"><sub>A real run of the app on the synthetic tenancy sample, with claude-haiku-4-5 through Mubit: the approved document and the answer with the names put back.</sub></p>
 
@@ -67,14 +71,15 @@ The two-minute video follows the same story as this README:
 
 The video is built from code in [`demo/`](demo/README.md): Playwright records the
 app, a British voice is generated locally with Kokoro, and the edit is rendered in
-pixel art. For a steady take the app scenes run against the mock stream
-(`frontend/scripts/mock-stream.mjs`): the detector returns the sample's answer key,
+pixel art. In the mock stream behind the app scenes
+(`frontend/scripts/mock-stream.mjs`) the detector returns the sample's answer key,
 request ids read `mreq_mock`, and the answer comes from the mock. The screenshot
-above is the same flow on the real model. Three lines of the narration describe
-where MuGuard is heading rather than this build: detection is answered today by
-claude-haiku-4-5 through Mubit while the trained adapter waits for its rollout; a
-fix in the app is saved for that document but is not yet sent to Mubit as training
-feedback; and the real values are put back by MuGuard's backend.
+above is the same flow on the real model, without the hand fix of Quest 3. Three
+lines of the narration describe where MuGuard is heading rather than this build:
+detection is answered today by claude-haiku-4-5 through Mubit while the trained
+adapter waits for its rollout; a fix in the app is saved for that document but is
+not yet sent to Mubit as training feedback; and the real values are put back by
+MuGuard's backend.
 
 </details>
 
@@ -90,9 +95,9 @@ feedback; and the real values are put back by MuGuard's backend.
 2. **Detect, two ways at once.** Deterministic rules find structured values
    (emails, phones, postcodes, sort codes, account numbers, IBANs, cards, NI,
    passport, licence and NHS numbers, IP addresses and labelled references).
-   In parallel the text is split into chunks, and each chunk goes to **T1**
-   through Mubit, which returns it rewritten with placeholders. MuGuard aligns that
-   rewrite back to the original to recover the exact values.
+   In parallel the text is split into chunks, and each chunk goes to **T1**, the
+   detection call, through Mubit, which returns it rewritten with placeholders.
+   MuGuard aligns that rewrite back to the original to recover the exact values.
 3. **Build.** Every value found anywhere is located throughout the document,
    overlaps are merged, and each distinct value gets a stable placeholder in the
    vault (`Raj Patel` → `[PERSON_1]`). Progress streams to the browser chunk by chunk.
@@ -100,7 +105,8 @@ feedback; and the real values are put back by MuGuard's backend.
    model call, and the correction survives rescans.
 5. **Ask.** Only an approved document passes the gate: the question box opens
    after you approve, and the API refuses questions about a document you have not
-   approved. The question is pseudonymised with the same vault, then **T2** receives only the redacted document and redacted question. The
+   approved. The question is pseudonymised with the same vault, then **T2**, the
+   answering call, receives only the redacted document and redacted question. The
    backend swaps placeholders back to real values before the answer is shown.
 6. **Download.** The PDF is truly redacted: covered text and image pixels are
    removed from the file and hidden metadata is stripped. It is not a black box
@@ -259,8 +265,9 @@ The last line is why the adapter does not serve the app yet: Mubit sets live at
 
 The trained adapter answering, in Mubit's Try models page on a synthetic tenancy
 excerpt: the 4B adapter (below) returns the same redaction as Gemini 3.8 Flash
-(above), all ten values hidden, the second mention "Ms Ward" given the landlord's
-placeholder, the rent and dates left in place.
+(above, one of the providers that page compares against): all ten values hidden,
+the second mention "Ms Ward" given the landlord's placeholder, the rent and dates
+left in place.
 
 <p align="center">
   <img src="docs/readme/mubit-try-models.jpg" width="560" alt="Mubit Try models, side by side on a synthetic tenancy excerpt: gemini-3.8-flash and Redact personal data v1 both return the text with PERSON_1, ADDRESS_1, POSTCODE_1, PERSON_2, DOB_1, EMAIL_1, PHONE_1, SORT_CODE_1, BANK_ACCOUNT_1 and CUSTOM_1, in about two seconds each.">
@@ -278,10 +285,11 @@ Every T1 call is recorded, so the redaction task builds up real examples. After
 review, Mubit trains an adapter on them and can route later T1 calls to it.
 T2 calls are sent with recording off. On 24 October the task's first adapter,
 v1 on Qwen3-4B-Instruct-2507, scored 91.7% on its held-out test against 66.7%
-for the base model with the same prompt. It is on a silent test and goes live
-when Mubit routes the task to it; until then `claude-haiku-4-5` answers T1. On
-25 October we sent a second realistic round for the next version: 225 chunks from
-new fills of the same public templates, rated against the answer key (137 good).
+for the base model with the same prompt. It is on a silent test: Mubit puts a
+version live once it has 20 judged test cases, and v1 had 12. Until then
+`claude-haiku-4-5` answers T1. On 25 October we sent a second realistic round for
+the next version: 225 chunks from new fills of the same public templates, rated
+against the answer key (137 good).
 
 <details>
 <summary><b>Detailed Mubit calls and training loop</b></summary>
@@ -338,9 +346,8 @@ model name displayed in the app.
 
 Every miss you fix is saved at once, with no new model call. The knight learns
 from the calls our team rates in the Mubit console; the calls Mubit keeps train its
-next version. See the
-[Mubit guide](docs/MUBIT.md) for task/session grouping, dataset paths, review,
-training, evaluation and routing.
+next version. See the [Mubit guide](docs/MUBIT.md) for task/session grouping,
+dataset paths, review, training, evaluation and routing.
 
 ## Data protection
 
@@ -348,9 +355,9 @@ Accounts isolate documents; Argon2id protects passwords; server-side sessions
 use HttpOnly cookies; Fernet encrypts document content, vaults and chat at rest.
 The backend can decrypt this data. Approval is saved, and `/ask` answers only
 for an approved document. Approval is not tied to a result revision, and Approve
-all works while some parts were not checked by the model. Question filtering can miss unfamiliar
-free-form values. Read the [security guide](docs/SECURITY.md) before making
-privacy claims about a deployment.
+all works while some parts were not checked by the model. Question filtering can
+miss unfamiliar free-form values. Read the [security guide](docs/SECURITY.md)
+before making privacy claims about a deployment.
 
 ## Repository layout
 
