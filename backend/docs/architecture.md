@@ -82,6 +82,8 @@ domain; an ORM model per module; async database drivers (the template's async ad
 
 ## 3. Layout
 
+![The backend in four layers: entry, feature modules, domain packages and core](../../docs/readme/backend.svg)
+
 ```
 backend/
   app/

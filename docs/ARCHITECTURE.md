@@ -10,6 +10,7 @@ gateway for both detection (**T1**) and document questions (**T2**).
 ## System and trust boundaries
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart LR
     U["User's browser"] -->|"HTTPS: upload, review, question"| W["Web: React and Caddy"]
     subgraph V["MuGuard deployment on Railway"]
@@ -23,6 +24,10 @@ flowchart LR
     M -->|"Reply and request ID"| B
     B -->|"Review result, restored answer, download"| W
     W --> U
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    classDef ink fill:#0d0d0d,stroke:#0d0d0d,color:#ecebe5
+    class M mubit
+    class P ink
 ```
 
 The browser connects to the public web service. Caddy forwards API requests to
@@ -34,6 +39,7 @@ this is not browser-only or end-to-end encrypted processing.
 ## A document from upload to download
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart TD
     A["Upload, paste or open a synthetic sample"] --> B["Authenticate owner and extract text"]
     B --> C["Save encrypted source, text and layout"]
@@ -47,6 +53,8 @@ flowchart TD
     E -->|"Save corrections without a model call"| V
     E -->|"Download"| F["Remove covered PDF content or export redacted text"]
     E -->|"Approve in UI"| Q["Open document Q&A"]
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    class T mubit
 ```
 
 1. **Extract.** Text-layer PDFs use PyMuPDF text and word coordinates. Text,
@@ -72,6 +80,7 @@ flowchart TD
 ## Questions and answers
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "actorBkg": "#f8f7f3", "actorBorder": "#0d0d0d", "actorTextColor": "#0d0d0d", "actorLineColor": "#8b8a85", "signalColor": "#8b8a85", "signalTextColor": "#0d0d0d", "noteBkgColor": "#0d0d0d", "noteTextColor": "#ff6b61", "noteBorderColor": "#0d0d0d", "activationBkgColor": "#e2231a"}}}%%
 sequenceDiagram
     actor User
     participant UI as Browser

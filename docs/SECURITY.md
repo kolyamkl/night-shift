@@ -24,6 +24,7 @@ certification or a claim of complete anonymisation.
 | Download recipient | Redacted output; anything not detected or deliberately unhidden remains visible |
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart TD
     A["Original content in backend memory"] --> E["Encrypt with server-held Fernet key"]
     E --> D[("PostgreSQL ciphertext")]
@@ -39,6 +40,10 @@ flowchart TD
     V --> X["Restore answer on backend"]
     B --> X
     X --> U["Owner's browser"]
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    classDef ink fill:#0d0d0d,stroke:#0d0d0d,color:#ecebe5
+    class T,M mubit
+    class D ink
 ```
 
 Encryption at rest protects stored content; it does not change outbound T1

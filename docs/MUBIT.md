@@ -69,6 +69,7 @@ can change which Mubit task receives calls.
 ## Training and review
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart LR
     D["Synthetic labelled documents"] --> S["Validate and split by document or source"]
     S --> C["Chunk and send with fixed T1 instructions"]
@@ -80,6 +81,10 @@ flowchart LR
     P --> O["Observe quality and routing in console"]
     U["In-app hide or unhide"] --> L["Save local redaction correction"]
     L -.->|"Manual console feedback; not automatic"| E
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    classDef ink fill:#0d0d0d,stroke:#0d0d0d,color:#ecebe5
+    class T mubit
+    class U,L ink
 ```
 
 Mubit distinguishes recorded calls from **kept training examples**. Training

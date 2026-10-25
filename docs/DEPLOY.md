@@ -20,11 +20,14 @@ has no public domain. **Don't add one.**
 ## Service topology
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart LR
     U["Browser"] -->|"HTTPS"| W["Public web service: Caddy and React"]
     W -->|"Private HTTP: /api"| B["Private backend: FastAPI"]
     B -->|"Private database connection"| P[("PostgreSQL")]
     B -->|"HTTPS model calls"| M["Mubit"]
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    class M mubit
 ```
 
 TLS terminates at the public edge. The web service proxies the API so cookies

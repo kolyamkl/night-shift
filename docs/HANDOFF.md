@@ -57,28 +57,36 @@ Current boundary: T1 receives original text with default recording. Review happe
 
 ## 3. Architecture and data flow
 
-```
-upload / paste / sample
-  └─ POST /api/documents
-       ├─ PDF with a text layer, no scanned page → extract.extract_pdf (PyMuPDF words: text + box + char range)
-       ├─ PDF with a scanned page (ingest.scanned_pages) → ocrdoc.document_from_ocr (ingest OCR) → PDF + word boxes
-       ├─ image (jpg png heic tiff webp) → ocrdoc.document_from_ocr → image turned into a PDF + word boxes
-       ├─ .eml → headers + body text
-       ├─ .txt .md .csv .json, code and config files (.py .ts .yaml .sql .html ...) → text
-       └─ any other file that is UTF-8 with no NUL byte in its first 8 KB → text (else 415)
-  └─ POST /api/documents/{id}/redact/stream   (server-sent events, what the UI should use)
-     or POST /api/documents/{id}/redact        (same result in one JSON answer)
-       pipeline.run_pipeline:
-         chunk text (≤4000 chars for evalkit, ≤1400 for rewrite; paragraph cuts)
-         → T1 per chunk in parallel (6 workers); each finished chunk is streamed as it lands
-         every value T1 returns is located across the WHOLE document (app.redaction.spans.locate)
-         + regex layer (app/redaction/detectors/) → merge overlaps
-         → widen addresses (app/redaction/addresses.py) → Vault placeholders
-         → boxes: words overlapping a span, one rectangle per line (PDF only)
-  └─ review in the UI → POST /corrections {hide|unhide} → pipeline.rebuild (no new T1 calls)
-  └─ GET /file → true-redacted PDF (pdfout) or redacted .txt
-  └─ POST /ask → question pseudonymised with a copy of the vault (app/redaction/question.py) → T2 gets only
-     redacted_text and that question → Markdown taken out → evalkit.redact.restore puts values back
+![The backend in four layers: entry, feature modules, domain packages and core](readme/backend.svg)
+
+Paths below are under `backend/app/`.
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "clusterBkg": "#ecebe5", "clusterBorder": "#0d0d0d", "edgeLabelBackground": "#ecebe5"}}}%%
+flowchart TD
+    IN["Upload, paste or sample: POST /api/documents"] --> UP["modules/documents/uploads.py"]
+    UP -->|"PDF with a text layer, no scanned page"| PDF["redaction/document.py extract_pdf: PyMuPDF words with box and char range"]
+    UP -->|"PDF with a scanned page (ingest.scanned_pages), or an image"| OCR["redaction/ocr.py document_from_ocr: ingest OCR, a PDF with word boxes"]
+    UP -->|".eml, text, code and config files, other UTF-8 with no NUL in the first 8 KB"| TXT["Plain text (anything else: 415)"]
+    PDF --> SCAN
+    OCR --> SCAN
+    TXT --> SCAN
+    SCAN["POST /api/documents/{id}/redact/stream (SSE, what the UI uses) or /redact (one JSON answer)"] --> RUN["redaction/pipeline.py run_pipeline: paragraph cuts, at most 1,400 chars for rewrite, 4,000 for evalkit"]
+    RUN --> T1["T1 per chunk through Mubit, 6 in parallel; each part streams as it lands"]
+    RUN --> RX["Regex layer: redaction/detectors/"]
+    T1 --> LOC["redaction/spans.py locate: each value found across the whole document"]
+    LOC --> MG["Merge overlaps, widen addresses (redaction/addresses.py), Vault placeholders"]
+    RX --> MG
+    MG --> BX["Boxes: words under a span, one rectangle per line (PDF only)"]
+    BX --> REV["Review in the UI"]
+    REV -->|"POST /corrections: hide or unhide"| RB["pipeline.rebuild, no new T1 call"]
+    RB --> REV
+    REV -->|"GET /file"| OUT["redaction/pdf.py redact_pdf, or redacted .txt"]
+    REV -->|"POST /ask"| Q["redaction/question.py pseudonymise with a copy of the vault"]
+    Q --> T2["T2 through Mubit: redacted text and that question only"]
+    T2 --> R["question.plain takes the Markdown out, redaction/vault.py restore puts values back"]
+    classDef mubit fill:#e2231a,stroke:#0d0d0d,color:#ffffff
+    class T1,T2 mubit
 ```
 
 Model calls (both through Mubit, `backend/app/llm/`):
