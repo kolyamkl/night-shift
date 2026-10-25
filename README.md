@@ -30,9 +30,9 @@ the answer so the result remains useful to you, and its detection task is traine
 through Mubit. Built for the Mubit Night Shift hackathon in London, 23–25 October
 2026, with FastAPI, PostgreSQL, React and Mubit.
 
-> **Current privacy boundary:** detection sends original document chunks through
-> Mubit, with recording enabled by default. Q&A receives the redacted document
-> and a filtered question. MuGuard does not yet guarantee that original personal
+> **Current privacy boundary:** the AI that answers your questions only ever sees
+> placeholders. Finding the names takes one pass over the original text through
+> Mubit, which records it to train the knight. MuGuard does not yet guarantee that original personal
 > data never reaches an external AI provider. Use synthetic documents for demos;
 > see [implemented protections and limits](docs/SECURITY.md).
 
@@ -98,8 +98,9 @@ feedback; and the real values are put back by MuGuard's backend.
    vault (`Raj Patel` → `[PERSON_1]`). Progress streams to the browser chunk by chunk.
 4. **Review.** Hiding or unhiding a value rebuilds the result locally, with no
    model call, and the correction survives rescans.
-5. **Ask.** After approval, the question is pseudonymised with the same vault,
-   then **T2** receives only the redacted document and redacted question. The
+5. **Ask.** Only an approved document passes the gate: the question box opens
+   after you approve, and the API refuses questions about a document you have not
+   approved. The question is pseudonymised with the same vault, then **T2** receives only the redacted document and redacted question. The
    backend swaps placeholders back to real values before the answer is shown.
 6. **Download.** The PDF is truly redacted: covered text and image pixels are
    removed from the file and hidden metadata is stripped. It is not a black box
@@ -335,8 +336,9 @@ the redacted result and a pseudonymised question with recording off requested.
 Model routing and adapter rollout are configured in Mubit, not proven by the
 model name displayed in the app.
 
-Recorded T1 calls can become reviewed training examples. **In-app corrections
-are not automatically sent as Mubit training feedback.** See the
+Every miss you fix is saved at once, with no new model call. The knight learns
+from the calls our team rates in the Mubit console; the calls Mubit keeps train its
+next version. See the
 [Mubit guide](docs/MUBIT.md) for task/session grouping, dataset paths, review,
 training, evaluation and routing.
 
@@ -344,8 +346,9 @@ training, evaluation and routing.
 
 Accounts isolate documents; Argon2id protects passwords; server-side sessions
 use HttpOnly cookies; Fernet encrypts document content, vaults and chat at rest.
-The backend can decrypt this data. Approval is saved but is currently enforced
-by the UI rather than the `/ask` endpoint. Question filtering can miss unfamiliar
+The backend can decrypt this data. Approval is saved, and `/ask` answers only
+for an approved document. Approval is not tied to a result revision, and Approve
+all works while some parts were not checked by the model. Question filtering can miss unfamiliar
 free-form values. Read the [security guide](docs/SECURITY.md) before making
 privacy claims about a deployment.
 
