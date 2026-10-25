@@ -18,13 +18,13 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 from app import ingest
-from app.redaction import ocr as ocrdoc
-from app.redaction.document import Document, extract_pdf
 from app.ingest import vision
 from app.ingest.fixes import fix_identifiers
 from app.ingest.layout import assemble
 from app.ingest.types import ExtractedDocument, Line, Page
 from app.main import app
+from app.redaction import ocr as ocrdoc
+from app.redaction.document import Document, extract_pdf
 from app.redaction.ocr import document_from_ocr
 from app.redaction.pdf import redact_pdf
 from app.redaction.pipeline import Box, T1Result
@@ -94,8 +94,10 @@ class Scene:
 
 
 def _mark(img, colour):
-    bands = [band.point(lambda v, want=want: 255 if abs(v - want) < 70 else 0)
-             for band, want in zip(img.convert("RGB").split(), colour)]
+    bands = [
+        band.point(lambda v, want=want: 255 if abs(v - want) < 70 else 0)
+        for band, want in zip(img.convert("RGB").split(), colour)
+    ]
     box = ImageChops.multiply(ImageChops.multiply(bands[0], bands[1]), bands[2]).getbbox()
     return None if box is None else ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
 
@@ -107,6 +109,7 @@ def _box_around(f, box):
 
 def fake_vision(*scenes, sideways=0.5):
     """Reads upright text with full confidence, text on its side with `sideways`, upside down not at all."""
+
     def recognize(img):
         scene = next((s for s in scenes if s.found_in(img)), None)
         if scene is None:  # a blank page
@@ -119,24 +122,38 @@ def fake_vision(*scenes, sideways=0.5):
         lines = []
         for p in scene.pieces:
             x0, y0, x1, y1 = _box_around(to_img, scene.ink(p))
-            lines.append(Line(text=p.ocr or p.text, bbox=(x0 / img.width, y0 / img.height, x1 / img.width, y1 / img.height),
-                              confidence=conf, angle=angle))
+            lines.append(
+                Line(
+                    text=p.ocr or p.text,
+                    bbox=(x0 / img.width, y0 / img.height, x1 / img.width, y1 / img.height),
+                    confidence=conf,
+                    angle=angle,
+                )
+            )
         return lines
+
     return recognize
 
 
-LETTER = Scene([
-    Piece(150, 200, "Tenancy agreement"),
-    Piece(150, 290, "Tenant: Oleksandra Kovalenko"),
-    Piece(150, 326, "Address: 12 Oak Road, Leeds LS6 2AB", ocr="Address: 12 Oak Road, Leeds LS62AB"),
-    Piece(150, 362, "Account:"),
-    Piece(700, 362, "31926819", ocr="3l926819"),  # one row, two pieces; and a misread digit
-    Piece(150, 450, "Signed by Raj Patel"),
-])
-SECOND = Scene([Piece(120, 200, "Page two for Ann Lee"), Piece(120, 236, "NI number QQ 12 34 56 C")],
-               size=(1400, 1000), colours=((255, 0, 255), (255, 255, 0), (0, 255, 255)))
-LETTER_TEXT = ("Tenancy agreement\n\nTenant: Oleksandra Kovalenko\nAddress: 12 Oak Road, Leeds LS6 2AB\n"
-               "Account: 31926819\n\nSigned by Raj Patel")
+LETTER = Scene(
+    [
+        Piece(150, 200, "Tenancy agreement"),
+        Piece(150, 290, "Tenant: Oleksandra Kovalenko"),
+        Piece(150, 326, "Address: 12 Oak Road, Leeds LS6 2AB", ocr="Address: 12 Oak Road, Leeds LS62AB"),
+        Piece(150, 362, "Account:"),
+        Piece(700, 362, "31926819", ocr="3l926819"),  # one row, two pieces; and a misread digit
+        Piece(150, 450, "Signed by Raj Patel"),
+    ]
+)
+SECOND = Scene(
+    [Piece(120, 200, "Page two for Ann Lee"), Piece(120, 236, "NI number QQ 12 34 56 C")],
+    size=(1400, 1000),
+    colours=((255, 0, 255), (255, 255, 0), (0, 255, 255)),
+)
+LETTER_TEXT = (
+    "Tenancy agreement\n\nTenant: Oleksandra Kovalenko\nAddress: 12 Oak Road, Leeds LS6 2AB\n"
+    "Account: 31926819\n\nSigned by Raj Patel"
+)
 
 
 def png(img, **kw):
@@ -174,7 +191,7 @@ def assert_offsets(doc: Document, text: str):
     assert doc.kind == "pdf" and doc.text == text
     assert [w.start for w in doc.words] == sorted(w.start for w in doc.words)
     for w in doc.words:
-        assert doc.text[w.start:w.end] == w.text and w.text.strip() == w.text != ""
+        assert doc.text[w.start : w.end] == w.text and w.text.strip() == w.text != ""
 
 
 def assert_boxes_match_the_ink(doc: Document, scenes: list[Scene | None], tol=1.5):
@@ -223,7 +240,10 @@ def assert_redaction_removes_the_pixels(doc: Document):
             if b.page != pno:
                 continue
             r = pymupdf.Rect(b.x0, b.y0, b.x1, b.y1) * page.rotation_matrix * 2
-            assert max(new.crop((round(r.x0) + 2, round(r.y0) + 2, round(r.x1) - 2, round(r.y1) - 2)).getextrema()[0]) <= 30
+            assert (
+                max(new.crop((round(r.x0) + 2, round(r.y0) + 2, round(r.x1) - 2, round(r.y1) - 2)).getextrema()[0])
+                <= 30
+            )
             draw.rectangle((r.x0 - 6, r.y0 - 6, r.x1 + 6, r.y1 + 6), fill=255)
         diff = ImageChops.difference(old, new).convert("L").point(lambda v: 255 if v > 40 else 0)
         assert ImageChops.subtract(diff, covered).getbbox() is None, f"page {pno} changed outside the boxes"
@@ -242,8 +262,12 @@ def _line(text, x0, y0, x1, y1, angle=0.0):
 
 
 def test_words_get_offsets_into_ingest_text_and_boxes_inside_their_line(monkeypatch):
-    lines = [_line("Account:", 0.1, 0.30, 0.3, 0.34), _line("3l926819", 0.5, 0.302, 0.8, 0.342),
-             _line("Dear Ann Lee,", 0.1, 0.10, 0.5, 0.14), _line("Kind regards", 0.1, 0.60, 0.5, 0.64)]
+    lines = [
+        _line("Account:", 0.1, 0.30, 0.3, 0.34),
+        _line("3l926819", 0.5, 0.302, 0.8, 0.342),
+        _line("Dear Ann Lee,", 0.1, 0.10, 0.5, 0.14),
+        _line("Kind regards", 0.1, 0.60, 0.5, 0.64),
+    ]
     text, fixes = fix_identifiers(assemble(lines), 1)
     assert fixes and text == "Dear Ann Lee,\n\nAccount: 31926819\n\nKind regards"
     page = Page(number=1, source="ocr", text=text, lines=lines)
@@ -254,8 +278,15 @@ def test_words_get_offsets_into_ingest_text_and_boxes_inside_their_line(monkeypa
     assert doc.pages == [(842.0, 421.0)]  # no dpi: a photo, long side 842 pt (A4)
     assert [w.text for w in doc.words] == ["Dear", "Ann", "Lee,", "Account:", "31926819", "Kind", "regards"]
     boxes = {ln.text: (ln.bbox[0] * 842, ln.bbox[1] * 421, ln.bbox[2] * 842, ln.bbox[3] * 421) for ln in lines}
-    by_text = {"Dear": "Dear Ann Lee,", "Ann": "Dear Ann Lee,", "Lee,": "Dear Ann Lee,", "Account:": "Account:",
-               "31926819": "3l926819", "Kind": "Kind regards", "regards": "Kind regards"}
+    by_text = {
+        "Dear": "Dear Ann Lee,",
+        "Ann": "Dear Ann Lee,",
+        "Lee,": "Dear Ann Lee,",
+        "Account:": "Account:",
+        "31926819": "3l926819",
+        "Kind": "Kind regards",
+        "regards": "Kind regards",
+    }
     for w in doc.words:
         x0, y0, x1, y1 = boxes[by_text[w.text]]
         assert x0 - 1e-3 <= w.bbox[0] < w.bbox[2] <= x1 + 1e-3 and y0 - 1e-3 <= w.bbox[1] < w.bbox[3] <= y1 + 1e-3
@@ -266,8 +297,11 @@ def test_words_get_offsets_into_ingest_text_and_boxes_inside_their_line(monkeypa
 
 
 def test_a_line_missing_from_the_text_is_skipped_and_counted(monkeypatch, caplog):
-    lines = [_line("Dear Ann", 0.1, 0.1, 0.5, 0.14), _line("Gone line", 0.1, 0.15, 0.5, 0.19),
-             _line("Kind regards", 0.1, 0.20, 0.5, 0.24)]
+    lines = [
+        _line("Dear Ann", 0.1, 0.1, 0.5, 0.14),
+        _line("Gone line", 0.1, 0.15, 0.5, 0.19),
+        _line("Kind regards", 0.1, 0.20, 0.5, 0.24),
+    ]
     page = Page(number=1, source="ocr", text="Dear Ann\nKind regards", lines=lines)
     monkeypatch.setattr(ingest, "extract", lambda data: ExtractedDocument(kind="image", pages=[page]))
     with caplog.at_level(logging.WARNING, logger="veil.ocr"):
@@ -300,8 +334,11 @@ def test_photo_words_are_boxed_on_a_pdf_page_and_redaction_removes_the_pixels(le
     assert_redaction_removes_the_pixels(doc)
 
 
-@pytest.mark.parametrize(("turn", "rotation"), [(90, 270.0), (180, 180.0), (270, 90.0), (3.0, 357.0), (-2.0, 2.0)],
-                         ids=["90", "180", "270", "deskew+3", "deskew-2"])
+@pytest.mark.parametrize(
+    ("turn", "rotation"),
+    [(90, 270.0), (180, 180.0), (270, 90.0), (3.0, 357.0), (-2.0, 2.0)],
+    ids=["90", "180", "270", "deskew+3", "deskew-2"],
+)
 def test_turned_and_skewed_photos_map_back(letter_vision, turn, rotation):
     stored = LETTER.image().rotate(turn, resample=Image.BICUBIC, expand=True, fillcolor="white")
     data = png(stored, dpi=(150, 150))
@@ -351,8 +388,9 @@ def traces(pdf_bytes: bytes, needle: str) -> list[str]:
     for xref in range(1, pdf.xref_length()):
         if needle in pdf.xref_object(xref):
             found.append(f"object {xref}")
-        if pdf.xref_is_stream(xref) and any(needle.encode() in (data or b"")
-                                            for data in (pdf.xref_stream_raw(xref), pdf.xref_stream(xref))):
+        if pdf.xref_is_stream(xref) and any(
+            needle.encode() in (data or b"") for data in (pdf.xref_stream_raw(xref), pdf.xref_stream(xref))
+        ):
             found.append(f"stream {xref}")
     return found
 
@@ -366,6 +404,7 @@ def _photo_with_metadata(fmt: str) -> bytes:
         LETTER.image().save(buf, "JPEG", quality=90, dpi=(150, 150), exif=exif, comment=f"by {SECRET}")
     else:
         from PIL.PngImagePlugin import PngInfo
+
         info = PngInfo()
         info.add_text("Author", SECRET)
         LETTER.image().save(buf, "PNG", dpi=(150, 150), pnginfo=info)
@@ -394,13 +433,16 @@ def test_a_photo_page_is_a4_sized_and_its_image_capped(letter_vision):
     assert_redaction_removes_the_pixels(doc)
 
 
-@pytest.mark.parametrize(("size", "dpi", "page"), [
-    ((1240, 1754), (150, 150), (595.2, 841.9)),  # an A4 scan keeps its paper size
-    ((2480, 3508), (300, 300), (595.2, 841.9)),
-    ((1754, 2480), (150, 150), (841.9, 1190.4)),  # A3 at 150 dpi: still under 1200 pt
-    ((3024, 4032), (72, 72), (631.5, 842.0)),  # a phone photo: 42 inches at its dpi
-    ((800, 600), None, (842.0, 631.5)),  # no dpi
-])
+@pytest.mark.parametrize(
+    ("size", "dpi", "page"),
+    [
+        ((1240, 1754), (150, 150), (595.2, 841.9)),  # an A4 scan keeps its paper size
+        ((2480, 3508), (300, 300), (595.2, 841.9)),
+        ((1754, 2480), (150, 150), (841.9, 1190.4)),  # A3 at 150 dpi: still under 1200 pt
+        ((3024, 4032), (72, 72), (631.5, 842.0)),  # a phone photo: 42 inches at its dpi
+        ((800, 600), None, (842.0, 631.5)),  # no dpi
+    ],
+)
 def test_page_size_rules(size, dpi, page):
     assert ocrdoc._page_size(Image.new("L", size), dpi, turned=False) == pytest.approx(page, abs=0.1)
 
@@ -422,7 +464,10 @@ def test_multi_frame_tiff_gives_one_page_per_frame(letter_vision):
     LETTER.image().save(buf, "TIFF", save_all=True, append_images=[SECOND.image()], dpi=(150, 150))
     doc = document_from_ocr(buf.getvalue(), "scan.tiff")
     assert_offsets(doc, LETTER_TEXT + "\n\nPage two for Ann Lee\nNI number QQ 12 34 56 C")
-    assert doc.pages == [pytest.approx((1240 * 0.48, 1754 * 0.48), rel=1e-3), pytest.approx((1400 * 0.48, 1000 * 0.48), rel=1e-3)]
+    assert doc.pages == [
+        pytest.approx((1240 * 0.48, 1754 * 0.48), rel=1e-3),
+        pytest.approx((1400 * 0.48, 1000 * 0.48), rel=1e-3),
+    ]
     assert {w.page for w in doc.words} == {0, 1}
     assert_boxes_match_the_ink(doc, [LETTER, SECOND])
     assert_redaction_removes_the_pixels(doc)
@@ -504,7 +549,9 @@ def test_mixed_pdf_reads_its_scanned_pages(letter_vision):
     for w, (x0, y0, x1, y1, *_rest) in zip(got, own):
         assert w.bbox[0] <= x0 + 1 and w.bbox[2] >= x1 - 1 and w.bbox[1] <= (y0 + y1) / 2 <= w.bbox[3], w.text
     target = [w for w in got if w.text in ("Raj", "Patel,")]
-    out = redact_pdf(doc.source, [Box(0, *w.bbox, type="PERSON", placeholder="[PERSON_1]", span_index=0) for w in target])
+    out = redact_pdf(
+        doc.source, [Box(0, *w.bbox, type="PERSON", placeholder="[PERSON_1]", span_index=0) for w in target]
+    )
     text = pymupdf.open(stream=out, filetype="pdf")[0].get_text()
     assert "Raj" not in text and "Patel" not in text
     assert "code 20-45-77, account 31926819." in text and "returns the deposit at the end of the term." in text
@@ -517,8 +564,12 @@ def test_text_layer_pages_also_get_boxes(monkeypatch):
     monkeypatch.setattr(vision, "recognize", no_ocr)
     pdf = pymupdf.open()
     page = pdf.new_page()
-    page.insert_text((72, 100), "Tenant: Raj Patel, sort code 20-45-77, account 31926819, rent 950 pounds a month.", fontsize=9)
-    page.insert_text((72, 120), "The landlord keeps the deposit in a scheme and returns it at the end of the term.", fontsize=9)
+    page.insert_text(
+        (72, 100), "Tenant: Raj Patel, sort code 20-45-77, account 31926819, rent 950 pounds a month.", fontsize=9
+    )
+    page.insert_text(
+        (72, 120), "The landlord keeps the deposit in a scheme and returns it at the end of the term.", fontsize=9
+    )
     doc = document_from_ocr(pdf.tobytes(), "lease.pdf")
     assert doc.text.startswith("Tenant: Raj Patel,")
     assert_offsets(doc, doc.text)
@@ -537,13 +588,18 @@ def test_text_layer_pages_also_get_boxes(monkeypatch):
 def client(letter_vision, postgres_store):
     def t1_factory(doc_id):
         def t1(chunk):
-            return T1Result([{"text": "Raj Patel", "type": "PERSON"}] if "Raj Patel" in chunk else [], "mreq_test", None)
+            return T1Result(
+                [{"text": "Raj Patel", "type": "PERSON"}] if "Raj Patel" in chunk else [], "mreq_test", None
+            )
+
         return t1
 
     app.state.models.t1_factory = t1_factory
     with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as browser:
-        registered = browser.post("/api/auth/register", json={
-            "email": f"ocr-{postgres_store.test_suffix}@example.test", "password": "test-password"})
+        registered = browser.post(
+            "/api/auth/register",
+            json={"email": f"ocr-{postgres_store.test_suffix}@example.test", "password": "test-password"},
+        )
         assert registered.status_code == 201
         yield browser
     app.state.models.t1_factory = None
@@ -555,7 +611,9 @@ HIDDEN_ON_LETTER = {"Raj", "Patel", "31926819", "LS6", "2AB", "12", "Oak", "Road
 
 
 def test_photo_upload_gives_boxes_and_a_redacted_pdf(client):
-    doc = client.post("/api/documents", files={"file": ("photo.png", png(LETTER.image(), dpi=(150, 150)), "image/png")}).json()
+    doc = client.post(
+        "/api/documents", files={"file": ("photo.png", png(LETTER.image(), dpi=(150, 150)), "image/png")}
+    ).json()
     assert doc["kind"] == "pdf" and doc["text"] == LETTER_TEXT and len(doc["pages"]) == 1
     res = client.post(f"/api/documents/{doc['doc_id']}/redact").json()
     assert {e["text"] for e in res["entities"]} >= {"Raj Patel", "31926819", "LS6 2AB"}

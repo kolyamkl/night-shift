@@ -55,6 +55,8 @@ def _known(question: str, vault: Vault) -> list[tuple[int, int, str]]:
                         parts.setdefault(part.casefold(), set()).add(placeholder)
     for part, owners in parts.items():
         pattern = _pattern(part)
+        if pattern is None:  # cannot happen: a part has at least three characters
+            continue
         for m in pattern.finditer(question):
             if not (m.group()[0].isupper() or len(part) >= 6):
                 continue
@@ -74,7 +76,7 @@ def pseudonymise(question: str, vault: Vault) -> tuple[str, Vault]:
             spans.append(Span(sp.start, sp.end, "NEW:" + sp.type, sp.text))
     out, pos = [], 0
     for sp in merge(spans, question):
-        out.append(question[pos:sp.start])
+        out.append(question[pos : sp.start])
         if sp.type.startswith("NEW:"):
             out.append(local.placeholder_for(sp.text, sp.type[4:]))
         elif sp.type.startswith("["):

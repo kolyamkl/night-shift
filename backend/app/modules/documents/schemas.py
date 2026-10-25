@@ -29,8 +29,13 @@ class DocumentOut(BaseModel):
 
     @classmethod
     def of(cls, doc: Document) -> "DocumentOut":
-        return cls(doc_id=doc.doc_id, kind=doc.kind, filename=doc.filename, text=doc.text,
-                   pages=[PageSize(width=w, height=h) for w, h in doc.pages])
+        return cls(
+            doc_id=doc.doc_id,
+            kind=doc.kind,
+            filename=doc.filename,
+            text=doc.text,
+            pages=[PageSize(width=w, height=h) for w, h in doc.pages],
+        )
 
 
 class EntityOut(BaseModel):
@@ -82,8 +87,16 @@ class ScanResult(BaseModel):
         return cls(
             doc_id=doc.doc_id,
             redacted_text=res.redacted_text,
-            entities=[EntityOut(start=s.start, end=s.end, text=s.text, type=s.type,
-                                placeholder=res.vault.placeholder_for(s.text, s.type)) for s in res.spans],
+            entities=[
+                EntityOut(
+                    start=s.start,
+                    end=s.end,
+                    text=s.text,
+                    type=s.type,
+                    placeholder=res.vault.placeholder_for(s.text, s.type),
+                )
+                for s in res.spans
+            ],
             boxes=[BoxOut(**asdict(b)) for b in res.boxes],
             chunks=[ChunkOut(**asdict(c)) for c in res.chunks],
             stats=res.stats,

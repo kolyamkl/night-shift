@@ -31,8 +31,12 @@ def scan_events(service: ScanService, scan: Scan, *, owner_id: str, retry: Retry
     doc = scan.saved.document
     models = service.models
     events: queue.Queue[tuple[str, dict[str, Any]]] = queue.Queue()
-    head = {"doc_id": doc.doc_id, "model": "on" if models.t1_on else "off",
-            "t1_model": models.t1_model if models.t1_on else None, "t1_prompt": models.t1_prompt}
+    head = {
+        "doc_id": doc.doc_id,
+        "model": "on" if models.t1_on else "off",
+        "t1_model": models.t1_model if models.t1_on else None,
+        "t1_prompt": models.t1_prompt,
+    }
 
     def emit(name: str, data: dict[str, Any]) -> None:
         if not scan.superseded():

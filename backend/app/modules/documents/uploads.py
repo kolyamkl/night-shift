@@ -8,8 +8,6 @@ text, as is any file with an unknown extension that is really UTF-8 text (a Dock
 import email
 import re
 from email import policy
-from email.message import EmailMessage
-from typing import cast
 
 from app.core.errors import BadRequestError, PayloadTooLargeError, UnsupportedMediaTypeError
 from app.redaction.document import Document, extract_pdf, extract_text
@@ -68,7 +66,7 @@ def _text(text: str, name: str) -> Document:
 
 
 def _email_to_text(raw: bytes) -> str:
-    msg = cast(EmailMessage, email.message_from_bytes(raw, policy=policy.default))  # what policy.default builds
+    msg = email.message_from_bytes(raw, policy=policy.default)
     head = "\n".join(f"{h}: {msg[h]}" for h in ("From", "To", "Cc", "Date", "Subject") if msg[h])
     body = msg.get_body(preferencelist=("plain", "html"))
     text = body.get_content() if body else ""

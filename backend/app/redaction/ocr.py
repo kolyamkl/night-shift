@@ -26,6 +26,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from difflib import SequenceMatcher
 from itertools import accumulate
+from typing import Any
 
 import pymupdf
 import pypdfium2 as pdfium
@@ -49,12 +50,101 @@ LOSSY = {"JPEG", "MPO", "HEIF", "HEIC", "AVIF", "WEBP"}  # stored as JPEG; anyth
 # the widths are within 1.3 characters for proportional fonts (counts alone were up to 3 off), and
 # counts are exact for monospaced ones.
 HELVETICA = (
-    278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278,  # space to /
-    556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,  # 0 to ?
-    1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,  # @ to O
-    667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,  # P to _
-    333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,  # ` to o
-    556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,  # p to ~
+    278,
+    278,
+    355,
+    556,
+    556,
+    889,
+    667,
+    191,
+    333,
+    333,
+    389,
+    584,
+    278,
+    333,
+    278,
+    278,  # space to /
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    556,
+    278,
+    278,
+    584,
+    584,
+    584,
+    556,  # 0 to ?
+    1015,
+    667,
+    667,
+    722,
+    722,
+    667,
+    611,
+    778,
+    722,
+    278,
+    500,
+    667,
+    556,
+    833,
+    722,
+    778,  # @ to O
+    667,
+    778,
+    722,
+    667,
+    611,
+    722,
+    667,
+    944,
+    667,
+    667,
+    611,
+    278,
+    278,
+    278,
+    469,
+    556,  # P to _
+    333,
+    556,
+    556,
+    500,
+    556,
+    556,
+    278,
+    556,
+    556,
+    222,
+    222,
+    500,
+    222,
+    833,
+    556,
+    556,  # ` to o
+    556,
+    556,
+    333,
+    500,
+    278,
+    556,
+    500,
+    722,
+    500,
+    500,
+    500,
+    334,
+    260,
+    334,
+    584,  # p to ~
 )
 
 Point = Callable[[float, float], pymupdf.Point]
@@ -75,8 +165,9 @@ def document_from_ocr(data: bytes, filename: str) -> Document:
         log.warning("OCR boxes failed (%s); this document is kept as text only", type(exc).__name__)
         return extract_text(ocr.text, filename)
     if missed:
-        log.warning("OCR boxes: %d of %d lines could not be placed in the text; their words have no boxes",
-                    missed, total)
+        log.warning(
+            "OCR boxes: %d of %d lines could not be placed in the text; their words have no boxes", missed, total
+        )
     pages = [(page.rect.width, page.rect.height) for page in pdf]
     return replace(extract_text(ocr.text, filename), kind="pdf", words=words, pages=pages, source=source)
 
@@ -93,7 +184,7 @@ def _words(ocr: ingest.ExtractedDocument, pdf: pymupdf.Document, source: bytes) 
             continue
         pno = page.number - 1
         pdf_page = pdf[pno]
-        if page.source == "text_layer":
+        if page.source == "text_layer" and pdfium_doc is not None:  # opened whenever such a page exists
             point = _from_text_layer(pdfium_doc[pno])
         else:
             point = _to_pdf(pdf_page, page.rotation)
@@ -178,7 +269,9 @@ def _word_spans(text: str) -> list[tuple[int, int, float, float]]:
     return out
 
 
-def _along(bbox: tuple[float, float, float, float], angle: float, t0: float, t1: float) -> tuple[float, float, float, float]:
+def _along(
+    bbox: tuple[float, float, float, float], angle: float, t0: float, t1: float
+) -> tuple[float, float, float, float]:
     """The part of a line box from t0 to t1 in reading order. Vision's baseline angle is counterclockwise:
     0 reads left to right, 90 bottom to top (a page on its side), 180 right to left (upside down)."""
     x0, y0, x1, y1 = bbox
@@ -226,7 +319,9 @@ def _from_text_layer(pdf_page: pdfium.PdfPage) -> Point:
     return point
 
 
-def _rect(point: Point, box: tuple[float, float, float, float], bounds: pymupdf.Rect) -> tuple[float, float, float, float]:
+def _rect(
+    point: Point, box: tuple[float, float, float, float], bounds: pymupdf.Rect
+) -> tuple[float, float, float, float]:
     """The PDF rectangle around a box in ingest's frame, clipped to the page. After a deskew the
     box lands a little tilted, so the rectangle is the one around its four corners."""
     x0, y0, x1, y1 = box
@@ -236,8 +331,12 @@ def _rect(point: Point, box: tuple[float, float, float, float], bounds: pymupdf.
     def clip(v: float, lo: float, hi: float) -> float:
         return min(max(v, lo), hi)
 
-    return (clip(min(xs), bounds.x0, bounds.x1), clip(min(ys), bounds.y0, bounds.y1),
-            clip(max(xs), bounds.x0, bounds.x1), clip(max(ys), bounds.y0, bounds.y1))
+    return (
+        clip(min(xs), bounds.x0, bounds.x1),
+        clip(min(ys), bounds.y0, bounds.y1),
+        clip(max(xs), bounds.x0, bounds.x1),
+        clip(max(ys), bounds.y0, bounds.y1),
+    )
 
 
 def _first_pages(data: bytes, count: int) -> bytes:
@@ -272,7 +371,7 @@ def _image_pdf(data: bytes, count: int) -> bytes:
 
 def _dpi(img: Image.Image) -> tuple[float, float] | None:
     """The image's resolution, or None when it has none (or a nonsense one)."""
-    dpi = img.info.get("dpi")
+    dpi: Any = img.info.get("dpi")
     try:
         x, y = float(dpi[0]), float(dpi[1])
     except (TypeError, ValueError, IndexError):
@@ -303,7 +402,7 @@ def _encode(img: Image.Image, lossy: bool) -> bytes:
     else:
         img = img.convert("L" if img.mode in ("1", "L") else "RGB")
     img.info = {}  # EXIF, XMP, ICC, text chunks: none of it is written
-    img.thumbnail((MAX_PIXELS, MAX_PIXELS), Image.LANCZOS)
+    img.thumbnail((MAX_PIXELS, MAX_PIXELS), Image.Resampling.LANCZOS)
     buf = io.BytesIO()
     if lossy:
         img.save(buf, "JPEG", quality=92)

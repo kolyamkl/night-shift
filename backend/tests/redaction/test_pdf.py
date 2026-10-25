@@ -32,7 +32,13 @@ def _jpeg_with_exif(colour=(40, 40, 40)) -> bytes:
     buf = io.BytesIO()
     img = Image.new("RGB", (400, 300), "white")
     img.paste(colour, (40, 40, 360, 80))
-    img.save(buf, "JPEG", quality=90, exif=exif, icc_profile=ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
+    img.save(
+        buf,
+        "JPEG",
+        quality=90,
+        exif=exif,
+        icc_profile=ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes(),
+    )
     return buf.getvalue()
 
 
@@ -50,8 +56,10 @@ def _pdf_naming_someone_outside_its_pages(scan: bool) -> bytes:
     pdf.embfile_add("notes.txt", f"Call {SECRET}".encode())
     pdf.set_toc([[1, f"{SECRET} contract", 1]])
     page.add_file_annot(pymupdf.Point(500, 40), f"From {SECRET}".encode(), "attached.txt")
-    for key, body in (("Thumb", "<</Type/XObject/Subtype/Image/Width 1/Height 1/ColorSpace/DeviceGray/BitsPerComponent 8>>"),
-                      ("Metadata", "<</Type/Metadata/Subtype/XML>>")):
+    for key, body in (
+        ("Thumb", "<</Type/XObject/Subtype/Image/Width 1/Height 1/ColorSpace/DeviceGray/BitsPerComponent 8>>"),
+        ("Metadata", "<</Type/Metadata/Subtype/XML>>"),
+    ):
         xref = pdf.get_new_xref()
         pdf.update_object(xref, body)
         pdf.update_stream(xref, f"picture of the page naming {SECRET}".encode())
@@ -66,7 +74,9 @@ def _traces(pdf_bytes: bytes) -> list[str]:
     for xref in range(1, pdf.xref_length()):
         if SECRET in pdf.xref_object(xref):
             found.append(f"object {xref}")
-        if pdf.xref_is_stream(xref) and any(SECRET.encode() in (d or b"") for d in (pdf.xref_stream_raw(xref), pdf.xref_stream(xref))):
+        if pdf.xref_is_stream(xref) and any(
+            SECRET.encode() in (d or b"") for d in (pdf.xref_stream_raw(xref), pdf.xref_stream(xref))
+        ):
             found.append(f"stream {xref}")
     return found
 
@@ -101,7 +111,7 @@ def test_jpeg_metadata_is_dropped_without_touching_the_image():
     before, after = Image.open(io.BytesIO(jpeg)), Image.open(io.BytesIO(clean))
     assert after.getexif() == {} and after.info.get("icc_profile") == before.info.get("icc_profile")  # colour kept
     assert after.tobytes() == before.tobytes()  # same pixels: only header segments went
-    assert clean.endswith(jpeg[jpeg.index(b"\xff\xda"):])  # the scan data byte for byte
+    assert clean.endswith(jpeg[jpeg.index(b"\xff\xda") :])  # the scan data byte for byte
 
 
 def test_a_broken_xref_entry_in_the_upload_does_not_block_the_download(tenancy_pdf, monkeypatch):

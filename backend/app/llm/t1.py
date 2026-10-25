@@ -79,8 +79,9 @@ def _rewrite_t1(key: str, http_client: Any = None) -> T1Factory:
     # As in send_batch.py: max_retries=0, because we retry only on 429/503/529 (a call that failed any
     # other way may already be recorded). The explicit api_key keeps ANTHROPIC_* settings from the
     # environment out of the request, so only the Mubit key is sent.
-    client = anthropic.Anthropic(api_key=key, base_url=MUBIT_ANTHROPIC, max_retries=0, timeout=120.0,
-                                 http_client=http_client)
+    client = anthropic.Anthropic(
+        api_key=key, base_url=MUBIT_ANTHROPIC, max_retries=0, timeout=120.0, http_client=http_client
+    )
 
     def factory(doc_id: str) -> T1:
         def t1(chunk: str) -> T1Result:
@@ -100,8 +101,11 @@ def _rewrite_t1(key: str, http_client: Any = None) -> T1Factory:
                     if exc.status_code in RETRY_STATUSES and attempt < REWRITE_ATTEMPTS:
                         time.sleep(_retry_after(exc.response.headers, attempt))
                         continue
-                    return T1Result([], exc.response.headers.get("x-middleware-request-id"),
-                                    f"http {exc.status_code}: {exc.message[:200]}")
+                    return T1Result(
+                        [],
+                        exc.response.headers.get("x-middleware-request-id"),
+                        f"http {exc.status_code}: {exc.message[:200]}",
+                    )
             mreq = raw.headers.get("x-middleware-request-id")
             msg = raw.parse()
             if msg.stop_reason == "max_tokens":
@@ -116,8 +120,13 @@ def _rewrite_t1(key: str, http_client: Any = None) -> T1Factory:
     return factory
 
 
-def make_t1_factory(key: str | None, prompt: str = REWRITE, model: str = DEFAULT_EVALKIT_MODEL,
-                    http_client: Any = None, base: str = providers.MUBIT_BASE) -> T1Factory | None:
+def make_t1_factory(
+    key: str | None,
+    prompt: str = REWRITE,
+    model: str = DEFAULT_EVALKIT_MODEL,
+    http_client: Any = None,
+    base: str = providers.MUBIT_BASE,
+) -> T1Factory | None:
     """A per-document T1 maker, or None without a key. `model` and `base` apply to the evalkit prompt
     only: the rewrite prompt always uses prompts.MODEL_ID at MUBIT_ANTHROPIC, since another model would
     be another Mubit task."""

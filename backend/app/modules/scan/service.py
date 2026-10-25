@@ -43,9 +43,16 @@ class ScanService:
         saved, models = scan.saved, self.models
         doc = saved.document
         factory = models.t1_factory
-        res = run_pipeline(doc, t1=factory(doc.doc_id) if factory else None, max_chars=models.chunk_chars,
-                           emit=emit, plan=models.t1_prompt, reuse=saved.result if retry == "failed" else None,
-                           stop=scan.superseded, corrections=saved.result)
+        res = run_pipeline(
+            doc,
+            t1=factory(doc.doc_id) if factory else None,
+            max_chars=models.chunk_chars,
+            emit=emit,
+            plan=models.t1_prompt,
+            reuse=saved.result if retry == "failed" else None,
+            stop=scan.superseded,
+            corrections=saved.result,
+        )
         if scan.superseded():
             raise Superseded
         try:

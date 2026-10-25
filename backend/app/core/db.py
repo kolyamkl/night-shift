@@ -33,8 +33,9 @@ class Database:
         return cls(settings.database_url, settings.storage_key.get_secret_value())
 
     def connect(self) -> psycopg.Connection:
-        return psycopg.connect(self.url, connect_timeout=CONNECT_TIMEOUT_SECONDS,
-                               options=f"-c statement_timeout={STATEMENT_TIMEOUT_MS}")
+        return psycopg.connect(
+            self.url, connect_timeout=CONNECT_TIMEOUT_SECONDS, options=f"-c statement_timeout={STATEMENT_TIMEOUT_MS}"
+        )
 
     def initialize(self, migrations: Path = MIGRATIONS_DIR) -> None:
         """Apply immutable SQL migrations atomically, serialized across app workers, then check that
@@ -47,15 +48,17 @@ class Database:
             for path in sorted(migrations.glob("*.sql")):
                 sql = path.read_text()
                 checksum = hashlib.sha256(sql.encode()).hexdigest()
-                row = conn.execute("SELECT checksum FROM veil_schema_migrations WHERE version = %s",
-                                   (path.name,)).fetchone()
+                row = conn.execute(
+                    "SELECT checksum FROM veil_schema_migrations WHERE version = %s", (path.name,)
+                ).fetchone()
                 if row:
                     if row[0] != checksum:
                         raise RuntimeError(f"Applied migration changed: {path.name}")
                     continue
                 conn.execute(sql.encode())  # a file of several statements: sent as one simple query
-                conn.execute("INSERT INTO veil_schema_migrations (version, checksum) VALUES (%s, %s)",
-                             (path.name, checksum))
+                conn.execute(
+                    "INSERT INTO veil_schema_migrations (version, checksum) VALUES (%s, %s)", (path.name, checksum)
+                )
             probe = conn.execute("SELECT key_probe FROM veil_storage_settings WHERE singleton").fetchone()
             if probe is None:
                 conn.execute("INSERT INTO veil_storage_settings (key_probe) VALUES (%s)", (self.cipher.probe(),))

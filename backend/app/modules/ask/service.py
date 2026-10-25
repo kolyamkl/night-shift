@@ -28,9 +28,22 @@ class AskService:
             raise BadGatewayError(f"The model did not answer: {exc}") from None
         raw = plain(raw)
         answer, unknown = restore(raw, vault)
-        turn = {"question": question, "sent_question": sent_question, "answer": answer,
-                "answer_with_placeholders": raw, "unknown_placeholders": unknown, "mreq_id": mreq}
+        turn = {
+            "question": question,
+            "sent_question": sent_question,
+            "answer": answer,
+            "answer_with_placeholders": raw,
+            "unknown_placeholders": unknown,
+            "mreq_id": mreq,
+        }
         turn_id, created_at = self.repo.add_turn(doc_id, turn, owner_id=owner_id)
-        return Answer(answer=answer, answer_with_placeholders=raw, sent_text=res.redacted_text,
-                      sent_question=sent_question, unknown_placeholders=unknown, mreq_id=mreq,
-                      turn_id=turn_id, created_at=created_at)
+        return Answer(
+            answer=answer,
+            answer_with_placeholders=raw,
+            sent_text=res.redacted_text,
+            sent_question=sent_question,
+            unknown_placeholders=unknown,
+            mreq_id=mreq,
+            turn_id=turn_id,
+            created_at=created_at,
+        )

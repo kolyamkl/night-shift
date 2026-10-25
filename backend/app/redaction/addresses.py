@@ -65,8 +65,12 @@ def _segments(text: str, lo: int, hi: int) -> list[tuple[int, int]]:
 
 
 def _is_town(segment: str) -> bool:
-    return (len(segment) <= 40 and len(segment.split()) <= 4 and bool(TOWN.fullmatch(segment))
-            and not COMPANY.search(segment))
+    return (
+        len(segment) <= 40
+        and len(segment.split()) <= 4
+        and bool(TOWN.fullmatch(segment))
+        and not COMPANY.search(segment)
+    )
 
 
 def _left(text: str, lo: int, start: int) -> int:
@@ -133,10 +137,10 @@ def expand(text: str, spans: list[Span]) -> list[Span]:
     for i, sp in enumerate(spans):
         lo = out[-1].end if out else 0
         if sp.type == "POSTCODE":
-            follows_address = out and out[-1].type == "ADDRESS" and not text[lo:sp.start].strip(" ,\n\t")
+            follows_address = out and out[-1].type == "ADDRESS" and not text[lo : sp.start].strip(" ,\n\t")
             found = None if follows_address else _before_postcode(text, lo, sp.start)
             if found:
-                out.append(Span(found[0], found[1], "ADDRESS", text[found[0]:found[1]]))
+                out.append(Span(found[0], found[1], "ADDRESS", text[found[0] : found[1]]))
             out.append(sp)
             continue
         if sp.type != "ADDRESS":

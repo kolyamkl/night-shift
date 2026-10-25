@@ -1,30 +1,39 @@
 import pytest
-from app.redaction.vault import Vault, restore
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.redaction.pipeline import T1Result
 from app.redaction.question import plain, pseudonymise
+from app.redaction.vault import Vault, restore
 
 
 @pytest.fixture
 def vault():
     v = Vault()
-    for value, etype in [("Daryna Shevchenko", "PERSON"), ("Ben Poole", "PERSON"), ("Tomasz Wierzbicki", "PERSON"),
-                         ("Piotr Wierzbicki", "PERSON"), ("237 Little Court, Bristol", "ADDRESS"),
-                         ("NPM-404605", "CUSTOM"), ("Kenji Morioka-Grant", "PERSON")]:
+    for value, etype in [
+        ("Daryna Shevchenko", "PERSON"),
+        ("Ben Poole", "PERSON"),
+        ("Tomasz Wierzbicki", "PERSON"),
+        ("Piotr Wierzbicki", "PERSON"),
+        ("237 Little Court, Bristol", "ADDRESS"),
+        ("NPM-404605", "CUSTOM"),
+        ("Kenji Morioka-Grant", "PERSON"),
+    ]:
         v.placeholder_for(value, etype)
     return v
 
 
-@pytest.mark.parametrize("question, sent", [
-    ("When can Daryna Shevchenko end the tenancy?", "When can [PERSON_1] end the tenancy?"),
-    ("when can daryna  shevchenko leave?", "when can [PERSON_1] leave?"),
-    ("Does Daryna pay the deposit?", "Does [PERSON_1] pay the deposit?"),
-    ("Has Morioka signed?", "Has [PERSON_5] signed?"),
-    ("Is 237 Little Court Bristol the property?", "Is [ADDRESS_1] the property?"),
-    ("What does tenant NPM-404605 owe?", "What does tenant [CUSTOM_1] owe?"),
-])
+@pytest.mark.parametrize(
+    "question, sent",
+    [
+        ("When can Daryna Shevchenko end the tenancy?", "When can [PERSON_1] end the tenancy?"),
+        ("when can daryna  shevchenko leave?", "when can [PERSON_1] leave?"),
+        ("Does Daryna pay the deposit?", "Does [PERSON_1] pay the deposit?"),
+        ("Has Morioka signed?", "Has [PERSON_5] signed?"),
+        ("Is 237 Little Court Bristol the property?", "Is [ADDRESS_1] the property?"),
+        ("What does tenant NPM-404605 owe?", "What does tenant [CUSTOM_1] owe?"),
+    ],
+)
 def test_known_values_and_name_parts_become_the_document_placeholders(vault, question, sent):
     assert pseudonymise(question, vault)[0] == sent
 
@@ -64,7 +73,10 @@ def client(postgres_store):
 
     def t1_factory(doc_id):
         def t1(chunk):
-            return T1Result([{"text": "Raj Patel", "type": "PERSON"}] if "Raj Patel" in chunk else [], "mreq_test", None)
+            return T1Result(
+                [{"text": "Raj Patel", "type": "PERSON"}] if "Raj Patel" in chunk else [], "mreq_test", None
+            )
+
         return t1
 
     def t2(question, redacted_text):
@@ -73,8 +85,13 @@ def client(postgres_store):
 
     app.state.models.t1_factory, app.state.models.t2 = t1_factory, t2
     with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as test_client:
-        assert test_client.post("/api/auth/register", json={
-            "email": f"q-{postgres_store.test_suffix}@example.test", "password": "test-password"}).status_code == 201
+        assert (
+            test_client.post(
+                "/api/auth/register",
+                json={"email": f"q-{postgres_store.test_suffix}@example.test", "password": "test-password"},
+            ).status_code
+            == 201
+        )
         test_client.seen = seen
         yield test_client
     app.state.models.t1_factory = app.state.models.t2 = None

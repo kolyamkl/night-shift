@@ -11,7 +11,7 @@ def test_rewrite_answers_become_exact_spans():
     assert ("31926819", "BANK_ACCOUNT") in texts and ("4821", "CARD") in texts
     assert any(t.endswith("Patel") for t, _ in texts)
     assert changed == 0
-    assert all(original[s.start:s.end] == s.text for s in spans)
+    assert all(original[s.start : s.end] == s.text for s in spans)
 
 
 def test_rewrite_counts_text_changed_outside_placeholders():

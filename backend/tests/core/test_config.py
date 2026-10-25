@@ -63,8 +63,9 @@ def test_settings_come_from_the_same_files_as_the_key_in_the_same_order(key_file
     root_env.write_text("MUBIT_API_KEY=mbt_root\nVEIL_T1_PROMPT=rewrite\nVEIL_T2_MODEL=claude-sonnet-x\n")
     got = load_settings(key_files)
     assert (got.t1_prompt, t1_model(got), got.t2_model) == ("rewrite", "claude-haiku-4-5", "claude-sonnet-x")
-    assert {name: got.sources.get(name, "default") for name in ("VEIL_T1_PROMPT", "VEIL_T1_MODEL", "VEIL_T2_MODEL")} == {
-        "VEIL_T1_PROMPT": ".env", "VEIL_T1_MODEL": "default", "VEIL_T2_MODEL": ".env"}
+    assert {
+        name: got.sources.get(name, "default") for name in ("VEIL_T1_PROMPT", "VEIL_T1_MODEL", "VEIL_T2_MODEL")
+    } == {"VEIL_T1_PROMPT": ".env", "VEIL_T1_MODEL": "default", "VEIL_T2_MODEL": ".env"}
     backend_env.write_text("VEIL_T1_PROMPT=evalkit\nVEIL_T1_MODEL=gpt-other\n")
     got = load_settings(key_files)
     assert (got.t1_prompt, t1_model(got), got.sources["VEIL_T1_PROMPT"]) == ("evalkit", "gpt-other", "backend/.env")
@@ -93,7 +94,8 @@ def test_the_startup_line_names_the_prompt_and_its_source(key_files, no_veil_env
     settings = load_settings(key_files)
     assert describe(settings, ".env") == (
         "T1 on: prompt rewrite (VEIL_T1_PROMPT from .env), model claude-haiku-4-5, 1400-character chunks, "
-        "Mubit key from .env")
+        "Mubit key from .env"
+    )
     key_files[1][1].write_text("")
     assert describe(load_settings(key_files), None).endswith("regex layer only; prompt rewrite (default)")
 

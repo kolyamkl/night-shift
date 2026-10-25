@@ -46,7 +46,7 @@ MAX_LEN = 40
 def _value_ok(value: str) -> bool:
     digits = sum(c.isdigit() for c in value)
     letters = sum(c.isalpha() for c in value)
-    if not digits or len(value) > MAX_LEN or DATE.fullmatch(value) or MONEY.fullmatch(value.split()[-1]):
+    if not digits or len(value) > MAX_LEN or DATE.fullmatch(value) or MONEY.fullmatch(value.rsplit(maxsplit=1)[-1]):
         return False
     if not letters:
         return digits >= 5
@@ -63,15 +63,15 @@ def _value_at(text: str, pos: int) -> tuple[int, int] | None:
     end = m.end()
     if DIGIT_GROUP.fullmatch(m.group()):  # a number written in groups: "6997 6487 7759"
         for _ in range(3):
-            nxt = DIGIT_GROUP.match(text, end + 1) if text[end:end + 1] == " " else None
+            nxt = DIGIT_GROUP.match(text, end + 1) if text[end : end + 1] == " " else None
             if not nxt:
                 break
             end = nxt.end()
     elif len(m.group()) <= 4 and not any(c.isdigit() for c in m.group()) and UPPER_TOKEN.fullmatch(m.group()):
         for _ in range(2):
-            nxt = UPPER_TOKEN.match(text, end + 1) if text[end:end + 1] == " " else None
-            has_digit = bool(nxt) and any(c.isdigit() for c in nxt.group())
-            if not nxt or (not has_digit and len(nxt.group()) > 4):  # "FLAT DEPOSIT" is words, not a code
+            nxt = UPPER_TOKEN.match(text, end + 1) if text[end : end + 1] == " " else None
+            has_digit = nxt is not None and any(c.isdigit() for c in nxt.group())
+            if nxt is None or (not has_digit and len(nxt.group()) > 4):  # "FLAT DEPOSIT" is words, not a code
                 break
             end = nxt.end()
             if has_digit:
@@ -84,9 +84,9 @@ def _value_at(text: str, pos: int) -> tuple[int, int] | None:
 def detect(text: str) -> list[Span]:
     found: list[Span] = []
     for m in LABEL.finditer(text):
-        if KEEP_CONTEXT.search(text[max(0, m.start() - 25):m.start()]):
+        if KEEP_CONTEXT.search(text[max(0, m.start() - 25) : m.start()]):
             continue
         at = _value_at(text, m.end())
-        if at and _value_ok(text[at[0]:at[1]]):
-            found.append(Span(at[0], at[1], "CUSTOM", text[at[0]:at[1]]))
+        if at and _value_ok(text[at[0] : at[1]]):
+            found.append(Span(at[0], at[1], "CUSTOM", text[at[0] : at[1]]))
     return found

@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/documents")
 
 
 @router.post("/{doc_id}/corrections")
-def correct(doc_id: str, body: Correction, user: CurrentUser, repo: DocumentRepositoryDep,
-            models: ModelsDep) -> ScanResult:
+def correct(
+    doc_id: str, body: Correction, user: CurrentUser, repo: DocumentRepositoryDep, models: ModelsDep
+) -> ScanResult:
     return CorrectionService(repo).apply(doc_id, body, owner_id=user.id, model="on" if models.t1_on else "off")

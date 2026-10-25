@@ -16,21 +16,28 @@ def _client(request: Request) -> str:
 
 
 def _set_cookie(response: Response, request: Request, token: str, secure: bool) -> None:
-    response.set_cookie(COOKIE, token, max_age=SESSION_SECONDS, path="/", httponly=True, samesite="lax",
-                        secure=request.url.scheme == "https" or secure)
+    response.set_cookie(
+        COOKIE,
+        token,
+        max_age=SESSION_SECONDS,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https" or secure,
+    )
 
 
 @router.post("/register", status_code=201)
-def register(body: Credentials, request: Request, response: Response, auth: AuthServiceDep,
-             settings: SettingsDep) -> User:
+def register(
+    body: Credentials, request: Request, response: Response, auth: AuthServiceDep, settings: SettingsDep
+) -> User:
     signed_in = auth.register(body, _client(request), request.cookies.get(COOKIE))
     _set_cookie(response, request, signed_in.token, settings.cookie_secure)
     return signed_in.user
 
 
 @router.post("/login")
-def login(body: Credentials, request: Request, response: Response, auth: AuthServiceDep,
-          settings: SettingsDep) -> User:
+def login(body: Credentials, request: Request, response: Response, auth: AuthServiceDep, settings: SettingsDep) -> User:
     signed_in = auth.login(body, _client(request), request.cookies.get(COOKIE))
     _set_cookie(response, request, signed_in.token, settings.cookie_secure)
     return signed_in.user

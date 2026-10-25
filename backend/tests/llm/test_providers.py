@@ -12,7 +12,9 @@ def test_provider_routing():
 
 def test_list_answers_are_parsed_and_unreadable_ones_flagged():
     assert parse_entities('{"entities": [{"text": "Jo", "type": "PERSON"}]}') == (
-        [{"text": "Jo", "type": "PERSON"}], False)
+        [{"text": "Jo", "type": "PERSON"}],
+        False,
+    )
     assert parse_entities("not json")[1] is True
 
 

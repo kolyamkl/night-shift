@@ -47,8 +47,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
     # Order matters: the last middleware added runs first. The request id wraps everything; the
     # request protection check runs before CORS, as it always has.
-    app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"],
-                       allow_headers=["*"], allow_credentials=True)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=True,
+    )
     app.middleware("http")(protect_browser_requests)
     app.add_middleware(RequestIdMiddleware)
     for router in ROUTERS:

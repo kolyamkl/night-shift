@@ -32,8 +32,19 @@ class Reply:
 
 
 class Call(Protocol):
-    def __call__(self, key: str, model: str, system: str, user: str, session: str, extra_headers: Mapping[str, str],
-                 json_mode: bool, max_tokens: int, *, base: str = MUBIT_BASE) -> Reply: ...
+    def __call__(
+        self,
+        key: str,
+        model: str,
+        system: str,
+        user: str,
+        session: str,
+        extra_headers: Mapping[str, str],
+        json_mode: bool,
+        max_tokens: int,
+        *,
+        base: str = MUBIT_BASE,
+    ) -> Reply: ...
 
 
 def provider_for(model: str) -> str:
@@ -57,8 +68,18 @@ def _post(url: str, headers: Mapping[str, str], body: dict[str, Any], attempts: 
         time.sleep(min(wait, 60))
 
 
-def call_openai(key: str, model: str, system: str, user: str, session: str, extra_headers: Mapping[str, str],
-                json_mode: bool, max_tokens: int, *, base: str = MUBIT_BASE) -> Reply:
+def call_openai(
+    key: str,
+    model: str,
+    system: str,
+    user: str,
+    session: str,
+    extra_headers: Mapping[str, str],
+    json_mode: bool,
+    max_tokens: int,
+    *,
+    base: str = MUBIT_BASE,
+) -> Reply:
     # OpenAI rejects `metadata` unless `store` is true, so no metadata is sent: Mubit then derives the
     # session from the instructions + first user message (one session per chunk).
     body: dict[str, Any] = {
@@ -75,12 +96,29 @@ def call_openai(key: str, model: str, system: str, user: str, session: str, extr
     d = r.json()
     ch = d["choices"][0]
     u = d.get("usage") or {}
-    return Reply(ch["message"].get("content"), mreq, d.get("model"), u.get("prompt_tokens", 0),
-                 u.get("completion_tokens", 0), ch.get("finish_reason"), 200)
+    return Reply(
+        ch["message"].get("content"),
+        mreq,
+        d.get("model"),
+        u.get("prompt_tokens", 0),
+        u.get("completion_tokens", 0),
+        ch.get("finish_reason"),
+        200,
+    )
 
 
-def call_anthropic(key: str, model: str, system: str, user: str, session: str, extra_headers: Mapping[str, str],
-                   json_mode: bool, max_tokens: int, *, base: str = MUBIT_BASE) -> Reply:
+def call_anthropic(
+    key: str,
+    model: str,
+    system: str,
+    user: str,
+    session: str,
+    extra_headers: Mapping[str, str],
+    json_mode: bool,
+    max_tokens: int,
+    *,
+    base: str = MUBIT_BASE,
+) -> Reply:
     body = {
         "model": model,
         "max_tokens": max_tokens,
@@ -88,20 +126,32 @@ def call_anthropic(key: str, model: str, system: str, user: str, session: str, e
         "messages": [{"role": "user", "content": user}],
         "metadata": {"user_id": session},  # Anthropic's one metadata field; Mubit takes the session from it
     }
-    r = _post(f"{base}/anthropic/v1/messages",
-              {"x-api-key": key, "anthropic-version": "2023-06-01", **extra_headers}, body)
+    r = _post(
+        f"{base}/anthropic/v1/messages", {"x-api-key": key, "anthropic-version": "2023-06-01", **extra_headers}, body
+    )
     mreq = r.headers.get("x-middleware-request-id")
     if r.status_code != 200:
         return Reply(None, mreq, None, 0, 0, f"http {r.status_code}: {r.text[:300]}", r.status_code)
     d = r.json()
     text = "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text")
     u = d.get("usage") or {}
-    return Reply(text, mreq, d.get("model"), u.get("input_tokens", 0), u.get("output_tokens", 0),
-                 d.get("stop_reason"), 200)
+    return Reply(
+        text, mreq, d.get("model"), u.get("input_tokens", 0), u.get("output_tokens", 0), d.get("stop_reason"), 200
+    )
 
 
-def call_gemini(key: str, model: str, system: str, user: str, session: str, extra_headers: Mapping[str, str],
-                json_mode: bool, max_tokens: int, *, base: str = MUBIT_BASE) -> Reply:
+def call_gemini(
+    key: str,
+    model: str,
+    system: str,
+    user: str,
+    session: str,
+    extra_headers: Mapping[str, str],
+    json_mode: bool,
+    max_tokens: int,
+    *,
+    base: str = MUBIT_BASE,
+) -> Reply:
     # Gemini has no session field: Mubit derives the session from the instructions and the first
     # user message, so each chunk is its own session.
     gen: dict[str, object] = {"maxOutputTokens": max_tokens}
@@ -122,8 +172,7 @@ def call_gemini(key: str, model: str, system: str, user: str, session: str, extr
     text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
     u = d.get("usageMetadata") or {}
     out = u.get("candidatesTokenCount", 0) + u.get("thoughtsTokenCount", 0)
-    return Reply(text, mreq, d.get("modelVersion"), u.get("promptTokenCount", 0), out,
-                 cand.get("finishReason"), 200)
+    return Reply(text, mreq, d.get("modelVersion"), u.get("promptTokenCount", 0), out, cand.get("finishReason"), 200)
 
 
 CALL: dict[str, Call] = {"openai": call_openai, "anthropic": call_anthropic, "gemini": call_gemini}

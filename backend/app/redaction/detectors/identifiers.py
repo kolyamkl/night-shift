@@ -23,7 +23,7 @@ UUID = re.compile(r"(?<![\w-])[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A
 
 
 def _ipv4_ok(text: str, m: re.Match) -> bool:
-    before = text[max(0, m.start() - 30):m.start()]
+    before = text[max(0, m.start() - 30) : m.start()]
     if VERSION.search(before):
         return False
     return bool(IP_LABEL.search(before)) or sum(len(p) >= 2 for p in m.group().split(".")) >= 2

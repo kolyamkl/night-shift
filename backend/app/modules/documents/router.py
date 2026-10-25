@@ -1,5 +1,7 @@
 """/api/documents: upload or paste, list, open, change the review status, delete."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, File, Form, Response, UploadFile
 
 from app.dependencies import ModelsDep
@@ -34,7 +36,11 @@ def delete_document(doc_id: str, user: CurrentUser, documents: DocumentServiceDe
 
 
 @router.post("")
-async def create_document(user: CurrentUser, documents: DocumentServiceDep, text: str | None = Form(None),
-                          file: UploadFile | None = File(None)) -> DocumentOut:
+async def create_document(
+    user: CurrentUser,
+    documents: DocumentServiceDep,
+    text: Annotated[str | None, Form()] = None,
+    file: Annotated[UploadFile | None, File()] = None,
+) -> DocumentOut:
     doc = uploads.from_pasted(text) if file is None else uploads.from_file(await file.read(), file.filename)
     return documents.create(doc, owner_id=user.id)

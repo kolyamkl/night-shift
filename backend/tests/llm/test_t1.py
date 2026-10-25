@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 
 import httpx2
-import pytest
 
 from app.llm import prompts, t1
 from app.llm.rewrite import align_rewrite, rewrite_values
@@ -15,9 +14,16 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 def message(text: str, stop_reason: str = "end_turn") -> dict:
-    return {"id": "msg_test", "type": "message", "role": "assistant", "model": prompts.MODEL_ID,
-            "content": [{"type": "text", "text": text}], "stop_reason": stop_reason, "stop_sequence": None,
-            "usage": {"input_tokens": 900, "output_tokens": 12}}
+    return {
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "model": prompts.MODEL_ID,
+        "content": [{"type": "text", "text": text}],
+        "stop_reason": stop_reason,
+        "stop_sequence": None,
+        "usage": {"input_tokens": 900, "output_tokens": 12},
+    }
 
 
 class FakeMubit:
@@ -85,12 +91,19 @@ def test_rewrite_request_is_the_same_as_send_batch_py(monkeypatch):
 
 def test_a_rewritten_answer_becomes_the_right_spans():
     text = "Tenant: Mr Raj Patel\n12 Oak Road, Leeds LS6 2AB\nRent 950 pounds. Signed: Raj Patel.\n\n"
-    fake = FakeMubit(ok("Tenant: [PERSON_1]\n[ADDRESS_1] [POSTCODE_1]\nRent 950 pounds. Signed: [PERSON_1].",
-                        mreq="mreq_rw"))
+    fake = FakeMubit(
+        ok("Tenant: [PERSON_1]\n[ADDRESS_1] [POSTCODE_1]\nRent 950 pounds. Signed: [PERSON_1].", mreq="mreq_rw")
+    )
     res = run_pipeline(extract_text(text), t1=rewrite_t1(fake), max_chars=1400)
     assert [(s.text, s.type) for s in res.spans] == [
-        ("Raj Patel", "PERSON"), ("12 Oak Road, Leeds", "ADDRESS"), ("LS6 2AB", "POSTCODE"), ("Raj Patel", "PERSON")]
-    assert res.redacted_text == "Tenant: Mr [PERSON_1]\n[ADDRESS_1] [POSTCODE_1]\nRent 950 pounds. Signed: [PERSON_1].\n\n"
+        ("Raj Patel", "PERSON"),
+        ("12 Oak Road, Leeds", "ADDRESS"),
+        ("LS6 2AB", "POSTCODE"),
+        ("Raj Patel", "PERSON"),
+    ]
+    assert (
+        res.redacted_text == "Tenant: Mr [PERSON_1]\n[ADDRESS_1] [POSTCODE_1]\nRent 950 pounds. Signed: [PERSON_1].\n\n"
+    )
     chunk = res.chunks[0]
     assert (chunk.status, chunk.mreq_id, chunk.found, chunk.error) == ("ok", "mreq_rw", 3, None)
 
@@ -99,8 +112,11 @@ def test_neighbouring_placeholders_split_where_the_value_types_fit():
     chunk = "Write to Jo Smith at 4 Elm Street Bath BA1 1AA or call 07700 900123 today."
     answer = "Write to [PERSON_1] at [ADDRESS_1] [POSTCODE_1] or call [PHONE_1] today."
     assert rewrite_values(chunk, answer) == [
-        {"text": "Jo Smith", "type": "PERSON"}, {"text": "4 Elm Street Bath", "type": "ADDRESS"},
-        {"text": "BA1 1AA", "type": "POSTCODE"}, {"text": "07700 900123", "type": "PHONE"}]
+        {"text": "Jo Smith", "type": "PERSON"},
+        {"text": "4 Elm Street Bath", "type": "ADDRESS"},
+        {"text": "BA1 1AA", "type": "POSTCODE"},
+        {"text": "07700 900123", "type": "PHONE"},
+    ]
 
 
 def test_a_line_the_model_changed_falls_back_to_the_diff_and_counts_the_change():
@@ -123,8 +139,11 @@ def test_an_answer_that_does_not_line_up_is_unreadable():
 def test_busy_answers_are_retried_after_retry_after(monkeypatch):
     waits = []
     monkeypatch.setattr(t1.time, "sleep", waits.append)
-    busy = httpx2.Response(429, json={"type": "error", "error": {"type": "rate_limit_error", "message": "busy"}},
-                           headers={"retry-after": "3"})
+    busy = httpx2.Response(
+        429,
+        json={"type": "error", "error": {"type": "rate_limit_error", "message": "busy"}},
+        headers={"retry-after": "3"},
+    )
     fake = FakeMubit(busy, ok("Tenant: [PERSON_1]."))
     result = rewrite_t1(fake)("Tenant: Raj Patel.")
     assert waits == [3.0] and len(fake.requests) == 2
@@ -132,8 +151,11 @@ def test_busy_answers_are_retried_after_retry_after(monkeypatch):
 
 
 def test_other_http_errors_are_not_retried():
-    bad = httpx2.Response(400, json={"type": "error", "error": {"type": "invalid_request_error", "message": "nope"}},
-                          headers={"x-middleware-request-id": "mreq_bad"})
+    bad = httpx2.Response(
+        400,
+        json={"type": "error", "error": {"type": "invalid_request_error", "message": "nope"}},
+        headers={"x-middleware-request-id": "mreq_bad"},
+    )
     fake = FakeMubit(bad)
     result = rewrite_t1(fake)("Tenant: Raj Patel.")
     assert len(fake.requests) == 1
@@ -144,16 +166,20 @@ def test_rewrite_chunks_are_sent_stripped_like_the_training_data():
     text = "  Tenant: Raj Patel.\n\nRent is due.\n"
     fake = FakeMubit(ok("Tenant: [PERSON_1]."), ok("Rent is due."))
     res = run_pipeline(extract_text(text), t1=rewrite_t1(fake), max_chars=25, workers=1)
-    assert [c.status for c in res.chunks] == ["ok", "ok"] and text[res.chunks[0].start:res.chunks[0].end].endswith("\n\n")
+    assert [c.status for c in res.chunks] == ["ok", "ok"] and text[res.chunks[0].start : res.chunks[0].end].endswith(
+        "\n\n"
+    )
     assert [json.loads(r.content)["messages"] for r in fake.requests] == [
-        [{"role": "user", "content": "Tenant: Raj Patel."}], [{"role": "user", "content": "Rent is due."}]]
+        [{"role": "user", "content": "Tenant: Raj Patel."}],
+        [{"role": "user", "content": "Rent is due."}],
+    ]
     assert res.redacted_text == "  Tenant: [PERSON_1].\n\nRent is due.\n"
 
 
 def test_stripped_alignment_keeps_offsets_into_the_chunk():
     chunk = "\n  Tenant: Raj Patel.\n\n"
     [span], changed = align_rewrite(chunk, "Tenant: [PERSON_1].")
-    assert chunk[span.start:span.end] == span.text == "Raj Patel" and changed == 0
+    assert chunk[span.start : span.end] == span.text == "Raj Patel" and changed == 0
 
 
 def test_tiny_values_and_bare_titles_are_dropped():

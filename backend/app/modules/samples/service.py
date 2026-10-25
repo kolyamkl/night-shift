@@ -50,8 +50,15 @@ class SampleService:
     @staticmethod
     def _card(path: Path) -> SampleCard:
         name = label(path.name)
-        card = SampleCard(name=path.name, label=name, title=name, kind=re.sub(r"^\d+_", "", path.stem),
-                          pages=len(pymupdf.open(path)), values=None, types={})
+        card = SampleCard(
+            name=path.name,
+            label=name,
+            title=name,
+            kind=re.sub(r"^\d+_", "", path.stem),
+            pages=len(pymupdf.open(path)),
+            values=None,
+            types={},
+        )
         gold = path.with_suffix(".gold.json")
         if gold.is_file():
             data = json.loads(gold.read_text())

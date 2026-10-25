@@ -1,8 +1,8 @@
 import json
 import threading
 import time
-from itertools import pairwise
 from contextlib import ExitStack
+from itertools import pairwise
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,8 +13,14 @@ from app.modules.scan import service as scan_service
 from app.modules.scan import stream as scan_stream
 from app.redaction.pipeline import T1Result
 
-TEXT = ("Tenant: Raj Patel, sort code 20-45-77.\n\n" + "Clause text. " * 30 + "\n\n"
-        + "Landlord: Jo Smith.\n\n" + "More clause text. " * 30 + "\n\nSigned: Raj Patel")
+TEXT = (
+    "Tenant: Raj Patel, sort code 20-45-77.\n\n"
+    + "Clause text. " * 30
+    + "\n\n"
+    + "Landlord: Jo Smith.\n\n"
+    + "More clause text. " * 30
+    + "\n\nSigned: Raj Patel"
+)
 
 
 def parse(body: str) -> tuple[list[tuple[str, dict]], int]:
@@ -36,7 +42,9 @@ def finds(*values):
     def factory(doc_id):
         def t1(chunk):
             return T1Result([{"text": v, "type": "PERSON"} for v in values if v in chunk], f"mreq_{doc_id}", None)
+
         return t1
+
     return factory
 
 
@@ -51,12 +59,16 @@ def setup(monkeypatch, postgres_store):
 
     def with_t1(factory):
         monkeypatch.setattr(app.state.models, "t1_factory", factory)
-        client = stack.enter_context(TestClient(app, headers={"X-Veil-Request": "1"},
-                                  client=(postgres_store.test_suffix, 50000)))
-        response = client.post("/api/auth/register", json={
-            "email": f"stream-{postgres_store.test_suffix}@example.test", "password": "test-password"})
+        client = stack.enter_context(
+            TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000))
+        )
+        response = client.post(
+            "/api/auth/register",
+            json={"email": f"stream-{postgres_store.test_suffix}@example.test", "password": "test-password"},
+        )
         assert response.status_code == 201
         return client
+
     yield with_t1
     stack.close()
 
@@ -80,7 +92,11 @@ def test_events_come_in_order_with_the_contract_headers(setup):
     start = events[0][1]
     assert list(start) == ["doc_id", "model", "t1_model", "t1_prompt", "chunks"]
     assert (start["doc_id"], start["model"], start["t1_model"], start["t1_prompt"]) == (
-        doc["doc_id"], "on", "gpt-6-luna", "evalkit")
+        doc["doc_id"],
+        "on",
+        "gpt-6-luna",
+        "evalkit",
+    )
 
 
 def test_start_lists_every_chunk_and_they_cover_the_text(setup):
@@ -99,13 +115,23 @@ def test_chunk_entities_stay_inside_their_range(setup):
     chunk_events = [d for n, d in events if n == "chunk"]
     assert sum(len(c["entities"]) for c in chunk_events) == 3  # Raj Patel twice, Jo Smith once
     for c in chunk_events:
-        assert set(c) == {"index", "chunk_id", "start", "end", "status", "error", "mreq_id", "latency_ms",
-                          "found", "entities"}
+        assert set(c) == {
+            "index",
+            "chunk_id",
+            "start",
+            "end",
+            "status",
+            "error",
+            "mreq_id",
+            "latency_ms",
+            "found",
+            "entities",
+        }
         assert c["status"] == "ok" and c["mreq_id"] == f"mreq_{doc['doc_id']}" and isinstance(c["latency_ms"], int)
         assert c["found"] == len({e["text"] for e in c["entities"]})
         for e in c["entities"]:
             assert c["start"] <= e["start"] < e["end"] <= c["end"]
-            assert doc["text"][e["start"]:e["end"]] == e["text"] and e["source"] == "model"
+            assert doc["text"][e["start"] : e["end"]] == e["text"] and e["source"] == "model"
     regex = events[1][1]["entities"]
     assert regex == [{"start": 29, "end": 37, "text": "20-45-77", "type": "SORT_CODE", "source": "regex"}]
 
@@ -118,8 +144,10 @@ def test_done_is_the_redact_result_and_the_result_is_stored(setup):
     assert done == client.get(f"/api/documents/{did}").json()["result"]
     assert [c["index"] for c in done["chunks"]] == list(range(len(done["chunks"])))
     again = client.post(f"/api/documents/{did}/redact").json()
+
     def no_latency(r):
         return {**r, "chunks": [{**c, "latency_ms": None} for c in r["chunks"]]}
+
     assert no_latency(done) == no_latency(again)
     # /file and /corrections work straight after the stream
     assert "Raj Patel" not in client.get(f"/api/documents/{did}/file").text
@@ -137,8 +165,9 @@ def test_model_off_marks_every_chunk_off_and_regex_still_works(setup):
     events, _ = parse(res.text)
     start, chunk_events, done = events[0][1], [d for n, d in events if n == "chunk"], events[-1][1]
     assert (start["model"], start["t1_model"], start["t1_prompt"]) == ("off", None, "evalkit")
-    assert chunk_events and all(c["status"] == "off" and c["entities"] == [] and c["mreq_id"] is None
-                                for c in chunk_events)
+    assert chunk_events and all(
+        c["status"] == "off" and c["entities"] == [] and c["mreq_id"] is None for c in chunk_events
+    )
     assert [e["text"] for e in events[1][1]["entities"]] == ["20-45-77"]
     assert done["model"] == "off" and "[SORT_CODE_1]" in done["redacted_text"]
 
@@ -149,6 +178,7 @@ def test_a_chunk_that_raises_is_an_error_chunk_and_the_run_finishes(setup):
             if "Landlord" in chunk:
                 raise ConnectionError("gateway went away")
             return T1Result([{"text": "Raj Patel", "type": "PERSON"}] if "Raj Patel" in chunk else [], "mreq_ok", None)
+
         return t1
 
     _, res = stream(setup(factory))
@@ -166,6 +196,7 @@ def test_an_empty_chunk_is_not_sent(setup):
         def t1(chunk):
             calls.append(chunk)
             return T1Result([], None, None)
+
         return t1
 
     _, res = stream(setup(factory), "Hello there.\n\n" + " " * 400)  # two chunks of at most 400
@@ -184,6 +215,7 @@ def test_chunks_arrive_in_the_order_they_finish(setup):
             else:
                 second_done.set()
             return T1Result([], None, None)
+
         return t1
 
     _, res = stream(setup(factory), "Tenant here.\n\n" + "x " * 200)  # two chunks of at most 400
@@ -198,6 +230,7 @@ def test_pings_keep_a_slow_stream_open(setup, monkeypatch):
         def t1(chunk):
             time.sleep(0.3)
             return T1Result([], None, None)
+
         return t1
 
     _, res = stream(setup(factory), "Short text.")
@@ -246,7 +279,9 @@ def flaky_on(word):
                 return T1Result([], "mreq_bad", "http 503: busy")
             ents = [{"text": v, "type": "PERSON"} for v in ("Raj Patel", "Jo Smith") if v in chunk]
             return T1Result(ents, f"mreq_{len(calls)}", None)
+
         return t1
+
     return factory, calls, fixed
 
 
@@ -286,7 +321,7 @@ def test_kept_chunks_go_out_before_any_new_call_finishes(setup):
     doc, _ = stream(client)
     fixed.set()
     events, _ = parse(client.post(f"/api/documents/{doc['doc_id']}/redact/stream?retry=failed").text)
-    statuses = [(d["status"], "Landlord" in doc["text"][d["start"]:d["end"]]) for n, d in events if n == "chunk"]
+    statuses = [(d["status"], "Landlord" in doc["text"][d["start"] : d["end"]]) for n, d in events if n == "chunk"]
     assert statuses[-1] == ("ok", True)  # the one new call comes last
 
 
@@ -337,6 +372,7 @@ def test_only_the_newest_scan_stores_its_result_and_sends_done(setup):
                 release.wait(5)
                 return T1Result([{"text": "Raj Patel", "type": "PERSON"}], "mreq_old", None)
             return T1Result([{"text": "Jo Smith", "type": "PERSON"}], "mreq_new", None)
+
         return t1
 
     client = setup(factory)
@@ -353,7 +389,9 @@ def test_only_the_newest_scan_stores_its_result_and_sends_done(setup):
     assert [n for n, _ in events] == ["start", "regex", "error"]
     assert events[-1][1] == {"message": scan_service.SUPERSEDED}
     assert newer["redacted_text"] == "Raj Patel and [PERSON_1]."
-    assert client.get(f"/api/documents/{did}").json()["result"]["chunks"][0]["mreq_id"] == "mreq_new"  # the older run did not overwrite it
+    assert (
+        client.get(f"/api/documents/{did}").json()["result"]["chunks"][0]["mreq_id"] == "mreq_new"
+    )  # the older run did not overwrite it
 
 
 def test_an_older_redact_call_gets_409(setup):
@@ -366,6 +404,7 @@ def test_an_older_redact_call_gets_409(setup):
                 entered.set()
                 release.wait(5)
             return T1Result([], "mreq", None)
+
         return t1
 
     client = setup(factory)

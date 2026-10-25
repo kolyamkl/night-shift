@@ -111,12 +111,18 @@ def _boxes(doc: Document, spans: list[Span], vault: Vault) -> list[Box]:
             if w.start < sp.end and sp.start < w.end:
                 by_line.setdefault(w.line, []).append(w)
         for line_words in by_line.values():
-            boxes.append(Box(
-                page=line_words[0].page,
-                x0=min(w.bbox[0] for w in line_words), y0=min(w.bbox[1] for w in line_words),
-                x1=max(w.bbox[2] for w in line_words), y1=max(w.bbox[3] for w in line_words),
-                type=sp.type, placeholder=ph, span_index=i,
-            ))
+            boxes.append(
+                Box(
+                    page=line_words[0].page,
+                    x0=min(w.bbox[0] for w in line_words),
+                    y0=min(w.bbox[1] for w in line_words),
+                    x1=max(w.bbox[2] for w in line_words),
+                    y1=max(w.bbox[3] for w in line_words),
+                    type=sp.type,
+                    placeholder=ph,
+                    span_index=i,
+                )
+            )
     return boxes
 
 
@@ -127,19 +133,32 @@ def _entity(sp: Span, source: str, offset: int = 0) -> dict[str, Any]:
 REUSABLE = ("ok", "empty")
 
 
-def _reusable(prev: PipelineResult | None, plan: str, ranges: list[tuple[int, int]]
-              ) -> dict[int, tuple[ChunkInfo, list[Entity]]]:
+def _reusable(
+    prev: PipelineResult | None, plan: str, ranges: list[tuple[int, int]]
+) -> dict[int, tuple[ChunkInfo, list[Entity]]]:
     """Chunks of an earlier run that need no new T1 call: same plan and ranges, status ok or empty."""
-    if (prev is None or prev.plan != plan or len(prev.chunk_values) != len(prev.chunks)
-            or [(c.start, c.end) for c in prev.chunks] != ranges):
+    if (
+        prev is None
+        or prev.plan != plan
+        or len(prev.chunk_values) != len(prev.chunks)
+        or [(c.start, c.end) for c in prev.chunks] != ranges
+    ):
         return {}
     return {c.index: (c, prev.chunk_values[c.index]) for c in prev.chunks if c.status in REUSABLE}
 
 
-def run_pipeline(doc: Document, t1: T1 | None, max_chars: int = MAX_CHARS,
-                 workers: int = 6, emit: Emit | None = None, plan: str = "",
-                 reuse: PipelineResult | None = None, stop: Callable[[], bool] | None = None,
-                 corrections: PipelineResult | None = None) -> PipelineResult:
+def run_pipeline(
+    doc: Document,
+    t1: T1 | None,
+    *,
+    max_chars: int = MAX_CHARS,
+    workers: int = 6,
+    emit: Emit | None = None,
+    plan: str = "",
+    reuse: PipelineResult | None = None,
+    stop: Callable[[], bool] | None = None,
+    corrections: PipelineResult | None = None,
+) -> PipelineResult:
     """`reuse`: an earlier result of this document; its ok and empty chunks are kept (no T1 call) when
     its plan and chunk ranges match. `stop`: once it returns True, chunks not yet started make no call.
     Reviewer decisions come from `corrections` (or `reuse`), independently of chunk reuse."""
@@ -148,8 +167,10 @@ def run_pipeline(doc: Document, t1: T1 | None, max_chars: int = MAX_CHARS,
     ids = [f"{doc.doc_id}-c{i:02d}" for i in range(len(ranges))]
     kept = _reusable(reuse, plan, ranges)
     if emit:
-        emit("start", {"chunks": [{"index": i, "chunk_id": ids[i], "start": s, "end": e}
-                                  for i, (s, e) in enumerate(ranges)]})
+        emit(
+            "start",
+            {"chunks": [{"index": i, "chunk_id": ids[i], "start": s, "end": e} for i, (s, e) in enumerate(ranges)]},
+        )
         emit("regex", {"entities": [_entity(sp, "regex") for sp in detectors.detect(text)]})
 
     def run_chunk(i: int) -> tuple[ChunkInfo, list[Entity]]:
@@ -176,10 +197,19 @@ def run_pipeline(doc: Document, t1: T1 | None, max_chars: int = MAX_CHARS,
     def report(info: ChunkInfo, ents: list[Entity], reused: bool) -> None:
         finished[info.index] = (info, ents)
         # Metadata only: never the chunk text or the values.
-        log_event(log, "t1_chunk", doc=doc.doc_id, index=info.index, status=info.status,
-                  latency_ms=info.latency_ms, mreq=info.mreq_id, found=info.found, reused=reused)
+        log_event(
+            log,
+            "t1_chunk",
+            doc=doc.doc_id,
+            index=info.index,
+            status=info.status,
+            latency_ms=info.latency_ms,
+            mreq=info.mreq_id,
+            found=info.found,
+            reused=reused,
+        )
         if emit:
-            hits = locate(text[info.start:info.end], ents)
+            hits = locate(text[info.start : info.end], ents)
             emit("chunk", {**asdict(info), "entities": [_entity(sp, "model", info.start) for sp in hits]})
 
     for i in sorted(kept):
@@ -198,21 +228,40 @@ def run_pipeline(doc: Document, t1: T1 | None, max_chars: int = MAX_CHARS,
     reviewed = corrections if corrections is not None else reuse
     hidden = dict(reviewed.hidden) if reviewed else {}
     unhidden = set(reviewed.unhidden) if reviewed else set()
-    return _build(doc, values, chunks, hidden, unhidden, chunk_values, plan)
+    return _build(
+        doc, values=values, chunks=chunks, hidden=hidden, unhidden=unhidden, chunk_values=chunk_values, plan=plan
+    )
 
 
-def rebuild(doc: Document, prev: PipelineResult, hide: dict[str, str] | None = None,
-            unhide: set[str] | None = None) -> PipelineResult:
+def rebuild(
+    doc: Document, prev: PipelineResult, hide: dict[str, str] | None = None, unhide: set[str] | None = None
+) -> PipelineResult:
     """Apply reviewer fixes on top of an earlier run, reusing the model's answers (no new T1 calls)."""
     hidden = {**prev.hidden, **(hide or {})}
     unhidden = (prev.unhidden | set(unhide or ())) - set(hide or {})
     for v in unhide or ():
         hidden.pop(v, None)
-    return _build(doc, prev.model_values, prev.chunks, hidden, unhidden, prev.chunk_values, prev.plan)
+    return _build(
+        doc,
+        values=prev.model_values,
+        chunks=prev.chunks,
+        hidden=hidden,
+        unhidden=unhidden,
+        chunk_values=prev.chunk_values,
+        plan=prev.plan,
+    )
 
 
-def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidden: dict[str, str],
-           unhidden: set[str], chunk_values: list[list[Entity]], plan: str) -> PipelineResult:
+def _build(
+    doc: Document,
+    *,
+    values: dict[str, str],
+    chunks: list[ChunkInfo],
+    hidden: dict[str, str],
+    unhidden: set[str],
+    chunk_values: list[list[Entity]],
+    plan: str,
+) -> PipelineResult:
     text = doc.text
     wanted = {**values, **hidden}
     model_spans = locate(text, [{"text": v, "type": t} for v, t in wanted.items()])
@@ -223,7 +272,15 @@ def _build(doc: Document, values: dict[str, str], chunks: list[ChunkInfo], hidde
     vault = Vault()
     redacted = apply(text, spans, vault)
     return PipelineResult(
-        spans=spans, redacted_text=redacted, vault=vault, boxes=_boxes(doc, spans, vault),
-        chunks=chunks, stats=dict(Counter(s.type for s in spans)),
-        model_values=values, hidden=hidden, unhidden=unhidden, chunk_values=chunk_values, plan=plan,
+        spans=spans,
+        redacted_text=redacted,
+        vault=vault,
+        boxes=_boxes(doc, spans, vault),
+        chunks=chunks,
+        stats=dict(Counter(s.type for s in spans)),
+        model_values=values,
+        hidden=hidden,
+        unhidden=unhidden,
+        chunk_values=chunk_values,
+        plan=plan,
     )

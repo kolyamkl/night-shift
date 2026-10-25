@@ -21,7 +21,7 @@ from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
 from . import vision
 from .fixes import fix_identifiers
 from .layout import assemble
-from .types import ExtractedDocument, Line, Page, UnsupportedDocument
+from .types import ExtractedDocument, Fix, Line, Page, UnsupportedDocument
 
 try:
     import pillow_heif
@@ -57,10 +57,10 @@ def _prepare(img: Image.Image) -> Image.Image:
     w, h = img.size
     if max(w, h) > MAX_SIDE:
         scale = MAX_SIDE / max(w, h)
-        img = img.resize((round(w * scale), round(h * scale)), Image.LANCZOS)
+        img = img.resize((round(w * scale), round(h * scale)), Image.Resampling.LANCZOS)
     elif w < MIN_WIDTH:
         scale = MIN_WIDTH / w
-        img = img.resize((round(w * scale), round(h * scale)), Image.LANCZOS)
+        img = img.resize((round(w * scale), round(h * scale)), Image.Resampling.LANCZOS)
     return img
 
 
@@ -82,7 +82,7 @@ def _lean(lines: list[Line]) -> float:
 
 
 def _turn(img: Image.Image, degrees: float) -> Image.Image:
-    return img.rotate(degrees, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
+    return img.rotate(degrees, resample=Image.Resampling.BICUBIC, expand=True, fillcolor=(255, 255, 255))
 
 
 def _ocr_page(img: Image.Image, number: int, recognize: Recognizer, fix: bool) -> tuple[Page, list]:
@@ -99,7 +99,7 @@ def _ocr_page(img: Image.Image, number: int, recognize: Recognizer, fix: bool) -
             if _score(lines) > _score(best):
                 best_rotation, best = rotation, lines
     text = assemble(best)
-    fixes = []
+    fixes: list[Fix] = []
     if fix:
         text, fixes = fix_identifiers(text, number)
     page = Page(number=number, source="ocr", text=text, lines=best, rotation=round(best_rotation % 360, 1))
@@ -129,8 +129,11 @@ def _text_layer_lines(pdf_page: pdfium.PdfPage) -> list[Line]:
             continue
         left, right = min(b[0] for b in tall), max(b[2] for b in tall)
         bottom, top = min(b[1] for b in tall), max(b[3] for b in tall)
-        lines.append(Line(text=content, bbox=(left / width, 1 - top / height, right / width, 1 - bottom / height),
-                          confidence=1.0))
+        lines.append(
+            Line(
+                text=content, bbox=(left / width, 1 - top / height, right / width, 1 - bottom / height), confidence=1.0
+            )
+        )
     return lines
 
 

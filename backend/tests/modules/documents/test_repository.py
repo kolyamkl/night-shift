@@ -1,16 +1,16 @@
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from threading import Barrier
-import uuid
 
 import pytest
 from cryptography.fernet import Fernet
-from app.redaction.vault import restore
 
-from app.redaction.document import extract_pdf, extract_text
-from app.redaction.pipeline import T1Result, rebuild, run_pipeline
 from app.core.db import MIGRATIONS_DIR, Database
 from app.modules.documents.repository import DocumentNotFound, DocumentRepository, StaleRevision
+from app.redaction.document import extract_pdf, extract_text
+from app.redaction.pipeline import T1Result, rebuild, run_pipeline
+from app.redaction.vault import restore
 
 
 def detector(_text):
@@ -38,8 +38,11 @@ def test_database_payloads_do_not_contain_original_text_or_vault(postgres_store)
     postgres_store.create(doc)
     postgres_store.save_result(doc.doc_id, run_pipeline(doc, detector), 0)
     with postgres_store.connect() as conn:
-        row = conn.execute("""SELECT d.payload, r.payload FROM veil_documents d
-            JOIN veil_redactions r USING (doc_id) WHERE doc_id = %s""", (doc.doc_id,)).fetchone()
+        row = conn.execute(
+            """SELECT d.payload, r.payload FROM veil_documents d
+            JOIN veil_redactions r USING (doc_id) WHERE doc_id = %s""",
+            (doc.doc_id,),
+        ).fetchone()
     for value in row:
         assert b"Raj Patel" not in bytes(value)
         assert b"CL-20931" not in bytes(value)
@@ -133,8 +136,10 @@ def test_legacy_snapshot_loads_without_stream_metadata(postgres_store):
         for key in ("index", "status", "latency_ms"):
             chunk.pop(key)
     with postgres_store.connect() as conn:
-        conn.execute("INSERT INTO veil_redactions (doc_id, payload) VALUES (%s, %s)",
-                     (doc.doc_id, postgres_store._encrypt(doc.doc_id, "result", legacy)))
+        conn.execute(
+            "INSERT INTO veil_redactions (doc_id, payload) VALUES (%s, %s)",
+            (doc.doc_id, postgres_store._encrypt(doc.doc_id, "result", legacy)),
+        )
     saved = postgres_store.get(doc.doc_id).result
     assert saved.redacted_text == original.redacted_text
     assert saved.chunks[0].index == 0 and saved.chunks[0].status == "ok"
@@ -153,16 +158,24 @@ def test_rows_saved_before_the_summary_column_still_list(postgres_store, tenancy
     # previous release while a deploy overlapped, after the migration ran.
     with postgres_store.connect() as conn:
         conn.execute("UPDATE veil_documents SET meta = NULL, status = 'new' WHERE owner_id = %s", (owner,))
-    expected = {pdf.doc_id: ("synthetic-lease.pdf", "pdf", 2, len(result.spans), True, "review"),
-                note.doc_id: ("synthetic-note.txt", "text", 0, None, False, "new")}
+    expected = {
+        pdf.doc_id: ("synthetic-lease.pdf", "pdf", 2, len(result.spans), True, "review"),
+        note.doc_id: ("synthetic-note.txt", "text", 0, None, False, "new"),
+    }
     for _ in range(2):  # the first listing fills the summaries, the second reads them
-        listed = {d["doc_id"]: (d["filename"], d["kind"], d["pages"], d["changes"], d["has_result"], d["status"])
-                  for d in postgres_store.list_documents(owner_id=owner)}
+        listed = {
+            d["doc_id"]: (d["filename"], d["kind"], d["pages"], d["changes"], d["has_result"], d["status"])
+            for d in postgres_store.list_documents(owner_id=owner)
+        }
         assert listed == expected
         assert postgres_store.get(pdf.doc_id).status == "review"
         with postgres_store.connect() as conn:
-            assert conn.execute("SELECT count(*) FROM veil_documents WHERE owner_id = %s AND meta IS NULL",
-                                (owner,)).fetchone()[0] == 0
+            assert (
+                conn.execute(
+                    "SELECT count(*) FROM veil_documents WHERE owner_id = %s AND meta IS NULL", (owner,)
+                ).fetchone()[0]
+                == 0
+            )
     # A result saved while the summary is still missing is counted when the row is first listed.
     with postgres_store.connect() as conn:
         conn.execute("UPDATE veil_documents SET meta = NULL WHERE doc_id = %s", (pdf.doc_id,))
@@ -175,12 +188,19 @@ def test_rows_saved_before_the_summary_column_still_list(postgres_store, tenancy
 def test_listing_stops_at_200_documents(postgres_store):
     owner = postgres_store.test_owner
     ids = [uuid.uuid4().hex for _ in range(201)]
-    rows = [(i, b"unused", owner, postgres_store._encrypt(i, "meta", {
-        "filename": "synthetic.txt", "kind": "text", "pages": 0, "changes": None})) for i in ids]
-    with postgres_store.connect() as conn:
-        with conn.cursor() as cur:
-            cur.executemany("INSERT INTO veil_documents (doc_id, payload, owner_id, meta) VALUES (%s, %s, %s, %s)",
-                            rows)
+    rows = [
+        (
+            i,
+            b"unused",
+            owner,
+            postgres_store._encrypt(
+                i, "meta", {"filename": "synthetic.txt", "kind": "text", "pages": 0, "changes": None}
+            ),
+        )
+        for i in ids
+    ]
+    with postgres_store.connect() as conn, conn.cursor() as cur:
+        cur.executemany("INSERT INTO veil_documents (doc_id, payload, owner_id, meta) VALUES (%s, %s, %s, %s)", rows)
     assert len(postgres_store.list_documents(owner_id=owner)) == 200
 
 
@@ -198,8 +218,9 @@ def test_migration_003_is_additive_on_a_database_with_rows(postgres_store):
                 VALUES ('scanned', 'x', 'u'), ('fresh', 'x', 'u'), ('ownerless', 'x', NULL)""")
             conn.execute("INSERT INTO veil_redactions (doc_id, payload) VALUES ('scanned', 'x')")
             conn.execute((migrations / "003_status_and_chat.sql").read_text())
-            assert conn.execute("SELECT doc_id, status, meta, revision FROM veil_documents ORDER BY doc_id").fetchall() == [
-                ("fresh", "new", None, 0), ("ownerless", "new", None, 0), ("scanned", "review", None, 0)]
+            assert conn.execute(
+                "SELECT doc_id, status, meta, revision FROM veil_documents ORDER BY doc_id"
+            ).fetchall() == [("fresh", "new", None, 0), ("ownerless", "new", None, 0), ("scanned", "review", None, 0)]
             conn.execute("INSERT INTO veil_chat_turns (doc_id, owner_id, payload) VALUES ('scanned', 'u', 'x')")
             conn.execute("DELETE FROM veil_documents WHERE doc_id = 'scanned'")
             assert conn.execute("SELECT count(*) FROM veil_chat_turns").fetchone()[0] == 0

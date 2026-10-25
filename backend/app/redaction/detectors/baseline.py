@@ -22,7 +22,7 @@ def _near(text: str, start: int, pattern: re.Pattern[str], window: int = 40) -> 
     return bool(pattern.search(text[max(0, start - window) : start]))
 
 
-def detect(text: str) -> list[Span]:  # noqa: C901 - one loop per identifier type reads best
+def detect(text: str) -> list[Span]:  # noqa: PLR0912 - one loop per identifier type reads best
     found: list[Span] = []
 
     def add(m: re.Match[str], etype: str, group: int = 0) -> None:

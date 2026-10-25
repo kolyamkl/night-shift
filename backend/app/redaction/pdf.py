@@ -72,7 +72,7 @@ def _jpeg_without_metadata(data: bytes) -> bytes:
             continue
         if marker == 0xDA or not 0xC0 <= marker <= 0xFE or 0xD0 <= marker <= 0xD9:
             break  # start of scan, or a marker without a length: the rest is image data
-        end = i + 2 + int.from_bytes(data[i + 2:i + 4], "big")
+        end = i + 2 + int.from_bytes(data[i + 2 : i + 4], "big")
         if not ((0xE0 <= marker <= 0xEF and marker not in KEEP_APP) or marker == 0xFE):
             out.append(data[i:end])
         i = end

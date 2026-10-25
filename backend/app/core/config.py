@@ -112,9 +112,9 @@ class Settings(BaseSettings):
         cls,
         settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003 - pydantic-settings passes these by name
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         # Values passed in (Settings.load, tests) win; everything else comes from the layered lookup.
         return init_settings, LayeredEnvSource(settings_cls, ENV_FILES)
@@ -131,8 +131,9 @@ class Settings(BaseSettings):
             prompt = str(data.get("t1_prompt") or data.get("VEIL_T1_PROMPT") or "rewrite").lower()
             if prompt not in T1_PROMPTS:
                 source = data.get("sources", {}).get("VEIL_T1_PROMPT", "default")
-                raise ValueError(f"VEIL_T1_PROMPT (from {source}) must be one of {', '.join(T1_PROMPTS)}, "
-                                 f"not {prompt!r}")
+                raise ValueError(
+                    f"VEIL_T1_PROMPT (from {source}) must be one of {', '.join(T1_PROMPTS)}, not {prompt!r}"
+                )
         return data
 
     @field_validator("t1_prompt", mode="before")

@@ -94,13 +94,13 @@ def _match_line(line: str, answer: str) -> list[tuple[int, int, str]] | None:
     pattern = r"\s*" + _literal(literals[0])
     for etype, lit in zip(types, literals[1:], strict=True):
         pattern += f"({_VALUE_PATTERNS.get(etype, _ANY_VALUE)})" + _literal(lit)
-    m = re.fullmatch(pattern + r"\s*", line)
-    if not m:
+    match = re.fullmatch(pattern + r"\s*", line)
+    if not match:
         return None
     found = []
     for i, etype in enumerate(types, 1):
-        value = m.group(i)
-        start = m.start(i) + len(value) - len(value.lstrip())
+        value = match.group(i)
+        start = match.start(i) + len(value) - len(value.lstrip())
         found.append((start, start + len(value.strip()), etype))
     return found
 

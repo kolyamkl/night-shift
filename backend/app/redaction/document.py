@@ -66,5 +66,6 @@ def extract_pdf(data: bytes, filename: str) -> Document:
             parts.append(text)
             pos += len(text)
             prev_line = key
-    return Document(doc_id=_new_id(), kind="pdf", filename=filename, text="".join(parts),
-                    words=words, pages=pages, source=data)
+    return Document(
+        doc_id=_new_id(), kind="pdf", filename=filename, text="".join(parts), words=words, pages=pages, source=data
+    )

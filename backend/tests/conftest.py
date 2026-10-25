@@ -50,8 +50,10 @@ def postgres_store(monkeypatch):
     db.initialize()
     store = TestStore(db)
     with db.connect() as conn:
-        conn.execute("INSERT INTO veil_users (user_id, email, password_hash) VALUES (%s, %s, %s)",
-                     (owner_id, f"storage-{suffix}@example.test", "unused-test-hash"))
+        conn.execute(
+            "INSERT INTO veil_users (user_id, email, password_hash) VALUES (%s, %s, %s)",
+            (owner_id, f"storage-{suffix}@example.test", "unused-test-hash"),
+        )
     monkeypatch.setattr(Database, "from_settings", classmethod(lambda cls, settings: db))
     yield store
     with db.connect() as conn:
@@ -85,8 +87,16 @@ def make_pdf(lines_per_page: list[list[str]]) -> bytes:
 
 @pytest.fixture
 def tenancy_pdf() -> bytes:
-    return make_pdf([
-        ["Tenancy agreement", "", "Tenant: Raj Patel", "Address: 12 Oak Road, Leeds LS6 2AB", "",
-         "Rent: 950 pounds per month"],
-        ["Signed by Raj Patel", "Sort code 20-45-77, account no 31926819"],
-    ])
+    return make_pdf(
+        [
+            [
+                "Tenancy agreement",
+                "",
+                "Tenant: Raj Patel",
+                "Address: 12 Oak Road, Leeds LS6 2AB",
+                "",
+                "Rent: 950 pounds per month",
+            ],
+            ["Signed by Raj Patel", "Sort code 20-45-77, account no 31926819"],
+        ]
+    )

@@ -31,10 +31,23 @@ def health(db: DatabaseDep, models: ModelsDep) -> Health:
     """Which model calls are on, and that the database answers (503 when it does not)."""
     db.healthy()
     on = models.t1_on
-    return Health(model="on" if on else "off", t1_model=models.t1_model if on else None, t1_prompt=models.t1_prompt,
-                  t2_model=models.t2_model if models.t2 else None, key_source=models.key_source if on else None,
-                  database="postgresql")
+    return Health(
+        model="on" if on else "off",
+        t1_model=models.t1_model if on else None,
+        t1_prompt=models.t1_prompt,
+        t2_model=models.t2_model if models.t2 else None,
+        key_source=models.key_source if on else None,
+        database="postgresql",
+    )
 
 
-ROUTERS = (auth_router, system_router, documents_router, scan_router, files_router, ask_router,
-           corrections_router, samples_router)
+ROUTERS = (
+    auth_router,
+    system_router,
+    documents_router,
+    scan_router,
+    files_router,
+    ask_router,
+    corrections_router,
+    samples_router,
+)

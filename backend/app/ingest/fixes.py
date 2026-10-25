@@ -26,13 +26,52 @@ PD = "[0-9OoIl|g]"
 
 # Cyrillic and Greek letters that look like Latin letters or digits. Vision sometimes returns one inside
 # an English word ("EX1 ЗAY" for "EX1 3AY"); only tokens that also contain ASCII letters or digits are mapped.
-HOMOGLYPHS = str.maketrans({
-    "А": "A", "В": "B", "Е": "E", "З": "3", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C",
-    "Т": "T", "У": "Y", "Х": "X", "І": "I", "Ј": "J", "Ѕ": "S", "а": "a", "е": "e", "з": "3", "о": "o",
-    "р": "p", "с": "c", "у": "y", "х": "x", "і": "i", "ј": "j", "ѕ": "s",
-    "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O",
-    "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X", "ο": "o",
-})
+HOMOGLYPHS = str.maketrans(
+    {
+        "А": "A",
+        "В": "B",
+        "Е": "E",
+        "З": "3",
+        "К": "K",
+        "М": "M",
+        "Н": "H",
+        "О": "O",
+        "Р": "P",
+        "С": "C",
+        "Т": "T",
+        "У": "Y",
+        "Х": "X",
+        "І": "I",
+        "Ј": "J",
+        "Ѕ": "S",
+        "а": "a",
+        "е": "e",
+        "з": "3",
+        "о": "o",
+        "р": "p",
+        "с": "c",
+        "у": "y",
+        "х": "x",
+        "і": "i",
+        "ј": "j",
+        "ѕ": "s",
+        "Α": "A",
+        "Β": "B",
+        "Ε": "E",
+        "Ζ": "Z",
+        "Η": "H",
+        "Ι": "I",
+        "Κ": "K",
+        "Μ": "M",
+        "Ν": "N",
+        "Ο": "O",
+        "Ρ": "P",
+        "Τ": "T",
+        "Υ": "Y",
+        "Χ": "X",
+        "ο": "o",
+    }
+)
 HOMOGLYPH_CHARS = "".join(chr(c) for c in HOMOGLYPHS)
 MIXED_TOKEN = re.compile(r"\S*[A-Za-z0-9]\S*")
 
@@ -124,6 +163,7 @@ def fix_identifiers(text: str, page: int = 0) -> tuple[str, list[Fix]]:
 
     text = MIXED_TOKEN.sub(sub_homoglyphs, text)
     for kind, pattern, repair in RULES:
+
         def sub(m: re.Match, kind=kind, repair=repair) -> str:
             fixed = repair(m)
             if fixed is None or fixed == m.group():
@@ -133,6 +173,7 @@ def fix_identifiers(text: str, page: int = 0) -> tuple[str, list[Fix]]:
 
         text = pattern.sub(sub, text)
     for pattern, replacement in ((STRAY_BEFORE_AT, "@"), (SPACE_AFTER_AT, "")):
+
         def sub_email(m: re.Match, replacement=replacement) -> str:
             fixes.append(Fix(page=page, kind="email", before=m.group(), after=replacement))
             return replacement

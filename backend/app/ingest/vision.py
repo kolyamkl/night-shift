@@ -51,10 +51,15 @@ def recognize(image: Image.Image, languages: tuple[str, ...] = DEFAULT_LANGUAGES
             x0, w = float(box.origin.x), float(box.size.width)
             bottom, h = float(box.origin.y), float(box.size.height)
             top_left, top_right = obs.topLeft(), obs.topRight()
-            angle = math.degrees(math.atan2((top_right.y - top_left.y) * image.height,
-                                            (top_right.x - top_left.x) * image.width))
+            angle = math.degrees(
+                math.atan2((top_right.y - top_left.y) * image.height, (top_right.x - top_left.x) * image.width)
+            )
             lines.append(
-                Line(text=str(cand.string()), bbox=(x0, 1.0 - bottom - h, x0 + w, 1.0 - bottom),
-                     confidence=float(cand.confidence()), angle=angle)
+                Line(
+                    text=str(cand.string()),
+                    bbox=(x0, 1.0 - bottom - h, x0 + w, 1.0 - bottom),
+                    confidence=float(cand.confidence()),
+                    angle=angle,
+                )
             )
         return lines

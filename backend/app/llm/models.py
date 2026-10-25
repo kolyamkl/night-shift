@@ -55,5 +55,7 @@ def describe(settings: Settings, key_source: str | None) -> str:
     prompt = f"prompt {settings.t1_prompt} ({origin})"
     if key_source is None:
         return f"T1 off: no Mubit key (mbt_...) in MUBIT_API_KEY, backend/.env or .env; regex layer only; {prompt}"
-    return (f"T1 on: {prompt}, model {t1_model(settings)}, {T1_CHUNK_CHARS[settings.t1_prompt]}-character chunks, "
-            f"Mubit key from {key_source}")
+    return (
+        f"T1 on: {prompt}, model {t1_model(settings)}, {T1_CHUNK_CHARS[settings.t1_prompt]}-character chunks, "
+        f"Mubit key from {key_source}"
+    )

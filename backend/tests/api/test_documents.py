@@ -15,6 +15,7 @@ def client(postgres_store):
         def t1(chunk):
             ents = [{"text": v, "type": "PERSON"} for v in ("Raj Patel", "Jo Smith") if v in chunk]
             return T1Result(ents, "mreq_test", None)
+
         return t1
 
     def t2(question, redacted_text):
@@ -24,7 +25,10 @@ def client(postgres_store):
     app.state.models.t1_factory = t1_factory
     app.state.models.t2 = t2
     with TestClient(app, headers={"X-Veil-Request": "1"}, client=(postgres_store.test_suffix, 50000)) as test_client:
-        response = test_client.post("/api/auth/register", json={"email": f"api-{postgres_store.test_suffix}@example.test", "password": "test-password"})
+        response = test_client.post(
+            "/api/auth/register",
+            json={"email": f"api-{postgres_store.test_suffix}@example.test", "password": "test-password"},
+        )
         assert response.status_code == 201
         yield test_client
     app.state.models.t1_factory = None
@@ -74,8 +78,9 @@ def test_corrections_hide_and_unhide(client):
     doc = client.post("/api/documents", data={"text": "Jo Smith, client CL-20931."}).json()
     did = doc["doc_id"]
     client.post(f"/api/documents/{did}/redact")
-    hidden = client.post(f"/api/documents/{did}/corrections",
-                         json={"action": "hide", "text": "CL-20931", "type": "CUSTOM"}).json()
+    hidden = client.post(
+        f"/api/documents/{did}/corrections", json={"action": "hide", "text": "CL-20931", "type": "CUSTOM"}
+    ).json()
     assert hidden["redacted_text"] == "[PERSON_1], client [CUSTOM_1]."
     shown = client.post(f"/api/documents/{did}/corrections", json={"action": "unhide", "text": "Jo Smith"}).json()
     assert shown["redacted_text"] == "Jo Smith, client [CUSTOM_1]."
@@ -93,16 +98,20 @@ def test_manual_corrections_survive_rescan_and_download(client, route, retry, ki
     if kind == "pdf":
         with pymupdf.open() as pdf:
             pdf.new_page().insert_text((72, 72), text)
-            doc = client.post("/api/documents", files={
-                "file": ("synthetic-contract.pdf", pdf.tobytes(), "application/pdf")}).json()
+            doc = client.post(
+                "/api/documents", files={"file": ("synthetic-contract.pdf", pdf.tobytes(), "application/pdf")}
+            ).json()
     else:
         doc = client.post("/api/documents", data={"text": text}).json()
     path = f"/api/documents/{doc['doc_id']}"
     assert client.post(path + "/redact").status_code == 200
-    assert client.post(path + "/corrections", json={
-        "action": "hide", "text": "silver meadow", "type": "CUSTOM"}).status_code == 200
-    corrected = client.post(path + "/corrections", json={
-        "action": "unhide", "text": "Jo Smith"}).json()
+    assert (
+        client.post(
+            path + "/corrections", json={"action": "hide", "text": "silver meadow", "type": "CUSTOM"}
+        ).status_code
+        == 200
+    )
+    corrected = client.post(path + "/corrections", json={"action": "unhide", "text": "Jo Smith"}).json()
     assert "silver meadow" not in corrected["redacted_text"]
     assert "Jo Smith" in corrected["redacted_text"]
 
@@ -166,8 +175,17 @@ def test_samples_are_listed_and_open_as_documents(client, tenancy_pdf, tmp_path,
     (tmp_path / "01_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
     settings(samples_dir=tmp_path)
     names = client.get("/api/samples").json()
-    assert names == [{"name": "01_tenancy_agreement.pdf", "label": "Tenancy agreement", "title": "Tenancy agreement",
-                      "kind": "tenancy_agreement", "pages": 2, "values": None, "types": {}}]
+    assert names == [
+        {
+            "name": "01_tenancy_agreement.pdf",
+            "label": "Tenancy agreement",
+            "title": "Tenancy agreement",
+            "kind": "tenancy_agreement",
+            "pages": 2,
+            "values": None,
+            "types": {},
+        }
+    ]
     doc = client.post("/api/samples/01_tenancy_agreement.pdf").json()
     assert doc["kind"] == "pdf" and doc["filename"] == "01_tenancy_agreement.pdf"
     assert client.post("/api/samples/../../etc/passwd").status_code == 404
@@ -175,8 +193,11 @@ def test_samples_are_listed_and_open_as_documents(client, tenancy_pdf, tmp_path,
 
 def test_sample_cards_use_the_gold_file_for_title_and_value_counts(client, tenancy_pdf, tmp_path, settings):
     (tmp_path / "02_tenancy_agreement.pdf").write_bytes(tenancy_pdf)
-    gold = {"doc_type": "tenancy_agreement", "text": "Periodic Tenancy Agreement\nTenant: Raj Patel",
-            "entities": [{"type": "PERSON"}, {"type": "PERSON"}, {"type": "SORT_CODE"}]}
+    gold = {
+        "doc_type": "tenancy_agreement",
+        "text": "Periodic Tenancy Agreement\nTenant: Raj Patel",
+        "entities": [{"type": "PERSON"}, {"type": "PERSON"}, {"type": "SORT_CODE"}],
+    }
     (tmp_path / "02_tenancy_agreement.gold.json").write_text(json.dumps(gold))
     settings(samples_dir=tmp_path)
     card = client.get("/api/samples").json()[0]
@@ -208,8 +229,14 @@ def test_health_names_the_prompt_and_where_the_key_came_from(client, monkeypatch
     monkeypatch.setattr(app.state.models, "t1_model", "claude-haiku-4-5")
     monkeypatch.setattr(app.state.models, "t2_model", "claude-haiku-4-5")
     health = client.get("/api/health").json()
-    assert health == {"model": "on", "t1_model": "claude-haiku-4-5", "t1_prompt": "rewrite",
-                      "t2_model": "claude-haiku-4-5", "key_source": ".env", "database": "postgresql"}
+    assert health == {
+        "model": "on",
+        "t1_model": "claude-haiku-4-5",
+        "t1_prompt": "rewrite",
+        "t2_model": "claude-haiku-4-5",
+        "key_source": ".env",
+        "database": "postgresql",
+    }
     assert "mbt_" not in json.dumps(health)
 
 
@@ -223,7 +250,9 @@ def test_code_config_and_other_text_files_are_read_as_text(client, name):
 def test_real_binaries_are_still_refused(client, data):
     res = client.post("/api/documents", files={"file": ("archive.bin", data, "application/octet-stream")})
     assert res.status_code == 415
-    assert res.json()["detail"] == "This file type is not supported yet. Use PDF, an image, TXT or EML, or paste the text."
+    assert (
+        res.json()["detail"] == "This file type is not supported yet. Use PDF, an image, TXT or EML, or paste the text."
+    )
 
 
 def test_an_empty_text_file_is_refused(client):
@@ -235,7 +264,9 @@ ISO_UTC = r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$"
 
 
 def test_document_list_holds_only_the_callers_documents_newest_first(client, postgres_store, tenancy_pdf):
-    note = client.post("/api/documents", files={"file": ("synthetic-note.txt", b"Tenant: Jo Smith.", "text/plain")}).json()
+    note = client.post(
+        "/api/documents", files={"file": ("synthetic-note.txt", b"Tenant: Jo Smith.", "text/plain")}
+    ).json()
     pdf = client.post("/api/documents", files={"file": ("synthetic-lease.pdf", tenancy_pdf, "application/pdf")}).json()
     pasted = client.post("/api/documents", data={"text": "Tenant: Raj Patel, sort code 20-45-77."}).json()
     scanned = client.post(f"/api/documents/{pasted['doc_id']}/redact").json()
@@ -247,14 +278,30 @@ def test_document_list_holds_only_the_callers_documents_newest_first(client, pos
     listed = response.json()
     assert [d["doc_id"] for d in listed] == [pasted["doc_id"], pdf["doc_id"], note["doc_id"]]
     first = listed[0]
-    assert set(first) == {"doc_id", "filename", "kind", "pages", "status", "created_at", "updated_at",
-                          "has_result", "changes", "turns"}
+    assert set(first) == {
+        "doc_id",
+        "filename",
+        "kind",
+        "pages",
+        "status",
+        "created_at",
+        "updated_at",
+        "has_result",
+        "changes",
+        "turns",
+    }
     assert (first["filename"], first["kind"], first["pages"], first["status"]) == ("pasted.txt", "text", 0, "review")
     assert (first["has_result"], first["changes"], first["turns"]) == (True, len(scanned["entities"]), 2)
     assert first["changes"] == 2
     assert {k: listed[1][k] for k in ("filename", "kind", "pages", "status", "has_result", "changes", "turns")} == {
-        "filename": "synthetic-lease.pdf", "kind": "pdf", "pages": 2, "status": "new",
-        "has_result": False, "changes": None, "turns": 0}
+        "filename": "synthetic-lease.pdf",
+        "kind": "pdf",
+        "pages": 2,
+        "status": "new",
+        "has_result": False,
+        "changes": None,
+        "turns": 0,
+    }
     assert listed[2]["filename"] == "synthetic-note.txt"
     for doc in listed:
         assert re.match(ISO_UTC, doc["created_at"]) and re.match(ISO_UTC, doc["updated_at"])
@@ -318,10 +365,19 @@ def test_chat_turns_are_stored_in_order_and_failed_asks_store_nothing(client):
         assert answer["answer"] == "The tenant is Raj Patel."
     assert answers[0]["turn_id"] < answers[1]["turn_id"]
     turns = client.get(path).json()["turns"]
-    assert turns == [{"turn_id": a["turn_id"], "created_at": a["created_at"], "question": q, "sent_question": q,
-                      "answer": "The tenant is Raj Patel.", "answer_with_placeholders": "The tenant is [PERSON_1].",
-                      "unknown_placeholders": [], "mreq_id": "mreq_answer"}
-                     for a, q in zip(answers, ("Who is the tenant?", "And again?"))]
+    assert turns == [
+        {
+            "turn_id": a["turn_id"],
+            "created_at": a["created_at"],
+            "question": q,
+            "sent_question": q,
+            "answer": "The tenant is Raj Patel.",
+            "answer_with_placeholders": "The tenant is [PERSON_1].",
+            "unknown_placeholders": [],
+            "mreq_id": "mreq_answer",
+        }
+        for a, q in zip(answers, ("Who is the tenant?", "And again?"))
+    ]
 
     def broken(question, redacted_text):
         raise RuntimeError("gateway timeout")
@@ -347,8 +403,9 @@ def test_status_and_turns_survive_app_restart_and_go_with_the_document(client, p
         assert restarted.get("/api/documents").json()[0]["doc_id"] == doc["doc_id"]
         assert restarted.delete(path).status_code == 204
     with postgres_store.connect() as conn:
-        assert conn.execute("SELECT count(*) FROM veil_chat_turns WHERE doc_id = %s",
-                            (doc["doc_id"],)).fetchone()[0] == 0
+        assert (
+            conn.execute("SELECT count(*) FROM veil_chat_turns WHERE doc_id = %s", (doc["doc_id"],)).fetchone()[0] == 0
+        )
     assert client.get("/api/documents").json() == []
 
 
