@@ -107,7 +107,7 @@ def take_external(cands: dict[str, list[dict]], used: set[str]) -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", default="../data")
+    ap.add_argument("--data", default="../../data")
     ap.add_argument("--seed", type=int, default=7)
     a = ap.parse_args()
     data = Path(a.data)

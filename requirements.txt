@@ -1,4 +1,4 @@
-# Python 3.11+. Dataset pipeline (scripts/dataset, tests/dataset) and review redaction
+# Python 3.11+. Rewrite dataset pipeline (training/rewrite) and review redaction
 # (training/review_redaction). `make test-training` uses this file.
 anthropic==2.2.0
 pytest==9.1.1
@@ -9,6 +9,6 @@ pypdfium2==5.14.0
 pillow==13.0.0
 pillow-heif==1.8.1
 
-# Ingestion tests (tests/ingest) and the OCR evaluation (scripts/ocr).
+# The OCR evaluation (scripts/ocr).
 reportlab==5.1.0
 numpy==2.5.4

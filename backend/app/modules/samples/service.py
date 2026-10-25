@@ -1,4 +1,4 @@
-"""Synthetic sample documents to try the app with: the PDFs in VEIL_SAMPLES_DIR (data/synthetic/pdfs),
+"""Synthetic sample documents to try the app with: the PDFs in VEIL_SAMPLES_DIR (backend/samples),
 each optionally with a .gold.json beside it that names its title and its personal values."""
 
 import json

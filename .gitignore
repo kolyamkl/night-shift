@@ -26,13 +26,12 @@ frontend/e2e/.auth/
 
 # Datasets that stay local: raw downloads (may hold real people's data), external
 # datasets (their own licences), bulk synthetic output and evaluation rounds.
-# Regenerate them with the tools in training/ and evalkit/.
+# Regenerate them with the tools in training/.
 data/raw/
-/data/synthetic/*
-!/data/synthetic/pdfs/
+/data/synthetic/
 /data/external/
 /data/rounds/
-/evalkit/runs/
+/training/evalkit/runs/
 # Runtime locks for the committed training-call journals
 /data/results/**/.sender.lock
 

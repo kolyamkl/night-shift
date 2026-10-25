@@ -71,7 +71,7 @@ Output rules:
 
 
 # ---------------------------------------------------------------- T1, "evalkit" (list) design
-# The frozen evalkit prompt (evalkit/prompts.py, PROMPT_VERSION 1), copied byte for byte: Mubit groups
+# The frozen evalkit prompt (training/evalkit/prompts.py, PROMPT_VERSION 1), copied byte for byte: Mubit groups
 # calls into a task by system prompt + output format + model, so any edit starts a new task ("Find
 # personal data"). The answer is a JSON list of values. tests/llm/test_prompts.py pins both prompts.
 LIST_PROMPT_VERSION = 1

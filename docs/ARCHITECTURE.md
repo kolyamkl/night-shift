@@ -123,12 +123,12 @@ does not attest that a person reviewed every later version of the result.
 | Responsibility | Implementation |
 | --- | --- |
 | API, ownership and stream orchestration | [main.py](../backend/app/main.py) |
-| Chunking, merging, corrections and PDF boxes | [pipeline.py](../backend/app/pipeline.py) |
-| Mubit requests and rewrite alignment | [llm.py](../backend/app/llm.py), [prompts.py](../backend/app/prompts.py) |
-| Question protection | [question.py](../backend/app/question.py) |
-| PDF export | [pdfout.py](../backend/app/pdfout.py) |
-| Encryption, revisions and saved chat | [storage.py](../backend/app/storage.py) |
-| Account and session checks | [auth.py](../backend/app/auth.py) |
+| Chunking, merging, corrections and PDF boxes | [redaction/pipeline.py](../backend/app/redaction/pipeline.py) |
+| Mubit requests and rewrite alignment | [llm/t1.py](../backend/app/llm/t1.py), [prompts.py](../backend/app/llm/prompts.py) |
+| Question protection | [redaction/question.py](../backend/app/redaction/question.py) |
+| PDF export | [redaction/pdf.py](../backend/app/redaction/pdf.py) |
+| Encryption, revisions and saved chat | [documents/repository.py](../backend/app/modules/documents/repository.py) |
+| Account and session checks | [modules/auth/](../backend/app/modules/auth/) |
 | Browser state and streamed results | [App.tsx](../frontend/src/App.tsx), [scan.ts](../frontend/src/scan.ts) |
 
 See the [developer handoff](HANDOFF.md) for full API and OCR details.

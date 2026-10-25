@@ -31,17 +31,16 @@ Evaluation data stays separate from training traffic.
 |---|---|---|
 | `data/docs/<group>.jsonl` | Input documents with entity offsets (the key) | `training/sources/` (dataset-contracts, dataset-correspondence, dataset-finance sessions) |
 | `data/templates/`, `data/sources/` | Public templates with fill slots, and the fetch manifests (URL, licence, revision) | `training/sources/` |
-| `data/chunks/{train,fresh,eval}.jsonl` | Chunks with the expected redaction | `scripts/dataset/build_chunks.py` |
-| `data/results/<split>.jsonl` | Teacher answers from Mubit | `scripts/dataset/send_batch.py` |
-| `data/results/score-<split>.{json,md}` | Scores against the key | `scripts/dataset/score.py` |
+| `data/chunks/{train,fresh,eval}.jsonl` | Chunks with the expected redaction | `training/rewrite/build_chunks.py` |
+| `data/results/<split>.jsonl` | Teacher answers from Mubit | `training/rewrite/send_batch.py` |
+| `data/results/score-<split>.{json,md}` | Scores against the key | `training/rewrite/score.py` |
 | `data/fixtures/` | Tiny hand-made documents and fake teacher answers for the tests | `data/fixtures/make_fixtures.py` |
 | `data/review_redaction_v2*/` | Separate review-redaction task: inputs, labels, prompts per version (v2.4 is current) | `training/review_redaction/` |
 | `data/results/review-redaction-*/` | Frozen requests, Mubit replies and summaries of the review-redaction batches | `training/review_redaction/send_review_batch.py` |
-| `data/synthetic/pdfs/` | The app's sample PDFs with gold labels (read by the backend at runtime) | `training/datagen/` (`datagen.pdf`), `scripts/samples/make_tenancy.py` |
 | `data/raw/` | Raw downloads. Git-ignored: never commit files with real people's data | by hand |
-| `data/external/`, `data/rounds/`, rest of `data/synthetic/` | Converted open datasets, evaluation rounds, the 100k synthetic run. Git-ignored (size, licences) | `training/dataconv/`, `evalkit/`, `training/datagen/` |
+| `data/external/`, `data/rounds/`, `data/synthetic/` | Converted open datasets, evaluation rounds, the 100k synthetic run. Git-ignored (size, licences) | `training/dataconv/`, `training/evalkit/`, `training/datagen/` |
 
-The T1 system prompt, model and prompt version live in `backend/app/prompts.py`.
+The T1 system prompt, model and prompt version live in `backend/app/llm/prompts.py`.
 
 ## Documents schema (`data/docs/<group>.jsonl`)
 
@@ -114,12 +113,12 @@ One line per call, appended: `chunk_id`, `doc_id`, `split`, `request_id` (Mubit'
 ```bash
 pip install -r requirements.txt          # Python 3.11+
 
-python scripts/dataset/validate_docs.py  # schema and labelling checks; exit 1 on any error
-python scripts/dataset/build_chunks.py   # validates, then writes data/chunks/ and prints the summary
-python scripts/dataset/send_batch.py --split train             # DRY RUN: what would be sent, and the cost
-python scripts/dataset/send_batch.py --split train --send      # real calls (needs MUBIT_API_KEY=mbt_...)
-python scripts/dataset/score.py --split train                  # writes data/results/score-train.{json,md}
-python -m pytest tests/dataset                                 # tests on data/fixtures/
+python training/rewrite/validate_docs.py  # schema and labelling checks; exit 1 on any error
+python training/rewrite/build_chunks.py   # validates, then writes data/chunks/ and prints the summary
+python training/rewrite/send_batch.py --split train             # DRY RUN: what would be sent, and the cost
+python training/rewrite/send_batch.py --split train --send      # real calls (needs MUBIT_API_KEY=mbt_...)
+python training/rewrite/score.py --split train                  # writes data/results/score-train.{json,md}
+python -m pytest training/rewrite/tests            # tests on data/fixtures/
 ```
 
 Useful flags: `build_chunks.py --max-tokens N`; `send_batch.py --limit N
@@ -136,25 +135,25 @@ training status.
 
 1. Merge the four dataset PRs (core, contracts, correspondence, finance). They touch disjoint files.
 2. `pip install -r requirements.txt`
-3. `python scripts/dataset/validate_docs.py`. Fix every error in the generating
+3. `python training/rewrite/validate_docs.py`. Fix every error in the generating
    session's code (not by hand in the JSONL). Skim the warnings: each is a possible
    unlabelled phone number, IBAN, postcode and so on.
-4. `python scripts/dataset/build_chunks.py`. Check the summary against the
+4. `python training/rewrite/build_chunks.py`. Check the summary against the
    targets: about 225 documents; train 300 to 500 chunks, fresh about 200, eval about 150.
-5. Nick reviews `backend/app/prompts.py`. After the next step it is frozen: any
+5. Nick reviews `backend/app/llm/prompts.py`. After the next step it is frozen: any
    change to the prompt, model or request shape makes a new Mubit task.
 6. Copy `.env.example` to `.env` (git-ignored) and put the Mubit Inference key in
    `MUBIT_API_KEY`; the sender reads it when the variable is not set in the shell.
    Dry run, then a 10-call test:
-   `python scripts/dataset/send_batch.py --split train` (check the cost), then
-   `python scripts/dataset/send_batch.py --split train --limit 10 --send`.
+   `python training/rewrite/send_batch.py --split train` (check the cost), then
+   `python training/rewrite/send_batch.py --split train --limit 10 --send`.
    In the Mubit console confirm: exactly one new task, with a sensible name taken
    from "Redact personal data in one document chunk"; 10 requests; sessions named
    `doc-<doc_id>`. In `data/results/train.jsonl` every row has an `mreq_` id and
    no error. A `400 starter_credit_model` error lists the models the starter credit allows.
-7. The train split: `python scripts/dataset/send_batch.py --split train --send`.
+7. The train split: `python training/rewrite/send_batch.py --split train --send`.
    It resumes and skips the 10 chunks already sent.
-8. `python scripts/dataset/score.py --split train` and read `data/results/score-train.md`,
+8. `python training/rewrite/score.py --split train` and read `data/results/score-train.md`,
    in particular the over-redactions that look like personal data (possibly a real
    value the fill step missed) and the outputs that changed text outside placeholders.
 

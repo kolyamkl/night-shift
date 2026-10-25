@@ -52,7 +52,7 @@ const SLOW = Number(process.env.MOCK_SLOW ?? 1);
 const NO_LIST = process.env.MOCK_NO_LIST === "1";
 const LEAVE_STOPS = process.env.MOCK_LEAVE === "stop";
 const DELAYS = [1600, 600, 2400, 3000, 1100, 1900, 800]; // ms per part, so parts finish out of order
-const SAMPLES = join(dirname(fileURLToPath(import.meta.url)), "../../data/synthetic/pdfs");
+const SAMPLES = join(dirname(fileURLToPath(import.meta.url)), "../../backend/samples");
 const REGEX_TYPES = new Set(["POSTCODE", "EMAIL", "PHONE", "BANK_ACCOUNT", "SORT_CODE", "IBAN", "CARD", "NI_NUMBER"]);
 
 const docs = new Map(); // doc_id -> { text, sample, owner (a promise of the user id), status, created_at, updated_at, turns }

@@ -3,9 +3,9 @@ unless you pass --live and MUBIT_API_KEY is set.
 
 Two designs can be sent, so the team can compare them on the same chunks:
   --design list     our T1: "Find personal data in one document chunk." -> JSON list of values
-                    (evalkit/src/evalkit/prompts.py)
+                    (training/evalkit/src/evalkit/prompts.py)
   --design rewrite  the teammates' T1: "Redact personal data in one document chunk." -> the chunk
-                    rewritten with [TYPE_N] placeholders (backend/app/prompts.py, loaded live)
+                    rewritten with [TYPE_N] placeholders (backend/app/llm/prompts.py, loaded live)
 Provider comes from the model name: gpt-* via OpenAI, claude-* via Anthropic, gemini-* via Gemini's
 native route (the only Gemini route on the starter credit).
 
@@ -14,8 +14,8 @@ request id, tokens and latency. Only records safe for Mubit are sent: synthetic 
 or records with meta.mubit_ok == true. Local-only data (real people) is never sent.
 
 Examples
-  uv run python -m evalkit.send_batch --chunks ../data/rounds/r1_core.jsonl --out runs/r1.jsonl
-  uv run python -m evalkit.send_batch --chunks ../data/rounds/bakeoff.jsonl --out runs/b_haiku_list.jsonl \
+  uv run python -m evalkit.send_batch --chunks ../../data/rounds/r1_core.jsonl --out runs/r1.jsonl
+  uv run python -m evalkit.send_batch --chunks ../../data/rounds/bakeoff.jsonl --out runs/b_haiku_list.jsonl \
       --model claude-haiku-4-5 --record off --live
 """
 
@@ -37,12 +37,12 @@ from .rewrite import spans_from_rewrite
 
 # Published prices per 1M tokens (input, output), from work/mubit-training-guide.md section 3.6.
 PRICES = {"gpt-6-luna": (0.10, 0.50), "claude-haiku-4-5": (1.0, 5.0), "gemini-3.8-flash": (0.75, 3.75)}
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[4]
 
 
 def rewrite_prompt() -> tuple[str, int]:
-    """The teammates' prompt, read from backend/app/prompts.py so edits there are picked up."""
-    path = REPO / "backend" / "app" / "prompts.py"
+    """The teammates' prompt, read from backend/app/llm/prompts.py so edits there are picked up."""
+    path = REPO / "backend" / "app" / "llm" / "prompts.py"
     spec = importlib.util.spec_from_file_location("team_prompts", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

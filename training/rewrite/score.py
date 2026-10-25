@@ -28,7 +28,7 @@ Metrics, per type and overall:
 - documents with zero leaks; outputs that changed text outside placeholders.
 
 Usage:
-    python scripts/dataset/score.py --split train [--chunks-dir data/chunks] [--results-dir data/results]
+    python training/rewrite/score.py --split train [--chunks-dir data/chunks] [--results-dir data/results]
 Writes <out-dir>/score-<split>.json and score-<split>.md (default out-dir: the results dir).
 """
 

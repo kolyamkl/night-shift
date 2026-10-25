@@ -2,11 +2,11 @@
 lettings agency contract. Every name, address, number, IP address and reference is invented; IP
 addresses come from the documentation ranges (RFC 5737, RFC 3849). The clause text is original.
 
-Writes the app sample data/synthetic/pdfs/31_assured_periodic_tenancy.pdf and its answer key
+Writes the app sample backend/samples/31_assured_periodic_tenancy.pdf and its answer key
 (.gold.json, in the format of the other samples: the text as the app extracts it, every occurrence of
-every personal value with its offsets and type). Run from backend/ so the app and evalkit import:
+every personal value with its offsets and type). Run from backend/ so the app imports:
 
-    cd backend && uv run python ../scripts/samples/make_tenancy.py ../data/synthetic/pdfs
+    cd backend && uv run python ../scripts/samples/make_tenancy.py samples
 """
 
 import html
@@ -17,8 +17,8 @@ from pathlib import Path
 import pymupdf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
-from app.extract import extract_pdf  # noqa: E402
-from evalkit.spans import locate  # noqa: E402
+from app.redaction.document import extract_pdf  # noqa: E402
+from app.redaction.spans import locate  # noqa: E402
 
 OUT = Path(sys.argv[1])
 NAME = "31_assured_periodic_tenancy"

@@ -55,7 +55,7 @@ person in them is invented, the templates are public with their licences recorde
 from `data/docs`. Keep out of git, as the repo already did: `data/raw/` (may hold real
 people), `data/external/` (third-party licences, rebuilt by `training/dataconv` from
 pinned revisions), the bulk of `data/synthetic/` (the local `data/` folder is about
-1.5 GB), `data/rounds/` and `evalkit/runs/`.
+1.5 GB), `data/rounds/` and `training/evalkit/runs/`.
 
 ## Audit of the top level
 
@@ -166,37 +166,27 @@ maps them.
 
 ## Follow-ups
 
-Do these after the backend PR lands, in one PR with the backend owner.
+The first four follow-ups were done on 25 October, after the backend PR landed:
 
-1. **`evalkit/`**. The backend imports `evalkit.spans`, `evalkit.redact`,
-   `evalkit.regex_baseline`, `evalkit.providers`, `evalkit.prompts`, `evalkit.rewrite`
-   and `evalkit.send_batch.parse_entities`; `backend/pyproject.toml` has a path
-   dependency on `../evalkit` and `backend/Dockerfile` copies it. Proposed final place:
-   split it. The runtime helpers (spans, vault and restore, regex baseline, UK formats,
-   rewrite alignment) move into the backend, for example `backend/app/redaction/`. The
-   evaluation tools (scorer, bake-off, round builder, mistakes report, batch sender,
-   `autosend.sh`, `runs/`) move to `training/evalkit/`. Then update the Dockerfile,
-   `.dockerignore`, `.railwayignore` and the `/evalkit/runs/` rule in `.gitignore`.
-   Moving the whole package to `training/evalkit/` is simpler but would make the app
-   depend on training code.
-2. **`data/synthetic/pdfs/`**. `backend/app/main.py` reads it as the default sample
-   folder (`_samples_dir`, overridable with `VEIL_SAMPLES_DIR`) and `backend/Dockerfile`
-   copies it; `.dockerignore` and `.railwayignore` carve it out of `data/`. Proposed
-   final place: `backend/samples/`, because the app ships these files. Together with
-   item 1 the Docker build context can then shrink to `backend/`. Point
-   `datagen.pdf --out` and `scripts/samples/make_tenancy.py` there and drop the
-   `!/data/synthetic/pdfs/` exception from `.gitignore`.
-3. **`scripts/dataset/` and `tests/dataset/`** to `training/rewrite/` and
-   `training/rewrite/tests/`. Blocked by `backend/tests/test_llm.py:143`, which loads
-   `scripts/dataset/send_batch.py` by path. Also update `data/README.md`,
-   `docs/MUBIT.md`, `.env.example` and the training diagram in the README.
-4. **`tests/ingest/`** to `backend/tests/ingest/`: it tests `backend/app/ingest` and
-   already runs from `backend/`. With item 3 the root `tests/` folder goes away.
-5. **Python lint.** `make lint` checks only syntax errors and undefined names. A shared
+| Old path | New path | Notes |
+| --- | --- | --- |
+| `evalkit/` | `training/evalkit/` | The backend PR copied the runtime helpers into `backend/app/redaction/` and `backend/app/llm/`, so the backend imports nothing from it and the package moved whole. `send_batch --design rewrite` reads `backend/app/llm/prompts.py` |
+| `data/synthetic/pdfs/` | `backend/samples/` | The app ships these files. `VEIL_SAMPLES_DIR` defaults there, the Dockerfile copies it, and Docker builds now leave out `data/` and `training/` whole |
+| `scripts/dataset/`, `tests/dataset/` | `training/rewrite/`, `training/rewrite/tests/` | `backend/tests/llm/test_t1.py` loads `training/rewrite/send_batch.py` by path |
+| `tests/ingest/` | `backend/tests/ingest/` | Runs with the backend tests; `reportlab` joined the backend's dev dependencies. The root `tests/` folder is gone |
+
+The deprecated import adapters in `backend/app` (`prompts.py`, `extract.py`, `addresses.py`,
+`pipeline.py` and the `rewrite_values` re-export) were removed once their callers moved.
+The Docker build context stays the repository root, because Railway builds both services
+from it with `RAILWAY_DOCKERFILE_PATH`.
+
+Still open:
+
+1. **Python lint.** `make lint` checks only syntax errors and undefined names. A shared
    ruff rule set needs agreement first: ruff's defaults report about 240 style findings
    outside `backend/`.
-6. **CI for Python.** Add backend tests with a PostgreSQL service and the training suites
+2. **CI for Python.** Add backend tests with a PostgreSQL service and the training suites
    (`make test-training`) next to the frontend workflow.
-7. **Optional.** `frontend/docs/` holds 2.7 MB of PR screenshots that could live under
+3. **Optional.** `frontend/docs/` holds 2.7 MB of PR screenshots that could live under
    `docs/`; the four `data/review_redaction_v2*` folders could become one
    `data/review_redaction/` with a subfolder per version.

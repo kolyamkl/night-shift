@@ -20,7 +20,7 @@ live model routing and training status must be checked in Mubit.
 ## Component guides
 
 - [Ingestion and OCR](../backend/app/ingest/README.md), [OCR evaluation](../scripts/ocr/README.md).
-- [Training tooling overview](../training/README.md): [synthetic document generator](../training/datagen/README.md), [external dataset converters](../training/dataconv/README.md), [review-redaction datasets](../data/review_redaction_v2_4/README.md), [evaluation toolkit](../evalkit/README.md).
+- [Training tooling overview](../training/README.md): [synthetic document generator](../training/datagen/README.md), [external dataset converters](../training/dataconv/README.md), [review-redaction datasets](../data/review_redaction_v2_4/README.md), [evaluation toolkit](../training/evalkit/README.md).
 - Source builders: [contracts](../training/sources/contracts/README.md), [financial and insurance](../training/sources/financial_insurance/README.md), [correspondence templates](../data/templates/correspondence/README.md).
 
 ## Research and earlier plans

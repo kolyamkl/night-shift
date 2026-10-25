@@ -14,9 +14,10 @@ import json
 import sys
 from collections import Counter
 
-from evalkit.spans import locate
-
-from app import addresses, llm, pipeline
+from app.llm.rewrite import rewrite_values
+from app.redaction.addresses import expand
+from app.redaction.detectors import detect
+from app.redaction.spans import locate, merge
 
 R = sys.argv[1]
 chunks = {json.loads(l)["chunk_id"]: json.loads(l) for l in open(f"{R}/chunks-400/fresh.jsonl")}
@@ -24,9 +25,9 @@ outs = [json.loads(l) for l in open(f"{R}/results-400/fresh.jsonl")]
 
 
 def spans(text, output, mode):
-    model = locate(text, llm.rewrite_values(text, output) or []) if mode != "rules" else []
-    rules = pipeline._regex(text) if mode != "model" else []
-    return addresses.expand(text, pipeline._merge(rules + model, text))
+    model = locate(text, rewrite_values(text, output) or []) if mode != "rules" else []
+    rules = detect(text) if mode != "model" else []
+    return expand(text, merge(rules + model, text))
 
 
 stat = Counter()

@@ -1,7 +1,7 @@
 """Render demo PDFs (A4) with gold labels next to them, then extract the text back and re-align
 the gold spans to the extracted text to measure how well labels survive PDF round-tripping.
 
-    uv run python -m datagen.pdf --out ../../data/synthetic/pdfs --n 30 --seed 42
+    uv run python -m datagen.pdf --out ../../backend/samples --n 30 --seed 42
 """
 from __future__ import annotations
 
@@ -194,7 +194,7 @@ def build_pdfs(out: Path, n: int = 30, seed: int = 42) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--out", type=Path, default=Path("../../data/synthetic/pdfs"))
+    ap.add_argument("--out", type=Path, default=Path("../../backend/samples"))
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=42)
     a = ap.parse_args(argv)

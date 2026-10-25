@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageDraw, ImageFont
 
-
 FONTS = Path("/System/Library/Fonts/Supplemental")
 PAGE_W, PAGE_H = 1654, 2339  # A4 at 200 dpi
 

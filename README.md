@@ -315,7 +315,7 @@ real examples of the one job MuGuard needs done:
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace", "primaryColor": "#f8f7f3", "primaryTextColor": "#0d0d0d", "primaryBorderColor": "#0d0d0d", "lineColor": "#8b8a85", "edgeLabelBackground": "#ecebe5"}}}%%
 flowchart LR
     A["T1 calls from the app"] --> R["Recorded in the Mubit task"]
-    D["Synthetic labelled dataset: scripts/dataset/send_batch.py --send"] --> R
+    D["Synthetic labelled dataset: training/rewrite/send_batch.py --send"] --> R
     R --> V["Review in console: keep or reject"]
     V --> T["Train a task adapter on kept examples"]
     T --> E["Evaluate against held-out sessions"]
@@ -353,16 +353,17 @@ privacy claims about a deployment.
 
 ```text
 backend/              FastAPI API: ingest, detection pipeline, vault, Q&A, true PDF redaction
+├── samples/          the synthetic sample PDFs the app offers, with their answer keys
 frontend/             React + Vite app (/app) and landing page (/), unit and Playwright tests
-evalkit/              Redaction helpers the backend imports, plus scoring and the Mubit sender
 training/             Tooling that builds, sends and scores data for the T1 model
 ├── sources/          public templates filled with invented values (rewrite approach)
+├── rewrite/          validate, chunk, send and score the rewrite dataset
 ├── datagen/          synthetic UK documents with gold spans
 ├── dataconv/         converters for open PII datasets
+├── evalkit/          list-output prompt, scorer, regex baseline and Mubit sender
 └── review_redaction/ the separate review-redaction task, v2.1 to v2.4
-data/                 Datasets, answer keys, recorded Mubit results, the app's sample PDFs
-scripts/              T1 dataset pipeline, local database, OCR evaluation, README numbers
-tests/                Dataset pipeline and document ingestion tests
+data/                 Datasets, answer keys and recorded Mubit results
+scripts/              Local database, OCR evaluation, sample builder, README numbers
 demo/                 Records, voices and edits the submission video
 docs/                 Architecture, Mubit, data protection, deployment, research
 DESIGN.md, PRODUCT.md Design system and product context, read by the design tooling
@@ -414,8 +415,7 @@ Run each command from the repository root:
 
 ```sh
 (cd backend && uv run --env-file ../.env pytest -q)
-(cd backend && uv run --with reportlab python -m pytest -q ../tests/ingest)
-(cd evalkit && uv run pytest -q)
+(cd training/evalkit && uv run pytest -q)
 npm --prefix frontend test
 npm --prefix frontend run build
 ```

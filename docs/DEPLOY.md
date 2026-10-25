@@ -55,7 +55,7 @@ railway up --service web --environment production --ci
 ```
 
 `.railwayignore` and `.dockerignore` keep `.env*`, `.local/`, `node_modules`, datasets
-and results out of the upload. Only `data/synthetic/pdfs` (the samples) ships.
+and results out of the upload. Only `backend/samples` (the samples) ships.
 Deploy only services whose code changed. A backend correction does not require
 a frontend redeploy. The command uploads the checkout, so review `git status`
 and the ignore rules first.

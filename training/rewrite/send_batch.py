@@ -24,8 +24,8 @@ header, up to --max-attempts. Other errors are recorded and not retried, since
 Mubit may already have recorded the call.
 
 Usage:
-    python scripts/dataset/send_batch.py --split train --limit 10            # dry run
-    python scripts/dataset/send_batch.py --split train --limit 10 --send     # real calls
+    python training/rewrite/send_batch.py --split train --limit 10            # dry run
+    python training/rewrite/send_batch.py --split train --limit 10 --send     # real calls
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from pathlib import Path
 from dataset_common import CHUNKS_DIR, REPO_ROOT, RESULTS_DIR, SPLITS, estimate_tokens, read_jsonl
 
 sys.path.insert(0, str(REPO_ROOT / "backend"))
-from app import prompts  # noqa: E402
+from app.llm import prompts  # noqa: E402
 
 MUBIT_BASE_URL = "https://api.mubit.ai/anthropic"
 MAX_TOKENS = 2048

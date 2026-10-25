@@ -28,7 +28,7 @@ and Mubit wastes near-duplicate calls. --keep-empty-variants restores the older
 rule, which keeps an empty chunk from a later fill when its text is new.
 
 Usage:
-    python scripts/dataset/build_chunks.py [--docs-dir data/docs] [--out-dir data/chunks] [--max-tokens 1000] [--keep-empty-variants]
+    python training/rewrite/build_chunks.py [--docs-dir data/docs] [--out-dir data/chunks] [--max-tokens 1000] [--keep-empty-variants]
 """
 
 from __future__ import annotations
