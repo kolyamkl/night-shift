@@ -1,4 +1,4 @@
-# Veil backend for Railway. Build context is the repo root (needs evalkit/ and the sample PDFs):
+# MuGuard backend for Railway. Build context is the repo root (for the sample PDFs):
 #   docker build -f backend/Dockerfile .
 FROM python:3.13-slim
 
@@ -6,7 +6,6 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/app/.venv PYTHONUNBUFFERED=1
 
 WORKDIR /app/backend
-COPY evalkit /app/evalkit
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
