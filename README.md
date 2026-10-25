@@ -241,6 +241,30 @@ MuGuard runs on that design: the rewrite prompt is the app's default detector. T
 tests are small and the three set-ups differ in data, answer format and teacher,
 so read the comparison as a signal.
 
+### In the Mubit console
+
+The adapter's evaluation in Mubit: 91.7% on its 12 held-out test cases, against
+66.7% for the base model with the same prompt.
+
+<p align="center">
+  <img src="docs/readme/mubit-evaluation.jpg" width="560" alt="Mubit console, adapter Redact personal data, Evaluations tab: version v1, quality 91.7%, 12 test cases, compared with recorded provider answers.">
+</p>
+<p align="center">
+  <img src="docs/readme/mubit-test-results.jpg" width="520" alt="Mubit console: Passed. Test results: your adapter 91.7%, base model plus prompt 66.7%, on 12 test cases. Live needs 20 judged test cases; this version has 12.">
+</p>
+
+The last line is why the adapter does not serve the app yet: Mubit sets live at
+20 judged test cases, and v1 was examined on 12.
+
+The trained adapter answering, in Mubit's Try models page on a synthetic tenancy
+excerpt: the 4B adapter (below) returns the same redaction as Gemini 3.8 Flash
+(above), all ten values hidden, the second mention "Ms Ward" given the landlord's
+placeholder, the rent and dates left in place.
+
+<p align="center">
+  <img src="docs/readme/mubit-try-models.jpg" width="560" alt="Mubit Try models, side by side on a synthetic tenancy excerpt: gemini-3.8-flash and Redact personal data v1 both return the text with PERSON_1, ADDRESS_1, POSTCODE_1, PERSON_2, DOB_1, EMAIL_1, PHONE_1, SORT_CODE_1, BANK_ACCOUNT_1 and CUSTOM_1, in about two seconds each.">
+</p>
+
 ### How Mubit works in MuGuard
 
 Mubit sits between MuGuard and the model providers. MuGuard uses the normal Anthropic
